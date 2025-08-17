@@ -3114,6 +3114,284 @@ function closeSolutionModal() {
     }
 }
 
+function openArgumentModal(hypothesisId: string) {
+    const hypothesis = activeMathPipeline?.hypotheses.find(h => h.id === hypothesisId);
+    if (!hypothesis) return;
+
+    const modalOverlay = document.createElement('div');
+    modalOverlay.id = 'argument-modal-overlay';
+    modalOverlay.className = 'modal-overlay';
+    modalOverlay.style.display = 'flex';
+
+    const modalContent = document.createElement('div');
+    modalContent.className = 'modal-content';
+    modalContent.setAttribute('role', 'dialog');
+    modalContent.setAttribute('aria-modal', 'true');
+    modalContent.setAttribute('aria-labelledby', 'argument-modal-title');
+
+    const modalHeader = document.createElement('header');
+    modalHeader.className = 'modal-header';
+
+    const modalTitle = document.createElement('h2');
+    modalTitle.id = 'argument-modal-title';
+    modalTitle.className = 'modal-title';
+    modalTitle.textContent = 'Hypothesis Argument Analysis';
+    modalHeader.appendChild(modalTitle);
+
+    const closeModalButton = document.createElement('button');
+    closeModalButton.className = 'modal-close-button';
+    closeModalButton.setAttribute('aria-label', 'Close Argument Modal');
+    closeModalButton.innerHTML = '<span class="material-symbols-outlined">close</span>';
+    closeModalButton.addEventListener('click', closeArgumentModal);
+    modalHeader.appendChild(closeModalButton);
+
+    modalContent.appendChild(modalHeader);
+
+    const modalBody = document.createElement('div');
+    modalBody.className = 'modal-body';
+
+    const argumentModalLayout = document.createElement('div');
+    argumentModalLayout.className = 'solution-modal-layout';
+
+    // Navigation panel (left side) - no diff analysis for arguments
+    const argumentNav = document.createElement('nav');
+    argumentNav.className = 'solution-nav custom-scrollbar';
+    
+    const navTitle = document.createElement('div');
+    navTitle.className = 'solution-nav-title';
+    navTitle.textContent = 'Argument Components';
+    argumentNav.appendChild(navTitle);
+
+    const navItems = [
+        { id: 'side-by-side-args', text: 'Side by Side View', icon: 'view_column' }
+    ];
+
+    navItems.forEach((item, index) => {
+        const navItem = document.createElement('div');
+        navItem.className = 'solution-nav-item';
+        if (index === 0) navItem.classList.add('active');
+        navItem.dataset.target = item.id;
+        
+        const icon = document.createElement('span');
+        icon.className = 'material-symbols-outlined';
+        icon.textContent = item.icon;
+        navItem.appendChild(icon);
+        
+        const text = document.createElement('span');
+        text.textContent = item.text;
+        navItem.appendChild(text);
+        
+        navItem.addEventListener('click', () => activateArgumentTab(item.id));
+        argumentNav.appendChild(navItem);
+    });
+
+    argumentModalLayout.appendChild(argumentNav);
+
+    // Content panel (right side)
+    const argumentContent = document.createElement('div');
+    argumentContent.className = 'solution-content custom-scrollbar';
+
+    // Side by Side Panel (Default View)
+    const sideBySidePanel = document.createElement('div');
+    sideBySidePanel.className = 'solution-content-pane active';
+    sideBySidePanel.id = 'side-by-side-args';
+    
+    const sideBySideTitle = document.createElement('h3');
+    sideBySideTitle.className = 'solution-pane-title';
+    sideBySideTitle.innerHTML = '<span class="material-symbols-outlined">view_column</span>Hypothesis Proving vs Testing';
+    sideBySidePanel.appendChild(sideBySideTitle);
+    
+    const argumentComparison = document.createElement('div');
+    argumentComparison.className = 'solution-comparison-grid';
+    
+    const leftPanel = document.createElement('div');
+    leftPanel.className = 'comparison-panel';
+    const leftHeader = document.createElement('h4');
+    leftHeader.className = 'comparison-panel-title';
+    leftHeader.innerHTML = '<span class="material-symbols-outlined">check_circle</span>Hypothesis Proving Agent';
+    leftPanel.appendChild(leftHeader);
+    const leftContent = document.createElement('div');
+    leftContent.className = 'comparison-content custom-scrollbar';
+    leftContent.innerHTML = renderMarkdown(hypothesis.proverAttempt || 'Prover attempt not available');
+    leftPanel.appendChild(leftContent);
+    
+    const rightPanel = document.createElement('div');
+    rightPanel.className = 'comparison-panel';
+    const rightHeader = document.createElement('h4');
+    rightHeader.className = 'comparison-panel-title';
+    rightHeader.innerHTML = '<span class="material-symbols-outlined">science</span>Hypothesis Tester Agent';
+    rightPanel.appendChild(rightHeader);
+    const rightContent = document.createElement('div');
+    rightContent.className = 'comparison-content custom-scrollbar';
+    rightContent.innerHTML = renderMarkdown(hypothesis.disproverAttempt || 'Hypothesis tester attempt not available');
+    rightPanel.appendChild(rightContent);
+    
+    argumentComparison.appendChild(leftPanel);
+    argumentComparison.appendChild(rightPanel);
+    sideBySidePanel.appendChild(argumentComparison);
+
+    // Knowledge Packet Section
+    const knowledgePacketSection = document.createElement('div');
+    knowledgePacketSection.className = 'knowledge-packet-section';
+    
+    const knowledgePacketTitle = document.createElement('h4');
+    knowledgePacketTitle.className = 'knowledge-packet-title';
+    knowledgePacketTitle.innerHTML = '<span class="material-symbols-outlined">psychology</span>Synthesized Knowledge Packet';
+    knowledgePacketSection.appendChild(knowledgePacketTitle);
+    
+    const knowledgePacketContent = document.createElement('div');
+    knowledgePacketContent.className = 'knowledge-packet-content';
+    
+    // Get the status-based styling
+    let statusClass = 'knowledge-status-pending';
+    let statusIcon = 'help';
+    let statusText = 'Pending Analysis';
+    
+    switch (hypothesis.finalStatus) {
+        case 'proven':
+            statusClass = 'knowledge-status-proven';
+            statusIcon = 'verified';
+            statusText = 'Hypothesis Proven';
+            break;
+        case 'refuted':
+            statusClass = 'knowledge-status-refuted';
+            statusIcon = 'dangerous';
+            statusText = 'Hypothesis Refuted';
+            break;
+        case 'unresolved':
+            statusClass = 'knowledge-status-unresolved';
+            statusIcon = 'help';
+            statusText = 'Unresolved';
+            break;
+        case 'contradiction':
+            statusClass = 'knowledge-status-contradiction';
+            statusIcon = 'warning';
+            statusText = 'Contradiction Detected';
+            break;
+    }
+    
+    knowledgePacketContent.innerHTML = `
+        <div class="knowledge-packet-card ${statusClass}">
+            <div class="knowledge-packet-header">
+                <span class="material-symbols-outlined">${statusIcon}</span>
+                <span class="knowledge-packet-status">${statusText}</span>
+            </div>
+            <div class="knowledge-packet-hypothesis">
+                <strong>Hypothesis:</strong> ${escapeHtml(hypothesis.hypothesisText)}
+            </div>
+            <div class="knowledge-packet-guidance">
+                ${getHypothesisGuidance(hypothesis.finalStatus)}
+            </div>
+        </div>
+    `;
+    
+    knowledgePacketSection.appendChild(knowledgePacketContent);
+    sideBySidePanel.appendChild(knowledgePacketSection);
+
+    argumentContent.appendChild(sideBySidePanel);
+    argumentModalLayout.appendChild(argumentContent);
+    modalBody.appendChild(argumentModalLayout);
+    modalContent.appendChild(modalBody);
+    modalOverlay.appendChild(modalContent);
+    document.body.appendChild(modalOverlay);
+
+    // Trigger the modal animation
+    setTimeout(() => {
+        modalOverlay.classList.add('is-visible');
+    }, 10);
+}
+
+function activateArgumentTab(targetId: string) {
+    // Update navigation
+    const navItems = document.querySelectorAll('.solution-nav-item');
+    navItems.forEach(item => {
+        item.classList.toggle('active', item.dataset.target === targetId);
+    });
+
+    // Update content panels
+    const contentPanes = document.querySelectorAll('.solution-content-pane');
+    contentPanes.forEach(pane => {
+        pane.classList.toggle('active', pane.id === targetId);
+    });
+}
+
+function closeArgumentModal() {
+    const modalOverlay = document.getElementById('argument-modal-overlay');
+    if (modalOverlay) {
+        modalOverlay.remove();
+    }
+}
+
+function getHypothesisGuidance(finalStatus: string): string {
+    switch (finalStatus) {
+        case 'proven':
+            return '<div class="guidance-text guidance-proven"><strong>Guidance:</strong> You may use this as an established fact without proof.</div>';
+        case 'refuted':
+            return '<div class="guidance-text guidance-refuted"><strong>Guidance:</strong> A counterexample was found. Do NOT assume this statement is true. Avoid reasoning paths that require it.</div>';
+        case 'unresolved':
+            return '<div class="guidance-text guidance-unresolved"><strong>Guidance:</strong> This remains an open question. If your solution relies on this, you must explicitly state it as a conditional assumption.</div>';
+        case 'contradiction':
+            return '<div class="guidance-text guidance-contradiction"><strong>Guidance:</strong> Both proof and counterexample attempts were made, indicating potential logical inconsistency. Treat with extreme caution.</div>';
+        default:
+            return '<div class="guidance-text guidance-pending"><strong>Guidance:</strong> Status unclear. Proceed with caution.</div>';
+    }
+}
+
+function parseKnowledgePacketForStyling(knowledgePacket: string, hypotheses: MathHypothesisData[]): string {
+    if (!hypotheses || hypotheses.length === 0) {
+        return '<div class="knowledge-packet-empty">No hypothesis exploration results available.</div>';
+    }
+
+    let styledPacketHtml = '';
+    
+    hypotheses.forEach((hypothesis, index) => {
+        // Get the status-based styling
+        let statusClass = 'knowledge-status-pending';
+        let statusIcon = 'help';
+        let statusText = 'Pending Analysis';
+        
+        switch (hypothesis.finalStatus) {
+            case 'proven':
+                statusClass = 'knowledge-status-proven';
+                statusIcon = 'verified';
+                statusText = 'Hypothesis Proven';
+                break;
+            case 'refuted':
+                statusClass = 'knowledge-status-refuted';
+                statusIcon = 'dangerous';
+                statusText = 'Hypothesis Refuted';
+                break;
+            case 'unresolved':
+                statusClass = 'knowledge-status-unresolved';
+                statusIcon = 'help';
+                statusText = 'Unresolved';
+                break;
+            case 'contradiction':
+                statusClass = 'knowledge-status-contradiction';
+                statusIcon = 'warning';
+                statusText = 'Contradiction Detected';
+                break;
+        }
+        
+        styledPacketHtml += `
+            <div class="knowledge-packet-card ${statusClass}">
+                <div class="knowledge-packet-header">
+                    <span class="material-symbols-outlined">${statusIcon}</span>
+                    <span class="knowledge-packet-status">${statusText}</span>
+                </div>
+                <div class="knowledge-packet-hypothesis">
+                    <strong>Hypothesis ${index + 1}:</strong> ${escapeHtml(hypothesis.hypothesisText)}
+                </div>
+                <div class="knowledge-packet-guidance">
+                    ${getHypothesisGuidance(hypothesis.finalStatus)}
+                </div>
+            </div>
+        `;
+    });
+    
+    return styledPacketHtml;
+}
+
 function activateStrategyTab(strategyIndex: number) {
     if (!activeMathPipeline) return;
     activeMathPipeline.activeStrategyTab = strategyIndex;
@@ -3367,16 +3645,22 @@ function renderActiveMathPipeline() {
                         <span class="status-badge ${hypothesis.disproverStatus === 'completed' ? 'status-completed' : hypothesis.disproverStatus === 'processing' ? 'status-processing' : hypothesis.disproverStatus === 'error' ? 'status-error' : 'status-pending'}">${hypothesis.disproverStatus}</span>
                     </div>
                 </div>
+                <button class="button view-argument-button" data-hypothesis-id="${hypothesis.id}">View The Argument</button>
             </div>`;
         });
         hypothesisExplorerHtml += `</div>`;
     }
     if (mathProcess.knowledgePacket) {
+        // Parse the knowledge packet to create styled individual hypothesis cards
+        const hypothesesFromPacket = parseKnowledgePacketForStyling(mathProcess.knowledgePacket, mathProcess.hypotheses);
+        
         hypothesisExplorerHtml += `
-            <details class="model-detail-section collapsible-section">
-                <summary class="model-section-title">Synthesized Knowledge Packet</summary>
-                <div class="scrollable-content-area custom-scrollbar"><pre>${escapeHtml(mathProcess.knowledgePacket)}</pre></div>
-            </details>`;
+            <div class="model-detail-section">
+                <h5 class="model-section-title">Synthesized Knowledge Packet</h5>
+                <div class="knowledge-packet-grid">
+                    ${hypothesesFromPacket}
+                </div>
+            </div>`;
     }
     hypothesisExplorerHtml += `</div>`;
     hypothesisExplorerContentPane.innerHTML = hypothesisExplorerHtml;
@@ -3984,7 +4268,7 @@ function initializeUI() {
             }
         });
     }
-    // Event delegation for dynamically created "Compare" buttons
+    // Event delegation for dynamically created "Compare" buttons and "View The Argument" buttons
     if (pipelinesContentContainer) {
         pipelinesContentContainer.addEventListener('click', (event) => {
             const target = event.target as HTMLElement;
@@ -3994,6 +4278,11 @@ function initializeUI() {
                 const contentType = target.dataset.contentType as ('html' | 'text');
                 if (pipelineId !== -1 && iterationNumber !== -1 && (contentType === 'html' || contentType === 'text')) {
                     openDiffModal(pipelineId, iterationNumber, contentType);
+                }
+            } else if (target.classList.contains('view-argument-button')) {
+                const hypothesisId = target.dataset.hypothesisId;
+                if (hypothesisId) {
+                    openArgumentModal(hypothesisId);
                 }
             }
         });
