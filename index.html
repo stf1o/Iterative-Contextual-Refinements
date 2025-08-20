@@ -470,25 +470,113 @@
     <div id="diff-modal-overlay" class="modal-overlay">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="diff-modal-title">
             <header class="modal-header">
-                <h2 id="diff-modal-title" class="modal-title">Compare Outputs</h2>
-                <button id="diff-modal-close-button" class="modal-close-button" aria-label="Close Diff Viewer"><span class="material-symbols-outlined">close</span></button>
-            </header>
-            <div id="diff-modal-body">
-                <aside id="diff-selector-panel" class="inspector-panel custom-scrollbar">
-                    <div class="sidebar-section-content">
-                        <div id="diff-source-display" class="input-group">
-                            <h4 class="model-section-title">Source (A)</h4>
-                            <p id="diff-source-label">None selected</p>
+                <div class="modal-header-left">
+                    <h2 id="diff-modal-title" class="modal-title">Compare Outputs</h2>
+                    <div id="header-diff-stats" class="header-diff-stats">
+                        <div class="diff-stat-item diff-stat-additions">
+                            <span class="material-symbols-outlined">add</span>
+                            <span id="header-additions-count">+0 lines</span>
                         </div>
-                        <div class="input-group">
-                            <h4 class="model-section-title">Select Target (B)</h4>
-                            <div id="diff-target-tree" class="custom-scrollbar" style="max-height: 40vh; overflow-y: auto; padding-right: 0.5rem;"></div>
+                        <div class="diff-stat-item diff-stat-deletions">
+                            <span class="material-symbols-outlined">remove</span>
+                            <span id="header-deletions-count">-0 lines</span>
+                        </div>
+                        <div class="diff-stat-item diff-stat-total">
+                            <span class="material-symbols-outlined">difference</span>
+                            <span id="header-total-count">0 changes</span>
                         </div>
                     </div>
-                </aside>
-                <div id="diff-viewer-panel" class="custom-scrollbar">
-                    <div class="diff-no-selection empty-state-message">
-                        <p>Select a target from the list to view differences.</p>
+                </div>
+                <div class="modal-header-right">
+                    <div class="diff-modal-controls">
+                        <button id="instant-fixes-button" class="button diff-mode-button active" data-mode="instant-fixes">
+                            <span class="material-symbols-outlined">auto_fix_high</span>
+                            <span class="button-text">Instant Fixes</span>
+                        </button>
+                        <button id="diff-analysis-view-button" class="view-mode-button" data-view="diff-analysis">
+                            <span class="material-symbols-outlined">difference</span>
+                            <span class="button-text">Diff Analysis</span>
+                        </button>
+                        <button id="preview-button" class="view-mode-button" data-view="preview">
+                            <span class="material-symbols-outlined">preview</span>
+                            <span class="button-text">Preview</span>
+                        </button>
+                        <button id="global-compare-button" class="button diff-mode-button" data-mode="global-compare">
+                            <span class="material-symbols-outlined">compare</span>
+                            <span class="button-text">Global Compare</span>
+                        </button>
+                    </div>
+                    <button id="diff-modal-close-button" class="modal-close-button" aria-label="Close Diff Viewer"><span class="material-symbols-outlined">close</span></button>
+                </div>
+            </header>
+            <div id="diff-modal-body">
+                <!-- Instant Fixes Mode (Default) -->
+                <div id="instant-fixes-panel" class="diff-mode-panel active">
+                    <div class="instant-fixes-content">
+                        <div id="side-by-side-view" class="instant-fixes-view active">
+                            <div class="side-by-side-comparison">
+                                <div class="comparison-side">
+                                    <h4 class="comparison-title">
+                                        <span class="material-symbols-outlined">psychology</span>
+                                        <span id="diff-source-title">Main Generation</span>
+                                    </h4>
+                                    <div id="diff-source-content" class="comparison-content custom-scrollbar"></div>
+                                </div>
+                                <div class="comparison-side">
+                                    <h4 class="comparison-title">
+                                        <span class="material-symbols-outlined">auto_fix_high</span>
+                                        <span id="diff-target-title">Bug Fixed/Polished</span>
+                                    </h4>
+                                    <div id="diff-target-content" class="comparison-content custom-scrollbar"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="diff-analysis-view" class="instant-fixes-view">
+                            <div id="instant-fixes-diff-viewer" class="diff-viewer-container custom-scrollbar">
+                                <div class="empty-state-message">
+                                    <p>Click "Diff Analysis" to see detailed line-by-line changes</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="preview-view" class="instant-fixes-view">
+                            <div class="preview-comparison">
+                                <div class="preview-side">
+                                    <h4 class="comparison-title">
+                                        <span class="material-symbols-outlined">psychology</span>
+                                        <span id="preview-source-title">Main Generation</span>
+                                    </h4>
+                                    <iframe id="preview-source-frame" class="preview-frame" sandbox="allow-scripts allow-same-origin"></iframe>
+                                </div>
+                                <div class="preview-side">
+                                    <h4 class="comparison-title">
+                                        <span class="material-symbols-outlined">auto_fix_high</span>
+                                        <span id="preview-target-title">Bug Fixed/Polished</span>
+                                    </h4>
+                                    <iframe id="preview-target-frame" class="preview-frame" sandbox="allow-scripts allow-same-origin"></iframe>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Global Compare Mode -->
+                <div id="global-compare-panel" class="diff-mode-panel">
+                    <aside id="diff-selector-panel" class="inspector-panel custom-scrollbar">
+                        <div class="sidebar-section-content">
+                            <div id="diff-source-display" class="input-group">
+                                <h4 class="model-section-title">Source (A)</h4>
+                                <p id="diff-source-label">None selected</p>
+                            </div>
+                            <div class="input-group">
+                                <h4 class="model-section-title">Select Target (B)</h4>
+                                <div id="diff-target-tree" class="custom-scrollbar" style="max-height: 40vh; overflow-y: auto; padding-right: 0.5rem;"></div>
+                            </div>
+                        </div>
+                    </aside>
+                    <div id="diff-viewer-panel" class="custom-scrollbar">
+                        <div class="diff-no-selection empty-state-message">
+                            <p>Select a target from the list to view differences.</p>
+                        </div>
                     </div>
                 </div>
             </div>
