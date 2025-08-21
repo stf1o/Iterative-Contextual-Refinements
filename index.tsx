@@ -1252,7 +1252,7 @@ function renderIteration(pipelineId: number, iter: IterationData): string {
                 ${iter.error ? `<div class="status-message error"><pre>${escapeHtml(iter.error)}</pre></div>` : ''}
                 ${generatedOutputHtml}
                 ${suggestionsHtml}
-                ${promptsHtml}
+                ${currentMode === 'website' || (typeof outputContentType === 'string' && outputContentType.toLowerCase().includes('html')) ? '' : promptsHtml}
             </div>
             ${previewHtml ? `<div class="preview-column">${previewHtml}</div>` : ''}
         </div>
