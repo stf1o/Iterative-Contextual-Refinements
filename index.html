@@ -485,6 +485,23 @@
                             <span class="material-symbols-outlined">difference</span>
                             <span id="header-total-count">0 changes</span>
                         </div>
+                        <div id="diff-view-toggle" class="diff-view-toggle">
+                            <button id="diff-view-toggle-button" class="diff-view-toggle-button">
+                                <span class="material-symbols-outlined">view_column</span>
+                                <span class="button-text">Split View</span>
+                                <span class="material-symbols-outlined">expand_more</span>
+                            </button>
+                            <div id="diff-view-dropdown" class="diff-view-dropdown">
+                                <div class="diff-view-option active" data-view="split">
+                                    <span class="material-symbols-outlined">view_column</span>
+                                    <span>Split View</span>
+                                </div>
+                                <div class="diff-view-option" data-view="unified">
+                                    <span class="material-symbols-outlined">view_agenda</span>
+                                    <span>Unified View</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-header-right">
@@ -541,17 +558,43 @@
                         <div id="preview-view" class="instant-fixes-view">
                             <div class="preview-comparison">
                                 <div class="preview-side">
-                                    <h4 class="comparison-title">
-                                        <span class="material-symbols-outlined">psychology</span>
-                                        <span id="preview-source-title">Main Generation</span>
-                                    </h4>
+                                    <div class="preview-header">
+                                        <h4 class="comparison-title">
+                                            <span class="material-symbols-outlined">psychology</span>
+                                            <span id="preview-source-title">Main Generation</span>
+                                        </h4>
+                                        <div class="preview-controls">
+                                            <button id="copy-source-button" class="preview-control-button" title="Copy HTML">
+                                                <span class="material-symbols-outlined">content_copy</span>
+                                            </button>
+                                            <button id="download-source-button" class="preview-control-button" title="Download HTML">
+                                                <span class="material-symbols-outlined">download</span>
+                                            </button>
+                                            <button id="fullscreen-source-button" class="preview-control-button" title="View Fullscreen">
+                                                <span class="material-symbols-outlined">fullscreen</span>
+                                            </button>
+                                        </div>
+                                    </div>
                                     <iframe id="preview-source-frame" class="preview-frame" sandbox="allow-scripts allow-same-origin"></iframe>
                                 </div>
                                 <div class="preview-side">
-                                    <h4 class="comparison-title">
-                                        <span class="material-symbols-outlined">auto_fix_high</span>
-                                        <span id="preview-target-title">Bug Fixed/Polished</span>
-                                    </h4>
+                                    <div class="preview-header">
+                                        <h4 class="comparison-title">
+                                            <span class="material-symbols-outlined">auto_fix_high</span>
+                                            <span id="preview-target-title">Bug Fixed/Polished</span>
+                                        </h4>
+                                        <div class="preview-controls">
+                                            <button id="copy-target-button" class="preview-control-button" title="Copy HTML">
+                                                <span class="material-symbols-outlined">content_copy</span>
+                                            </button>
+                                            <button id="download-target-button" class="preview-control-button" title="Download HTML">
+                                                <span class="material-symbols-outlined">download</span>
+                                            </button>
+                                            <button id="fullscreen-target-button" class="preview-control-button" title="View Fullscreen">
+                                                <span class="material-symbols-outlined">fullscreen</span>
+                                            </button>
+                                        </div>
+                                    </div>
                                     <iframe id="preview-target-frame" class="preview-frame" sandbox="allow-scripts allow-same-origin"></iframe>
                                 </div>
                             </div>

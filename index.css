@@ -1087,6 +1087,232 @@ textarea.input-base {
     color: var(--text-secondary-color);
 }
 
+.diff-view-toggle {
+    display: none; /* Hidden by default, shown only in diff modes */
+    margin-left: 1rem;
+    padding-left: 1rem;
+    border-left: 1px solid var(--border-color);
+    position: relative;
+}
+
+.diff-view-toggle.visible {
+    display: flex;
+}
+
+.diff-view-toggle-button {
+    background: var(--surface-secondary);
+    color: var(--text-secondary-color);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 0.75rem;
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    cursor: pointer;
+    gap: 0.3rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.diff-view-toggle-button:hover {
+    background: var(--surface-tertiary);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+}
+
+.diff-view-toggle-button.active {
+    background: var(--accent-purple);
+    border-color: var(--accent-purple);
+    color: white;
+    box-shadow: 0 2px 8px rgba(var(--accent-purple-rgb), 0.3);
+}
+
+.diff-view-toggle-button .material-symbols-outlined {
+    font-size: 0.9rem;
+}
+
+
+.diff-view-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    margin-top: 2px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 99999; /* Increased z-index */
+    display: none;
+    min-width: 150px; /* Ensure minimum width */
+}
+
+.diff-view-side-by-side {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    gap: 1px;
+    background-color: var(--border-color);
+}
+
+.diff-pane {
+    flex: 1;
+    overflow: auto;
+    font-family: var(--font-family-monospace);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    background-color: var(--bg-color);
+    scroll-behavior: auto; /* Changed from smooth for better sync */
+    will-change: scroll-position;
+    -webkit-overflow-scrolling: touch;
+    /* Better scroll performance */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+.diff-pane pre {
+    margin: 0;
+    padding: 0;
+}
+
+.diff-line {
+    display: flex;
+    width: 100%;
+}
+
+.diff-line-number {
+    width: 40px;
+    text-align: right;
+    padding-right: 10px;
+    color: var(--text-tertiary-color);
+    background-color: var(--sub-panel-bg-color);
+    flex-shrink: 0;
+}
+
+.diff-line-prefix {
+    width: 20px;
+    text-align: center;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.diff-line-content {
+    flex-grow: 1;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.diff-added {
+    background-color: rgba(var(--accent-green-rgb), 0.1);
+}
+
+.diff-added .diff-line-prefix {
+    color: var(--accent-green);
+}
+
+.diff-removed {
+    background-color: rgba(var(--accent-pink-rgb), 0.1);
+}
+
+.diff-removed .diff-line-prefix {
+    color: var(--accent-pink);
+}
+
+.diff-placeholder {
+    background-color: transparent; /* Remove background lines */
+    min-height: 1.4em; /* Match line-height */
+}
+
+
+.diff-view-toggle {
+    position: relative;
+    display: none;
+    z-index: 10000; /* High z-index for the container */
+}
+
+.diff-view-toggle.visible {
+    display: flex;
+}
+
+.diff-view-toggle-button {
+    background: var(--surface-secondary);
+    color: var(--text-secondary-color);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.diff-view-toggle-button:hover {
+    background: var(--surface-tertiary);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(var(--accent-purple-rgb), 0.2);
+}
+
+.diff-view-toggle-button.active {
+    background: rgba(var(--accent-purple-rgb), 0.1);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+}
+
+.diff-view-toggle-button .material-symbols-outlined {
+    font-size: 1rem;
+}
+
+.diff-view-dropdown.visible {
+    display: block;
+    pointer-events: auto; /* Ensure it's clickable */
+    position: absolute; /* Force absolute positioning */
+    top: 100%;
+    left: 0;
+    right: 0;
+}
+
+/* Ensure modal content doesn't interfere with dropdown */
+#diff-modal-body {
+    position: relative;
+    z-index: 1;
+}
+
+/* Ensure header has lower z-index than dropdown */
+.modal-header {
+    position: relative;
+    z-index: 2;
+}
+
+.diff-view-option {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    transition: background 0.2s ease;
+    position: relative;
+    z-index: 99999; /* Ensure options are clickable */
+    background: var(--surface-secondary); /* Ensure background */
+}
+
+.diff-view-option:hover {
+    background: var(--surface-tertiary);
+}
+
+.diff-view-option.active {
+    background: rgba(var(--accent-purple-rgb), 0.1);
+    color: var(--accent-purple);
+}
+
 .preview-comparison {
     display: flex;
     width: 100%;
@@ -1101,6 +1327,48 @@ textarea.input-base {
     flex-direction: column;
     background-color: var(--bg-color);
     overflow: hidden;
+}
+
+.preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, rgba(var(--accent-purple-rgb), 0.08), rgba(var(--accent-purple-rgb), 0.04));
+    border-bottom: 1px solid var(--border-color);
+}
+
+.preview-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.preview-control-button {
+    background: var(--surface-secondary);
+    color: var(--text-secondary-color);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.preview-control-button:hover {
+    background: var(--surface-tertiary);
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(var(--accent-purple-rgb), 0.2);
+}
+
+.preview-control-button .material-symbols-outlined {
+    font-size: 1rem;
 }
 
 .preview-frame {

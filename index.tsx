@@ -4296,6 +4296,32 @@ function initializeUI() {
             } else {
                 activateInstantFixesView('side-by-side');
             }
+        } else if (target.closest('#diff-view-toggle-button')) {
+            toggleDiffViewDropdown();
+        } else if (target.closest('.diff-view-option')) {
+            const option = target.closest('.diff-view-option') as HTMLElement;
+            const view = option.dataset.view as 'unified' | 'split';
+            if (view) {
+                activateDiffViewMode(view);
+                hideDiffViewDropdown();
+            }
+        } else if (target.closest('#copy-source-button')) {
+            copyPreviewContent('source');
+        } else if (target.closest('#copy-target-button')) {
+            copyPreviewContent('target');
+        } else if (target.closest('#download-source-button')) {
+            downloadPreviewContent('source');
+        } else if (target.closest('#download-target-button')) {
+            downloadPreviewContent('target');
+        } else if (target.closest('#fullscreen-source-button')) {
+            openPreviewFullscreen('source');
+        } else if (target.closest('#fullscreen-target-button')) {
+            openPreviewFullscreen('target');
+        } else {
+            // Close diff view dropdown if clicking outside
+            if (!target.closest('#diff-view-toggle')) {
+                hideDiffViewDropdown();
+            }
         }
     });
     // Event delegation for dynamically created "Compare" buttons and "View The Argument" buttons
@@ -4343,8 +4369,34 @@ function initializeUI() {
 // ---------- DIFF MODAL FUNCTIONS ----------
 
 let diffSourceData: { pipelineId: number, iterationNumber: number, contentType: 'html' | 'text', content: string, title: string } | null = null;
+let currentDiffViewMode: 'unified' | 'split' = 'split';
+let currentSourceContent: string = '';
+let currentTargetContent: string = '';
+
+// Helper function to extract HTML from old format request prompts
+function extractHtmlFromRequestPrompt(requestPrompt: string): string | null {
+    if (!requestPrompt) return null;
+    
+    // Look for HTML code blocks in the request prompt
+    const htmlMatch = requestPrompt.match(/```html\n([\s\S]*?)\n```/);
+    if (htmlMatch && htmlMatch[1]) {
+        return htmlMatch[1].trim();
+    }
+    
+    // Alternative pattern without language specifier
+    const altMatch = requestPrompt.match(/```\n(<!DOCTYPE html[\s\S]*?)\n```/);
+    if (altMatch && altMatch[1]) {
+        return altMatch[1].trim();
+    }
+    
+    return null;
+}
 
 function renderDiff(sourceText: string, targetText: string) {
+    // Store content in global variables for toggle functionality
+    currentSourceContent = sourceText;
+    currentTargetContent = targetText;
+    
     if (!diffViewerPanel) return;
     const differences = Diff.diffLines(sourceText, targetText, { newlineIsToken: true });
     
@@ -4396,6 +4448,10 @@ function renderDiff(sourceText: string, targetText: string) {
 }
 
 function renderSideBySideComparison(sourceText: string, targetText: string, sourceTitle: string, targetTitle: string) {
+    // Store content in global variables for preview controls
+    currentSourceContent = sourceText;
+    currentTargetContent = targetText;
+    
     const diffSourceContent = document.getElementById('diff-source-content');
     const diffTargetContent = document.getElementById('diff-target-content');
     const diffSourceTitleElement = document.getElementById('diff-source-title');
@@ -4406,6 +4462,12 @@ function renderSideBySideComparison(sourceText: string, targetText: string, sour
     // Update titles
     diffSourceTitleElement.textContent = sourceTitle;
     diffTargetTitleElement.textContent = targetTitle;
+    
+    // Update preview titles
+    const previewSourceTitle = document.getElementById('preview-source-title');
+    const previewTargetTitle = document.getElementById('preview-target-title');
+    if (previewSourceTitle) previewSourceTitle.textContent = sourceTitle;
+    if (previewTargetTitle) previewTargetTitle.textContent = targetTitle;
     
     // Calculate and update header diff stats
     updateHeaderDiffStats(sourceText, targetText);
@@ -4421,6 +4483,22 @@ function renderSideBySideComparison(sourceText: string, targetText: string, sour
     
     diffSourceContent.innerHTML = renderContent(sourceText);
     diffTargetContent.innerHTML = renderContent(targetText);
+    
+    // Update preview frames if content is HTML
+    if (diffSourceData && diffSourceData.contentType === 'html') {
+        const previewSourceFrame = document.getElementById('preview-source-frame') as HTMLIFrameElement;
+        const previewTargetFrame = document.getElementById('preview-target-frame') as HTMLIFrameElement;
+        
+        if (previewSourceFrame) {
+            const sourceBlob = new Blob([sourceText], { type: 'text/html' });
+            previewSourceFrame.src = URL.createObjectURL(sourceBlob);
+        }
+        
+        if (previewTargetFrame) {
+            const targetBlob = new Blob([targetText], { type: 'text/html' });
+            previewTargetFrame.src = URL.createObjectURL(targetBlob);
+        }
+    }
     
     // Apply syntax highlighting
     if (typeof hljs !== 'undefined') {
@@ -4457,7 +4535,18 @@ function populateDiffTargetTree() {
             } else {
                 itemDiv.addEventListener('click', () => {
                     if (targetContent) { // Should always be true if not disabled
-                        renderDiff(diffSourceData!.content, targetContent);
+                        // Store the current content for toggle functionality
+                        currentSourceContent = diffSourceData!.content;
+                        currentTargetContent = targetContent;
+                        
+                        // Render based on current diff view mode
+                        if (currentDiffViewMode === 'unified') {
+                            renderDiff(diffSourceData!.content, targetContent);
+                        } else {
+                            // Use renderDiffSideBySide for split view in global compare
+                            renderDiffSideBySide(diffSourceData!.content, targetContent);
+                        }
+                        
                         // Optionally highlight selected target
                         diffTargetTreeContainer.querySelectorAll('.tree-item.selected').forEach(el => el.classList.remove('selected'));
                         itemDiv.classList.add('selected');
@@ -4483,18 +4572,54 @@ function openDiffModal(pipelineId: number, iterationNumber: number, contentType:
 
     if (contentType === 'html') {
         // For HTML mode, compare Request 1 (raw) vs Request 2 (bug fixed) within the same iteration
-        sourceContent = iteration.generatedRawHtml; // Request 1 output
-        targetContent = iteration.generatedHtml; // Request 2 output
+        // Handle both old and new JSON formats
         
-        if (iteration.title.includes('Initial')) {
-            sourceTitle = "Initial Generation (Request 1)";
-            targetTitle = "Initial Bug Fix (Request 2)";
-        } else if (iteration.title.includes('Refinement') || iteration.title.includes('Stabilization') || iteration.title.includes('Feature')) {
-            sourceTitle = "Feature Implementation (Request 1)";
-            targetTitle = "Bug Fix & Completion (Request 2)";
+        if (iteration.generatedRawHtml) {
+            // New format with separate raw and fixed versions
+            sourceContent = iteration.generatedRawHtml;
+            targetContent = iteration.generatedHtml;
+            
+            if (iteration.title.includes('Initial')) {
+                sourceTitle = "Initial Generation (Request 1)";
+                targetTitle = "Initial Bug Fix (Request 2)";
+            } else if (iteration.title.includes('Refinement') || iteration.title.includes('Stabilization') || iteration.title.includes('Feature')) {
+                sourceTitle = "Feature Implementation (Request 1)";
+                targetTitle = "Bug Fix & Completion (Request 2)";
+            } else {
+                sourceTitle = "Before Fixing";
+                targetTitle = "After Fixing";
+            }
         } else {
-            sourceTitle = "Before Fixing";
-            targetTitle = "After Fixing";
+            // Old format: extract raw HTML from request prompt
+            const rawHtmlFromPrompt = extractHtmlFromRequestPrompt(iteration.requestPromptHtml_BugFix);
+            
+            if (rawHtmlFromPrompt) {
+                sourceContent = rawHtmlFromPrompt;
+                targetContent = iteration.generatedHtml;
+                sourceTitle = "Before Bug Fix";
+                targetTitle = "After Bug Fix";
+            } else {
+                // Fallback: compare with previous iteration if available
+                if (iteration.iterationNumber > 0) {
+                    const prevIteration = pipeline.iterations.find(iter => iter.iterationNumber === iteration.iterationNumber - 1);
+                    if (prevIteration?.generatedHtml) {
+                        sourceContent = prevIteration.generatedHtml;
+                        targetContent = iteration.generatedHtml;
+                        sourceTitle = `Previous: ${prevIteration.title}`;
+                        targetTitle = `Current: ${iteration.title}`;
+                    } else {
+                        sourceContent = iteration.generatedHtml;
+                        targetContent = iteration.generatedHtml;
+                        sourceTitle = iteration.title;
+                        targetTitle = iteration.title;
+                    }
+                } else {
+                    sourceContent = iteration.generatedHtml;
+                    targetContent = iteration.generatedHtml;
+                    sourceTitle = iteration.title;
+                    targetTitle = iteration.title;
+                }
+            }
         }
     } else { // text mode
         sourceContent = iteration.generatedOrRevisedText || iteration.generatedMainContent;
@@ -4520,10 +4645,20 @@ function openDiffModal(pipelineId: number, iterationNumber: number, contentType:
     
     // Show side-by-side comparison by default
     renderSideBySideComparison(sourceContent, targetContent, sourceTitle, targetTitle);
+    
+    // Store content globally for diff view switching
+    currentSourceContent = sourceContent;
+    currentTargetContent = targetContent;
+    
+    // Initialize the diff view toggle button
+    updateDiffViewToggleButton(currentDiffViewMode);
 
     // Set up global compare mode
     if (diffSourceLabel) diffSourceLabel.textContent = `Variant ${pipelineId + 1} - ${iteration.title}`;
-    if (diffViewerPanel) diffViewerPanel.innerHTML = '<div class="diff-no-selection empty-state-message"><p>Select a target (B) from the list to view differences.</p></div>';
+    if (diffViewerPanel) {
+        // Show initial message for global compare
+        diffViewerPanel.innerHTML = '<div class="diff-no-selection empty-state-message"><p>Select a target (B) from the list to view differences.</p></div>';
+    }
     populateDiffTargetTree();
 
     if (diffModalOverlay) {
@@ -4556,12 +4691,23 @@ function activateDiffMode(mode: 'instant-fixes' | 'global-compare') {
         previewButton.style.display = 'flex';
         // Reset to side-by-side view when switching to instant fixes
         activateInstantFixesView('side-by-side');
+        hideDiffViewToggle(); // Hide toggle for side-by-side view
     } else {
         diffAnalysisButton.style.display = 'none';
         previewButton.style.display = 'none';
         // Reset button states when hiding
         diffAnalysisButton.classList.remove('active');
         previewButton.classList.remove('active');
+        showDiffViewToggle(); // Show toggle for global compare mode
+        
+        // If we have content available, render it in the current mode
+        if (currentSourceContent && currentTargetContent) {
+            if (currentDiffViewMode === 'unified') {
+                renderDiff(currentSourceContent, currentTargetContent);
+            } else {
+                renderDiffSideBySide(currentSourceContent, currentTargetContent);
+            }
+        }
     }
     
     // Check if we have the necessary data and next iteration
@@ -4580,14 +4726,40 @@ function activateDiffMode(mode: 'instant-fixes' | 'global-compare') {
             if (diffSourceData.contentType === 'html') {
                 const sourceIteration = pipeline.iterations.find(iter => iter.iterationNumber === diffSourceData.iterationNumber);
                 if (sourceIteration) {
-                    targetContent = sourceIteration.generatedHtml; // Request 2 output
-                    
-                    if (sourceIteration.title.includes('Initial')) {
-                        targetTitle = "Initial Bug Fix (Request 2)";
-                    } else if (sourceIteration.title.includes('Refinement') || sourceIteration.title.includes('Stabilization') || sourceIteration.title.includes('Feature')) {
-                        targetTitle = "Bug Fix & Completion (Request 2)";
+                    if (sourceIteration.generatedRawHtml) {
+                        // New format: compare raw vs fixed within same iteration
+                        targetContent = sourceIteration.generatedHtml; // Request 2 output
+                        
+                        if (sourceIteration.title.includes('Initial')) {
+                            targetTitle = "Initial Bug Fix (Request 2)";
+                        } else if (sourceIteration.title.includes('Refinement') || sourceIteration.title.includes('Stabilization') || sourceIteration.title.includes('Feature')) {
+                            targetTitle = "Bug Fix & Completion (Request 2)";
+                        } else {
+                            targetTitle = "After Fixing";
+                        }
                     } else {
-                        targetTitle = "After Fixing";
+                        // Old format: check if we can extract raw HTML from request prompt
+                        const rawHtmlFromPrompt = extractHtmlFromRequestPrompt(sourceIteration.requestPromptHtml_BugFix);
+                        
+                        if (rawHtmlFromPrompt) {
+                            targetContent = sourceIteration.generatedHtml;
+                            targetTitle = "After Bug Fix";
+                        } else {
+                            // Fallback: compare with previous iteration if available
+                            if (diffSourceData.iterationNumber > 0) {
+                                const prevIteration = pipeline.iterations.find(iter => iter.iterationNumber === diffSourceData.iterationNumber - 1);
+                                if (prevIteration?.generatedHtml) {
+                                    targetContent = sourceIteration.generatedHtml;
+                                    targetTitle = `Current: ${sourceIteration.title}`;
+                                }
+                            }
+                            
+                            if (!targetContent) {
+                                // Fallback: show same content
+                                targetContent = sourceIteration.generatedHtml;
+                                targetTitle = sourceIteration.title;
+                            }
+                        }
                     }
                 }
             } else {
@@ -4606,7 +4778,14 @@ function activateDiffMode(mode: 'instant-fixes' | 'global-compare') {
         let hasBugFixVersion = false;
         if (diffSourceData.contentType === 'html') {
             const sourceIteration = pipeline.iterations.find(iter => iter.iterationNumber === diffSourceData.iterationNumber);
-            hasBugFixVersion = !!(sourceIteration?.generatedRawHtml && sourceIteration?.generatedHtml);
+            // New format: check for both generatedRawHtml and generatedHtml
+            // Old format: check if we can extract raw HTML from request prompt, or have a previous iteration
+            hasBugFixVersion = !!(sourceIteration?.generatedRawHtml && sourceIteration?.generatedHtml) ||
+                              (!sourceIteration?.generatedRawHtml && (
+                                  extractHtmlFromRequestPrompt(sourceIteration?.requestPromptHtml_BugFix || '') ||
+                                  (diffSourceData.iterationNumber > 0 && 
+                                   pipeline.iterations.find(iter => iter.iterationNumber === diffSourceData.iterationNumber - 1)?.generatedHtml)
+                              ));
         } else {
             // For non-HTML modes, we don't have separate raw vs fixed versions yet
             hasBugFixVersion = !!pipeline.iterations.find(iter => iter.iterationNumber === diffSourceData.iterationNumber);
@@ -4633,6 +4812,119 @@ function activateDiffMode(mode: 'instant-fixes' | 'global-compare') {
     }
 }
 
+function renderDiffSideBySide(sourceText: string, targetText: string) {
+    // Store content in global variables for toggle functionality
+    currentSourceContent = sourceText;
+    currentTargetContent = targetText;
+
+    const container = document.getElementById('instant-fixes-diff-viewer') || document.getElementById('diff-viewer-panel');
+    if (!container) return;
+
+    // Calculate and update header diff stats
+    updateHeaderDiffStats(sourceText, targetText);
+
+    // Create side-by-side diff HTML
+    const diff = Diff.diffLines(sourceText, targetText, { newlineIsToken: true });
+    let leftPaneHtml = '';
+    let rightPaneHtml = '';
+    let leftLineNum = 1;
+    let rightLineNum = 1;
+
+    diff.forEach(part => {
+        const lines = part.value.split('\n').filter(l => l.length > 0);
+        if (part.added) {
+            lines.forEach(line => {
+                rightPaneHtml += `<div class="diff-line diff-added"><span class="diff-line-number">${rightLineNum++}</span><span class="diff-line-prefix">+</span><span class="diff-line-content">${escapeHtml(line)}</span></div>`;
+                leftPaneHtml += `<div class="diff-line diff-placeholder"></div>`;
+            });
+        } else if (part.removed) {
+            lines.forEach(line => {
+                leftPaneHtml += `<div class="diff-line diff-removed"><span class="diff-line-number">${leftLineNum++}</span><span class="diff-line-prefix">-</span><span class="diff-line-content">${escapeHtml(line)}</span></div>`;
+                rightPaneHtml += `<div class="diff-line diff-placeholder"></div>`;
+            });
+        } else {
+            lines.forEach(line => {
+                leftPaneHtml += `<div class="diff-line diff-neutral"><span class="diff-line-number">${leftLineNum++}</span><span class="diff-line-prefix"> </span><span class="diff-line-content">${escapeHtml(line)}</span></div>`;
+                rightPaneHtml += `<div class="diff-line diff-neutral"><span class="diff-line-number">${rightLineNum++}</span><span class="diff-line-prefix"> </span><span class="diff-line-content">${escapeHtml(line)}</span></div>`;
+            });
+        }
+    });
+
+    const diffHtml = `
+        <div class="diff-view-side-by-side">
+            <div id="diff-pane-left" class="diff-pane custom-scrollbar">
+                <pre><code>${leftPaneHtml}</code></pre>
+            </div>
+            <div id="diff-pane-right" class="diff-pane custom-scrollbar">
+                <pre><code>${rightPaneHtml}</code></pre>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = diffHtml;
+
+    const leftPane = document.getElementById('diff-pane-left');
+    const rightPane = document.getElementById('diff-pane-right');
+
+    if (leftPane && rightPane) {
+        let isSyncing = false;
+        
+        const syncScroll = (source: HTMLElement, target: HTMLElement) => {
+            if (isSyncing) return;
+            
+            isSyncing = true;
+            
+            // Immediate sync for natural feel like GitHub Desktop
+            target.scrollTop = source.scrollTop;
+            target.scrollLeft = source.scrollLeft;
+            
+            // Use requestAnimationFrame to reset sync flag for smooth performance
+            requestAnimationFrame(() => {
+                isSyncing = false;
+            });
+        };
+        
+        // Sync both vertical and horizontal scrolling
+        leftPane.addEventListener('scroll', () => syncScroll(leftPane, rightPane), { passive: true });
+        rightPane.addEventListener('scroll', () => syncScroll(rightPane, leftPane), { passive: true });
+        
+        // Also handle wheel events for better responsiveness
+        leftPane.addEventListener('wheel', (e) => {
+            if (!e.shiftKey) {
+                // Vertical scrolling - sync immediately
+                setTimeout(() => {
+                    if (!isSyncing) {
+                        rightPane.scrollTop = leftPane.scrollTop;
+                    }
+                }, 0);
+            } else {
+                // Horizontal scrolling with Shift+wheel
+                e.preventDefault();
+                leftPane.scrollLeft += e.deltaY;
+                rightPane.scrollLeft = leftPane.scrollLeft;
+            }
+        }, { passive: false });
+        
+        rightPane.addEventListener('wheel', (e) => {
+            if (!e.shiftKey) {
+                // Vertical scrolling - sync immediately
+                setTimeout(() => {
+                    if (!isSyncing) {
+                        leftPane.scrollTop = rightPane.scrollTop;
+                    }
+                }, 0);
+            } else {
+                // Horizontal scrolling with Shift+wheel
+                e.preventDefault();
+                rightPane.scrollLeft += e.deltaY;
+                leftPane.scrollLeft = rightPane.scrollLeft;
+            }
+        }, { passive: false });
+    }
+}
+
+
+
 function activateInstantFixesView(view: 'side-by-side' | 'diff-analysis' | 'preview') {
     const diffAnalysisButton = document.getElementById('diff-analysis-view-button');
     const previewButton = document.getElementById('preview-button');
@@ -4650,6 +4942,39 @@ function activateInstantFixesView(view: 'side-by-side' | 'diff-analysis' | 'prev
     sideBySideView.classList.toggle('active', view === 'side-by-side');
     diffAnalysisView.classList.toggle('active', view === 'diff-analysis');
     previewView.classList.toggle('active', view === 'preview');
+    
+    // Show/hide diff view toggle based on view
+    if (view === 'diff-analysis') {
+        showDiffViewToggle();
+        // Get target content properly for diff analysis
+        if (diffSourceData) {
+            const pipeline = pipelinesState.find(p => p.id === diffSourceData.pipelineId);
+            let analysisTargetContent: string | undefined;
+            
+            if (diffSourceData.contentType === 'html') {
+                const sourceIteration = pipeline?.iterations.find(iter => iter.iterationNumber === diffSourceData.iterationNumber);
+                analysisTargetContent = sourceIteration?.generatedHtml;
+            } else {
+                const sourceIteration = pipeline?.iterations.find(iter => iter.iterationNumber === diffSourceData.iterationNumber);
+                analysisTargetContent = sourceIteration?.generatedOrRevisedText || sourceIteration?.generatedMainContent;
+            }
+            
+            if (analysisTargetContent) {
+                // Store current content for toggle functionality
+                currentSourceContent = diffSourceData.content;
+                currentTargetContent = analysisTargetContent;
+                
+                // Immediately render the diff analysis based on current mode
+                if (currentDiffViewMode === 'unified') {
+                    renderInstantFixesDiff(diffSourceData.content, analysisTargetContent);
+                } else {
+                    renderDiffSideBySide(diffSourceData.content, analysisTargetContent);
+                }
+            }
+        }
+    } else {
+        hideDiffViewToggle();
+    }
     
     // Handle different views
     if (diffSourceData) {
@@ -4681,13 +5006,26 @@ function activateInstantFixesView(view: 'side-by-side' | 'diff-analysis' | 'prev
         
         if (targetContent) {
             if (view === 'diff-analysis') {
-                renderInstantFixesDiff(diffSourceData.content, targetContent);
+                // Store current content for toggle functionality
+                currentSourceContent = diffSourceData.content;
+                currentTargetContent = targetContent;
+                
+                // Render based on current diff view mode
+                if (currentDiffViewMode === 'unified') {
+                    renderInstantFixesDiff(diffSourceData.content, targetContent);
+                } else {
+                    renderDiffSideBySide(diffSourceData.content, targetContent);
+                }
             } else if (view === 'preview' && diffSourceData.contentType === 'html') {
                 renderHtmlPreview(diffSourceData.content, targetContent, diffSourceData.title, targetTitle);
+            } else if (view === 'side-by-side') {
+                renderSideBySideComparison(diffSourceData.content, targetContent, diffSourceData.title, targetTitle);
             }
         }
     }
 }
+
+
 
 function renderHtmlPreview(sourceHtml: string, targetHtml: string, sourceTitle: string, targetTitle: string) {
     const previewSourceFrame = document.getElementById('preview-source-frame') as HTMLIFrameElement;
@@ -4803,6 +5141,195 @@ function hideHeaderDiffStats() {
     }
 }
 
+// Missing diff view toggle functions
+function toggleDiffViewDropdown() {
+    const dropdown = document.getElementById('diff-view-dropdown');
+    if (!dropdown) return;
+    
+    if (dropdown.classList.contains('visible')) {
+        hideDiffViewDropdown();
+    } else {
+        showDiffViewDropdown();
+    }
+}
+
+function showDiffViewDropdown() {
+    const dropdown = document.getElementById('diff-view-dropdown');
+    if (dropdown) {
+        dropdown.classList.add('visible');
+    }
+}
+
+function hideDiffViewDropdown() {
+    const dropdown = document.getElementById('diff-view-dropdown');
+    if (dropdown) {
+        dropdown.classList.remove('visible');
+    }
+}
+
+function showDiffViewToggle() {
+    const toggle = document.getElementById('diff-view-toggle');
+    if (toggle) {
+        toggle.classList.add('visible');
+    }
+}
+
+function hideDiffViewToggle() {
+    const toggle = document.getElementById('diff-view-toggle');
+    if (toggle) {
+        toggle.classList.remove('visible');
+    }
+}
+
+function updateDiffViewToggleButton(mode: 'unified' | 'split') {
+    const toggleButton = document.getElementById('diff-view-toggle-button');
+    const buttonText = toggleButton?.querySelector('.button-text');
+    const buttonIcon = toggleButton?.querySelector('.material-symbols-outlined');
+    
+    if (!toggleButton || !buttonText || !buttonIcon) return;
+    
+    if (mode === 'split') {
+        buttonText.textContent = 'Split View';
+        buttonIcon.textContent = 'view_column';
+    } else {
+        buttonText.textContent = 'Unified View';
+        buttonIcon.textContent = 'view_agenda';
+    }
+    
+    // Update dropdown options
+    const options = document.querySelectorAll('.diff-view-option');
+    options.forEach(option => {
+        const optionElement = option as HTMLElement;
+        if (optionElement.dataset.view === mode) {
+            optionElement.classList.add('active');
+        } else {
+            optionElement.classList.remove('active');
+        }
+    });
+}
+
+
+function activateDiffViewMode(mode: 'unified' | 'split') {
+    currentDiffViewMode = mode;
+    updateDiffViewToggleButton(mode);
+    
+    // Re-render the current diff with the new view mode
+    if (diffSourceData && currentSourceContent && currentTargetContent) {
+        const diffAnalysisView = document.getElementById('diff-analysis-view');
+        const globalComparePanel = document.getElementById('global-compare-panel');
+        const instantFixesPanel = document.getElementById('instant-fixes-panel');
+        
+        // For instant fixes mode - diff analysis view
+        if (instantFixesPanel && instantFixesPanel.classList.contains('active') && 
+            diffAnalysisView && diffAnalysisView.classList.contains('active')) {
+            if (mode === 'unified') {
+                renderInstantFixesDiff(currentSourceContent, currentTargetContent);
+            } else {
+                renderDiffSideBySide(currentSourceContent, currentTargetContent);
+            }
+        }
+        
+        // For global compare mode
+        if (globalComparePanel && globalComparePanel.classList.contains('active')) {
+            if (mode === 'unified') {
+                renderDiff(currentSourceContent, currentTargetContent);
+            } else {
+                renderDiffSideBySide(currentSourceContent, currentTargetContent);
+            }
+        }
+    }
+}
+
+
+function copyPreviewContent(type: 'source' | 'target') {
+    const content = type === 'source' ? currentSourceContent : currentTargetContent;
+    if (content) {
+        navigator.clipboard.writeText(content).then(() => {
+            // Show a brief success indication
+            const button = document.getElementById(`copy-${type}-button`);
+            if (button) {
+                const originalIcon = button.querySelector('.material-symbols-outlined');
+                if (originalIcon) {
+                    originalIcon.textContent = 'check';
+                    setTimeout(() => {
+                        originalIcon.textContent = 'content_copy';
+                    }, 1500);
+                }
+            }
+        }).catch(err => {
+            console.error('Failed to copy content:', err);
+            alert('Failed to copy content to clipboard');
+        });
+    }
+}
+
+function downloadPreviewContent(type: 'source' | 'target') {
+    const content = type === 'source' ? currentSourceContent : currentTargetContent;
+    const title = type === 'source' ? 'source' : 'target';
+    
+    if (content) {
+        const blob = new Blob([content], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${title}-${Date.now()}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+}
+
+function openPreviewFullscreen(type: 'source' | 'target') {
+    const content = type === 'source' ? currentSourceContent : currentTargetContent;
+    if (content) {
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+            // Add escape key listener to close the window
+            const fullscreenContent = `
+                ${content}
+                <script>
+                    document.addEventListener('keydown', function(e) {
+                        if (e.key === 'Escape') {
+                            window.close();
+                        }
+                    });
+                    
+                    // Add visual indicator that escape closes the window
+                    const indicator = document.createElement('div');
+                    indicator.style.cssText = \`
+                        position: fixed;
+                        top: 10px;
+                        right: 10px;
+                        background: rgba(0,0,0,0.8);
+                        color: white;
+                        padding: 8px 12px;
+                        border-radius: 4px;
+                        font-family: system-ui, sans-serif;
+                        font-size: 12px;
+                        z-index: 10000;
+                        opacity: 0.7;
+                        pointer-events: none;
+                    \`;
+                    indicator.textContent = 'Press ESC to close';
+                    document.body.appendChild(indicator);
+                    
+                    // Hide indicator after 3 seconds
+                    setTimeout(() => {
+                        if (indicator.parentNode) {
+                            indicator.style.opacity = '0';
+                            setTimeout(() => indicator.remove(), 300);
+                        }
+                    }, 3000);
+                </script>
+            `;
+            
+            newWindow.document.write(fullscreenContent);
+            newWindow.document.close();
+        }
+    }
+}
+
 function closeDiffModal() {
     if (diffModalOverlay) {
         diffModalOverlay.classList.remove('is-visible');
@@ -4812,6 +5339,11 @@ function closeDiffModal() {
             }
         }, { once: true });
     }
+    
+    // Clear diff source data and content
+    diffSourceData = null;
+    currentSourceContent = '';
+    currentTargetContent = '';
     
     // Clear content and reset state
     const diffSourceContent = document.getElementById('diff-source-content');
@@ -4823,10 +5355,21 @@ function closeDiffModal() {
     if (instantFixesDiffViewer) instantFixesDiffViewer.innerHTML = '<div class="empty-state-message"><p>Click "Diff Analysis" to see detailed line-by-line changes</p></div>';
     if (diffViewerPanel) diffViewerPanel.innerHTML = '<div class="diff-no-selection empty-state-message"><p>Select a target (B) from the list to view differences.</p></div>';
     
+    // Clear preview frames
+    const previewSourceFrame = document.getElementById('preview-source-frame') as HTMLIFrameElement;
+    const previewTargetFrame = document.getElementById('preview-target-frame') as HTMLIFrameElement;
+    if (previewSourceFrame) previewSourceFrame.src = 'about:blank';
+    if (previewTargetFrame) previewTargetFrame.src = 'about:blank';
+    
+    // Reset button states
+    const unifiedButton = document.getElementById('unified-view-button');
+    const splitButton = document.getElementById('split-view-button');
+    if (unifiedButton) unifiedButton.classList.remove('active');
+    if (splitButton) splitButton.classList.add('active');
+    currentDiffViewMode = 'split';
+    
     // Hide header diff stats
     hideHeaderDiffStats();
-    
-    diffSourceData = null; // Clear source data when closing
 }
 
 // ---------- END DIFF MODAL FUNCTIONS ----------
