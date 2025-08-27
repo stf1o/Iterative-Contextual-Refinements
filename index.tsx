@@ -748,6 +748,13 @@ function updateUIAfterModeChange() {
     allPromptContainers.forEach(container => container.classList.remove('active'));
     const activeContainer = document.getElementById(`${currentMode}-prompts-container`);
     if (activeContainer) activeContainer.classList.add('active');
+    
+    // Reinitialize sidebar controls after mode change
+    setTimeout(() => {
+        if ((window as any).reinitializeSidebarControls) {
+            (window as any).reinitializeSidebarControls();
+        }
+    }, 100);
 
     // Default UI states
     if (mathProblemImageInputContainer) mathProblemImageInputContainer.style.display = 'none';
@@ -2376,6 +2383,13 @@ function handleImportConfiguration(event: Event) {
                 }
             }
             updateUIAfterModeChange();
+
+            // Reinitialize sidebar controls after import
+            setTimeout(() => {
+                if ((window as any).reinitializeSidebarControls) {
+                    (window as any).reinitializeSidebarControls();
+                }
+            }, 200);
 
             modelSelectElement.value = importedConfig.selectedModel || (currentMode === 'math' ? MATH_MODEL_NAME : modelSelectElement.options[0].value);
 
@@ -5979,5 +5993,92 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (preloader) {
         preloader.classList.add('hidden');
+    }
+
+    // Sidebar collapse/expand functionality
+    let sidebarIsCollapsed = false;
+    
+    function ensureExpandButton() {
+        const tabsContainer = document.getElementById('tabs-nav-container');
+        let expandButton = document.getElementById('sidebar-expand-button');
+        
+        if (!expandButton && tabsContainer) {
+            expandButton = document.createElement('button');
+            expandButton.id = 'sidebar-expand-button';
+            expandButton.className = 'sidebar-expand-button';
+            expandButton.setAttribute('aria-label', 'Expand Sidebar');
+            expandButton.setAttribute('title', 'Expand Sidebar');
+            expandButton.style.display = sidebarIsCollapsed ? 'flex' : 'none';
+            expandButton.innerHTML = '<span class="material-symbols-outlined">dock_to_left</span>';
+            
+            // Insert as first child of tabs container
+            tabsContainer.insertBefore(expandButton, tabsContainer.firstChild);
+            
+            // Add click listener
+            expandButton.addEventListener('click', (e) => {
+                console.log('Expand button clicked');
+                e.preventDefault();
+                const controlsSidebar = document.getElementById('controls-sidebar');
+                if (controlsSidebar) {
+                    controlsSidebar.classList.remove('collapsed');
+                    expandButton.style.display = 'none';
+                    sidebarIsCollapsed = false;
+                }
+            });
+        }
+        
+        return expandButton;
+    }
+
+    function initializeSidebarControls() {
+        const sidebarCollapseButton = document.getElementById('sidebar-collapse-button');
+        const controlsSidebar = document.getElementById('controls-sidebar');
+        
+        // Ensure expand button exists
+        ensureExpandButton();
+
+        if (sidebarCollapseButton && controlsSidebar) {
+            // Remove existing listeners to avoid duplicates
+            const newCollapseButton = sidebarCollapseButton.cloneNode(true) as HTMLElement;
+            sidebarCollapseButton.replaceWith(newCollapseButton);
+            
+            newCollapseButton.addEventListener('click', (e) => {
+                console.log('Collapse button clicked');
+                e.preventDefault();
+                controlsSidebar.classList.add('collapsed');
+                sidebarIsCollapsed = true;
+                
+                // Ensure expand button exists and is visible
+                const expandButton = ensureExpandButton();
+                if (expandButton) {
+                    expandButton.style.display = 'flex';
+                }
+            });
+            
+            console.log('Sidebar event listeners attached successfully');
+        } else {
+            console.error('Failed to find sidebar elements:', {
+                collapseButton: !!sidebarCollapseButton,
+                sidebar: !!controlsSidebar
+            });
+        }
+    }
+
+    // Global function to reinitialize sidebar controls (called from other functions)
+    (window as any).reinitializeSidebarControls = initializeSidebarControls;
+
+    // Initialize sidebar controls
+    initializeSidebarControls();
+    
+    // Re-initialize sidebar controls whenever tabs are updated
+    const observer = new MutationObserver(() => {
+        if (sidebarIsCollapsed) {
+            ensureExpandButton();
+        }
+    });
+    
+    const tabsContainer = document.getElementById('tabs-nav-container');
+    if (tabsContainer) {
+        observer.observe(tabsContainer, { childList: true, subtree: true });
     }
 });
