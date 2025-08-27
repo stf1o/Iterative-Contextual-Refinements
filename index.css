@@ -3470,58 +3470,86 @@ hr.sub-divider {
 /* Red Team Evaluator Styles */
 .red-team-agents-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    gap: 1.5rem;
-    margin-top: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
 }
 
 .red-team-agent-card {
-    background: var(--card-bg);
+    background: var(--card-bg-color);
+    backdrop-filter: var(--card-blur-effect);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1rem;
-    transition: all 0.2s ease;
-}
-
-.red-team-agent-card:hover {
-    border-color: var(--accent-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-lg);
+    padding: 2rem;
+    transition: all var(--transition-speed) var(--easing-curve);
+    box-shadow: var(--shadow-lg);
 }
 
 .red-team-agent-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--border-color);
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
 }
 
 .red-team-agent-title {
     margin: 0;
     color: var(--text-color);
-    font-size: 1.1rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: var(--line-height-heading);
 }
 
 .red-team-results {
-    background: var(--secondary-bg);
-    padding: 0.75rem;
-    border-radius: 6px;
-    margin: 0.5rem 0;
+    margin: 1.5rem 0;
+}
+
+.red-team-evaluation-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.evaluation-metric {
+    background: rgba(var(--card-bg-base-rgb), 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--border-radius-sm);
+    padding: 1rem;
+    text-align: center;
+    backdrop-filter: blur(10px);
+}
+
+.evaluation-metric .metric-value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-pink);
+    margin-bottom: 0.25rem;
+}
+
+.evaluation-metric .metric-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary-color);
+    font-weight: 500;
 }
 
 .killed-items {
-    background: rgba(var(--accent-pink-rgb), 0.1);
-    border-left: 3px solid var(--accent-pink);
-    padding: 0.5rem;
-    margin: 0.5rem 0;
-    border-radius: 0 4px 4px 0;
+    background: rgba(var(--accent-pink-rgb), 0.08);
+    border-radius: var(--border-radius-sm);
+    padding: 1rem;
+    margin: 1rem 0;
 }
 
 .killed-items p {
-    margin: 0.25rem 0;
-    color: var(--accent-pink);
+    margin: 0.5rem 0;
+    color: var(--text-color);
     font-weight: 500;
+}
+
+.killed-items strong {
+    color: var(--accent-pink);
 }
 
 /* Strategy and Sub-Strategy Elimination Styles */
@@ -3538,12 +3566,12 @@ hr.sub-divider {
 }
 
 .elimination-reason {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     color: var(--accent-pink);
     background: rgba(var(--accent-pink-rgb), 0.1);
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    margin: 0.5rem 0;
+    padding: 0.75rem 1rem;
+    border-radius: var(--border-radius-sm);
+    margin: 1rem 0;
     font-style: italic;
 }
 
@@ -3556,10 +3584,152 @@ hr.sub-divider {
 
 .button.disabled:hover {
     background: var(--text-tertiary-color) !important;
-    transform: none !important;
 }
 
-/* Red Team uses existing status badge styles from the main system */
+/* Red Team Reasoning Block Styles */
+.red-team-reasoning-section {
+    margin-top: 1.5rem;
+    border-radius: var(--border-radius-md);
+    background: var(--card-bg-color);
+    backdrop-filter: var(--card-blur-effect);
+}
+
+.red-team-reasoning-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--border-radius-md);
+}
+
+.red-team-reasoning-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.code-icon {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.875rem;
+    color: var(--accent-purple);
+    opacity: 0.7;
+}
+
+.red-team-reasoning-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.red-team-reasoning-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-speed) var(--easing-curve);
+}
+
+.red-team-reasoning-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.red-team-reasoning-btn .material-symbols-outlined {
+    font-size: 18px;
+}
+
+.red-team-reasoning-content {
+    padding: 0;
+    background: var(--code-bg);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s var(--easing-curve), padding 0.3s var(--easing-curve);
+    border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
+}
+
+.red-team-reasoning-content.expanded {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+/* Red Team Full Screen Modal */
+.red-team-full-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(var(--bg-color-rgb), 0.95);
+    backdrop-filter: blur(20px);
+    z-index: 1000;
+    display: none;
+    padding: 2rem;
+}
+
+.red-team-full-modal.active {
+    display: flex;
+    flex-direction: column;
+}
+
+.red-team-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.red-team-modal-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0;
+}
+
+.red-team-modal-close {
+    background: var(--card-bg-color);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    padding: 0.75rem;
+    cursor: pointer;
+    color: var(--text-secondary-color);
+    font-size: 1.25rem;
+    transition: all var(--transition-speed-fast) var(--easing-curve);
+}
+
+.red-team-modal-close:hover {
+    background: var(--card-bg-hover-color);
+    color: var(--text-color);
+}
+
+.red-team-modal-content {
+    flex: 1;
+    background: var(--sub-panel-bg-color);
+    border-radius: var(--border-radius-md);
+    padding: 2rem;
+    overflow-y: auto;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--text-secondary-color);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
 
 .no-data-message {
     text-align: center;

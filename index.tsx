@@ -133,22 +133,15 @@ interface MathHypothesisData {
     id: string; // e.g., "hyp1", "hyp2", "hyp3"
     hypothesisText: string;
 
-    // Prover agent data
-    proverRequestPrompt?: string;
-    proverAttempt?: string;
-    proverStatus: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
-    proverError?: string;
-    proverRetryAttempt?: number;
-
-    // Disprover agent data
-    disproverRequestPrompt?: string;
-    disproverAttempt?: string;
-    disproverStatus: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
-    disproverError?: string;
-    disproverRetryAttempt?: number;
+    // Hypothesis tester agent data
+    testerRequestPrompt?: string;
+    testerAttempt?: string;
+    testerStatus: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
+    testerError?: string;
+    testerRetryAttempt?: number;
 
     // Final status determination
-    finalStatus: 'pending' | 'proven' | 'refuted' | 'unresolved' | 'contradiction';
+    finalStatus: 'pending' | 'proven' | 'refuted' | 'unresolved' | 'contradiction' | 'needs_further_analysis';
     isDetailsOpen?: boolean;
 }
 // Red Team Agent Interface
@@ -279,10 +272,8 @@ export interface CustomizablePromptsMath { // Export for prompts.ts
     // New prompts for hypothesis exploration
     sys_math_hypothesisGeneration: string;
     user_math_hypothesisGeneration: string; // {{originalProblemText}} (+ image)
-    sys_math_prover: string;
-    user_math_prover: string; // {{originalProblemText}}, {{hypothesis}} (+ image)
-    sys_math_disprover: string;
-    user_math_disprover: string; // {{originalProblemText}}, {{hypothesis}} (+ image)
+    sys_math_hypothesisTester: string;
+    user_math_hypothesisTester: string; // {{originalProblemText}}, {{hypothesis}} (+ image)
 
     // New prompts for Red Team evaluation
     sys_math_redTeam: string;
@@ -474,10 +465,8 @@ const customPromptTextareasMath: { [K in keyof CustomizablePromptsMath]: HTMLTex
     user_math_selfImprovement: document.getElementById('user-math-self-improvement') as HTMLTextAreaElement,
     sys_math_hypothesisGeneration: document.getElementById('sys-math-hypothesis-generation') as HTMLTextAreaElement,
     user_math_hypothesisGeneration: document.getElementById('user-math-hypothesis-generation') as HTMLTextAreaElement,
-    sys_math_prover: document.getElementById('sys-math-prover') as HTMLTextAreaElement,
-    user_math_prover: document.getElementById('user-math-prover') as HTMLTextAreaElement,
-    sys_math_disprover: document.getElementById('sys-math-disprover') as HTMLTextAreaElement,
-    user_math_disprover: document.getElementById('user-math-disprover') as HTMLTextAreaElement,
+    sys_math_hypothesisTester: document.getElementById('sys-math-hypothesis-tester') as HTMLTextAreaElement,
+    user_math_hypothesisTester: document.getElementById('user-math-hypothesis-tester') as HTMLTextAreaElement,
     sys_math_redTeam: document.getElementById('sys-math-red-team') as HTMLTextAreaElement,
     user_math_redTeam: document.getElementById('user-math-red-team') as HTMLTextAreaElement,
 };
@@ -2505,7 +2494,7 @@ async function startMathSolvingProcess(problemText: string, imageBase64?: string
         isJson: boolean,
         stepDescription: string,
         targetStatusField: MathMainStrategyData | MathSubStrategyData | MathPipelineState | MathHypothesisData,
-        retryAttemptField: 'retryAttempt' | 'selfImprovementRetryAttempt' | 'proverRetryAttempt' | 'disproverRetryAttempt' | 'hypothesisGenRetryAttempt'
+        retryAttemptField: 'retryAttempt' | 'selfImprovementRetryAttempt' | 'testerRetryAttempt' | 'hypothesisGenRetryAttempt'
     ): Promise<string> => {
         if (!currentProcess || currentProcess.isStopRequested) throw new PipelineStopRequestedError(`Stop requested before API call: ${stepDescription}`);
         let responseText = "";
@@ -2518,10 +2507,8 @@ async function startMathSolvingProcess(problemText: string, imageBase64?: string
             // Set appropriate status based on the field type
             if ('selfImprovementStatus' in targetStatusField && retryAttemptField === 'selfImprovementRetryAttempt') {
                 targetStatusField.selfImprovementStatus = attempt > 0 ? 'retrying' : 'processing';
-            } else if ('proverStatus' in targetStatusField && retryAttemptField === 'proverRetryAttempt') {
-                targetStatusField.proverStatus = attempt > 0 ? 'retrying' : 'processing';
-            } else if ('disproverStatus' in targetStatusField && retryAttemptField === 'disproverRetryAttempt') {
-                targetStatusField.disproverStatus = attempt > 0 ? 'retrying' : 'processing';
+            } else if ('testerStatus' in targetStatusField && retryAttemptField === 'testerRetryAttempt') {
+                targetStatusField.testerStatus = attempt > 0 ? 'retrying' : 'processing';
             } else if ('hypothesisGenStatus' in targetStatusField && retryAttemptField === 'hypothesisGenRetryAttempt') {
                 targetStatusField.hypothesisGenStatus = attempt > 0 ? 'retrying' : 'processing';
             } else {
@@ -2539,10 +2526,8 @@ async function startMathSolvingProcess(problemText: string, imageBase64?: string
                 // Reset status to processing after successful call
                 if ('selfImprovementStatus' in targetStatusField && retryAttemptField === 'selfImprovementRetryAttempt') {
                     targetStatusField.selfImprovementStatus = 'processing';
-                } else if ('proverStatus' in targetStatusField && retryAttemptField === 'proverRetryAttempt') {
-                    targetStatusField.proverStatus = 'processing';
-                } else if ('disproverStatus' in targetStatusField && retryAttemptField === 'disproverRetryAttempt') {
-                    targetStatusField.disproverStatus = 'processing';
+                } else if ('testerStatus' in targetStatusField && retryAttemptField === 'testerRetryAttempt') {
+                    targetStatusField.testerStatus = 'processing';
                 } else if ('hypothesisGenStatus' in targetStatusField && retryAttemptField === 'hypothesisGenRetryAttempt') {
                     targetStatusField.hypothesisGenStatus = 'processing';
                 } else {
@@ -2557,10 +2542,8 @@ async function startMathSolvingProcess(problemText: string, imageBase64?: string
                 // Set appropriate error field
                 if ('selfImprovementError' in targetStatusField && retryAttemptField === 'selfImprovementRetryAttempt') {
                     targetStatusField.selfImprovementError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
-                } else if ('proverError' in targetStatusField && retryAttemptField === 'proverRetryAttempt') {
-                    targetStatusField.proverError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
-                } else if ('disproverError' in targetStatusField && retryAttemptField === 'disproverRetryAttempt') {
-                    targetStatusField.disproverError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
+                } else if ('testerError' in targetStatusField && retryAttemptField === 'testerRetryAttempt') {
+                    targetStatusField.testerError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
                 } else if ('hypothesisGenError' in targetStatusField && retryAttemptField === 'hypothesisGenRetryAttempt') {
                     targetStatusField.hypothesisGenError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
                 } else {
@@ -2571,10 +2554,8 @@ async function startMathSolvingProcess(problemText: string, imageBase64?: string
                 if (attempt === MAX_RETRIES) {
                     if ('selfImprovementError' in targetStatusField && retryAttemptField === 'selfImprovementRetryAttempt') {
                         targetStatusField.selfImprovementError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
-                    } else if ('proverError' in targetStatusField && retryAttemptField === 'proverRetryAttempt') {
-                        targetStatusField.proverError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
-                    } else if ('disproverError' in targetStatusField && retryAttemptField === 'disproverRetryAttempt') {
-                        targetStatusField.disproverError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
+                    } else if ('testerError' in targetStatusField && retryAttemptField === 'testerRetryAttempt') {
+                        targetStatusField.testerError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
                     } else if ('hypothesisGenError' in targetStatusField && retryAttemptField === 'hypothesisGenRetryAttempt') {
                         targetStatusField.hypothesisGenError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
                     } else {
@@ -2713,8 +2694,7 @@ async function startMathSolvingProcess(problemText: string, imageBase64?: string
             currentProcess.hypotheses = parsedHypotheses.map((hypText, i) => ({
                 id: `hyp${i}`,
                 hypothesisText: hypText,
-                proverStatus: 'pending',
-                disproverStatus: 'pending',
+                testerStatus: 'pending',
                 finalStatus: 'pending',
                 isDetailsOpen: true
             }));
@@ -2726,96 +2706,67 @@ async function startMathSolvingProcess(problemText: string, imageBase64?: string
             // Parallel Proof & Refutation for each hypothesis
             await Promise.allSettled(currentProcess.hypotheses.map(async (hypothesis) => {
                 if (currentProcess.isStopRequested) {
-                    hypothesis.proverStatus = 'cancelled';
-                    hypothesis.disproverStatus = 'cancelled';
+                    hypothesis.testerStatus = 'cancelled';
                     hypothesis.finalStatus = 'pending';
                     return;
                 }
 
-                // Run prover and disprover in parallel
-                const proverPromise = (async () => {
-                    try {
-                        const proverUserPrompt = renderPrompt(customPromptsMathState.user_math_prover, {
-                            originalProblemText: problemText,
-                            hypothesis: hypothesis.hypothesisText
-                        });
-                        const proverPromptParts: Part[] = [{ text: proverUserPrompt }];
-                        if (imageBase64 && imageMimeType) {
-                            proverPromptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-                        }
-                        hypothesis.proverRequestPrompt = proverUserPrompt + (imageBase64 ? "\n[Image Provided]" : "");
+                // Run hypothesis tester
 
-                        const proverResponse = await makeMathApiCall(
-                            proverPromptParts,
-                            customPromptsMathState.sys_math_prover,
+                const testerPromise = (async () => {
+                    try {
+                        const testerUserPrompt = renderPrompt(customPromptsMathState.user_math_hypothesisTester, {
+                            originalProblemText: problemText,
+                            hypothesisText: hypothesis.hypothesisText
+                        });
+                        const testerPromptParts: Part[] = [{ text: testerUserPrompt }];
+                        if (imageBase64 && imageMimeType) {
+                            testerPromptParts.push({
+                                inlineData: {
+                                    data: imageBase64,
+                                    mimeType: imageMimeType
+                                }
+                            });
+                        }
+
+                        hypothesis.testerRequestPrompt = testerUserPrompt;
+                        hypothesis.testerAttempt = await makeMathApiCall(
+                            testerPromptParts,
+                            customPromptsMathState.sys_math_hypothesisTester,
                             false,
-                            `Prover for ${hypothesis.id}`,
+                            'Hypothesis Testing',
                             hypothesis,
-                            'proverRetryAttempt'
+                            'testerRetryAttempt'
                         );
-                        hypothesis.proverAttempt = cleanTextOutput(proverResponse);
-                        hypothesis.proverStatus = 'completed';
-                    } catch (e: any) {
-                        hypothesis.proverStatus = 'error';
-                        if (!hypothesis.proverError) hypothesis.proverError = e.message || "Failed to run prover.";
-                        console.error(`Error in prover for ${hypothesis.id}:`, e);
+                        hypothesis.testerStatus = 'completed';
+                    } catch (error) {
+                        console.error('Hypothesis tester error:', error);
+                        hypothesis.testerStatus = 'error';
+                        hypothesis.testerError = error instanceof Error ? error.message : 'Unknown error';
+                        renderActiveMathPipeline();
                     }
                 })();
 
-                const disproverPromise = (async () => {
-                    try {
-                        const disproverUserPrompt = renderPrompt(customPromptsMathState.user_math_disprover, {
-                            originalProblemText: problemText,
-                            hypothesis: hypothesis.hypothesisText
-                        });
-                        const disproverPromptParts: Part[] = [{ text: disproverUserPrompt }];
-                        if (imageBase64 && imageMimeType) {
-                            disproverPromptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-                        }
-                        hypothesis.disproverRequestPrompt = disproverUserPrompt + (imageBase64 ? "\n[Image Provided]" : "");
+                await testerPromise;
 
-                        const disproverResponse = await makeMathApiCall(
-                            disproverPromptParts,
-                            customPromptsMathState.sys_math_disprover,
-                            false,
-                            `Disprover for ${hypothesis.id}`,
-                            hypothesis,
-                            'disproverRetryAttempt'
-                        );
-                        hypothesis.disproverAttempt = cleanTextOutput(disproverResponse);
-                        hypothesis.disproverStatus = 'completed';
-                    } catch (e: any) {
-                        hypothesis.disproverStatus = 'error';
-                        if (!hypothesis.disproverError) hypothesis.disproverError = e.message || "Failed to run disprover.";
-                        console.error(`Error in disprover for ${hypothesis.id}:`, e);
-                    }
-                })();
-
-                await Promise.allSettled([proverPromise, disproverPromise]);
-
-                // Determine final status based on prover/disprover outcomes
-                if (hypothesis.proverStatus === 'completed' && hypothesis.disproverStatus === 'completed') {
-                    // Both completed - need to analyze results
-                    const proverSuccessful = hypothesis.proverAttempt && !hypothesis.proverAttempt.toLowerCase().includes('cannot') && !hypothesis.proverAttempt.toLowerCase().includes('unable to prove');
-                    const disproverSuccessful = hypothesis.disproverAttempt && (hypothesis.disproverAttempt.toLowerCase().includes('counterexample') || hypothesis.disproverAttempt.toLowerCase().includes('false'));
-
-                    if (proverSuccessful && disproverSuccessful) {
-                        hypothesis.finalStatus = 'contradiction';
-                    } else if (proverSuccessful && !disproverSuccessful) {
+                // Determine final status based on hypothesis tester outcome
+                if (hypothesis.testerStatus === 'completed' && hypothesis.testerAttempt) {
+                    const response = hypothesis.testerAttempt.toLowerCase();
+                    if (response.includes('proven') || response.includes('true') || response.includes('correct')) {
                         hypothesis.finalStatus = 'proven';
-                    } else if (!proverSuccessful && disproverSuccessful) {
+                    } else if (response.includes('refuted') || response.includes('false') || response.includes('counterexample')) {
                         hypothesis.finalStatus = 'refuted';
+                    } else if (response.includes('contradiction') || response.includes('inconsistent')) {
+                        hypothesis.finalStatus = 'contradiction';
+                    } else if (response.includes('needs further analysis') || response.includes('inconclusive')) {
+                        hypothesis.finalStatus = 'needs_further_analysis';
                     } else {
                         hypothesis.finalStatus = 'unresolved';
                     }
-                } else if (hypothesis.proverStatus === 'completed' && hypothesis.disproverStatus === 'error') {
-                    const proverSuccessful = hypothesis.proverAttempt && !hypothesis.proverAttempt.toLowerCase().includes('cannot') && !hypothesis.proverAttempt.toLowerCase().includes('unable to prove');
-                    hypothesis.finalStatus = proverSuccessful ? 'proven' : 'unresolved';
-                } else if (hypothesis.proverStatus === 'error' && hypothesis.disproverStatus === 'completed') {
-                    const disproverSuccessful = hypothesis.disproverAttempt && (hypothesis.disproverAttempt.toLowerCase().includes('counterexample') || hypothesis.disproverAttempt.toLowerCase().includes('false'));
-                    hypothesis.finalStatus = disproverSuccessful ? 'refuted' : 'unresolved';
-                } else {
+                } else if (hypothesis.testerStatus === 'error') {
                     hypothesis.finalStatus = 'unresolved';
+                } else {
+                    hypothesis.finalStatus = 'pending';
                 }
 
                 renderActiveMathPipeline();
@@ -3330,12 +3281,9 @@ function synthesizeKnowledgePacket(hypotheses: MathHypothesisData[]): string {
         knowledgePacket += `[${statusText}] Hypothesis ${index + 1}: ${hypothesis.hypothesisText}\n`;
         knowledgePacket += `- GUIDANCE: ${guidance}\n`;
 
-        if (hypothesis.proverAttempt && hypothesis.finalStatus === 'proven') {
-            knowledgePacket += `- PROOF SUMMARY: ${hypothesis.proverAttempt.substring(0, 200)}${hypothesis.proverAttempt.length > 200 ? '...' : ''}\n`;
-        }
-
-        if (hypothesis.disproverAttempt && hypothesis.finalStatus === 'refuted') {
-            knowledgePacket += `- COUNTEREXAMPLE: ${hypothesis.disproverAttempt.substring(0, 200)}${hypothesis.disproverAttempt.length > 200 ? '...' : ''}\n`;
+        if (hypothesis.testerAttempt && (hypothesis.finalStatus === 'proven' || hypothesis.finalStatus === 'refuted')) {
+            const summaryLabel = hypothesis.finalStatus === 'proven' ? 'PROOF SUMMARY' : 'ANALYSIS SUMMARY';
+            knowledgePacket += `- ${summaryLabel}: ${hypothesis.testerAttempt.substring(0, 200)}${hypothesis.testerAttempt.length > 200 ? '...' : ''}\n`;
         }
 
         knowledgePacket += "\n";
@@ -3739,7 +3687,7 @@ function openArgumentModal(hypothesisId: string) {
     leftPanel.appendChild(leftHeader);
     const leftContent = document.createElement('div');
     leftContent.className = 'comparison-content custom-scrollbar';
-    leftContent.innerHTML = renderMarkdown(hypothesis.proverAttempt || 'Prover attempt not available');
+    leftContent.innerHTML = renderMarkdown(hypothesis.testerAttempt || 'Hypothesis tester attempt not available');
     leftPanel.appendChild(leftContent);
     
     const rightPanel = document.createElement('div');
@@ -3750,7 +3698,7 @@ function openArgumentModal(hypothesisId: string) {
     rightPanel.appendChild(rightHeader);
     const rightContent = document.createElement('div');
     rightContent.className = 'comparison-content custom-scrollbar';
-    rightContent.innerHTML = renderMarkdown(hypothesis.disproverAttempt || 'Hypothesis tester attempt not available');
+    rightContent.innerHTML = renderMarkdown(hypothesis.testerAttempt || 'Hypothesis tester attempt not available');
     rightPanel.appendChild(rightContent);
     
     argumentComparison.appendChild(leftPanel);
@@ -3953,10 +3901,9 @@ function renderActiveMathPipeline() {
 
     // Main Tabs
     const mainTabs = [
-        { id: 'problem-details', text: 'Problem Details' },
-        { id: 'strategic-solver', text: 'Strategic Solver' },
-        { id: 'hypothesis-explorer', text: 'Hypothesis Explorer' },
-        { id: 'red-team-evaluator', text: 'Red Team Evaluator' },
+        { id: 'strategic-solver', text: 'Strategic Leap' },
+        { id: 'hypothesis-explorer', text: 'Hypothesis Testing' },
+        { id: 'red-team-evaluator', text: 'Red Team' },
         { id: 'final-result', text: 'Final Result' }
     ];
 
@@ -3975,6 +3922,8 @@ function renderActiveMathPipeline() {
                 tabButton.classList.add('status-math-completed');
             } else if (mathProcess.status === 'processing') {
                 tabButton.classList.add('status-math-processing');
+            } else if (mathProcess.status === 'error') {
+                tabButton.classList.add('status-math-error');
             }
         } else if (tabInfo.id === 'hypothesis-explorer') {
             if (mathProcess.hypothesisExplorerComplete) {
@@ -4150,14 +4099,7 @@ function renderActiveMathPipeline() {
     hypothesisExplorerContentPane.className = 'pipeline-content';
     hypothesisExplorerContentPane.setAttribute('role', 'tabpanel');
     hypothesisExplorerContentPane.setAttribute('aria-labelledby', `math-tab-hypothesis-explorer`);
-    let hypothesisExplorerHtml = `<div class="math-hypothesis-explorer model-detail-card">
-        <h4 class="model-title">Hypothesis Explorer (Track B)</h4>
-        <p class="track-description">Generates 3 hypotheses, then runs parallel Prover and Disprover agents for each.</p>`;
-    if (mathProcess.hypothesisExplorerComplete) {
-        hypothesisExplorerHtml += `<p class="status-badge status-completed">Hypothesis Explorer Complete</p>`;
-    } else if (mathProcess.status === 'processing') {
-        hypothesisExplorerHtml += `<p class="status-badge status-processing">Hypothesis Explorer In Progress</p>`;
-    }
+    let hypothesisExplorerHtml = `<div class="math-hypothesis-explorer model-detail-card">`;
     if (mathProcess.hypotheses.length > 0) {
         hypothesisExplorerHtml += `<div class="hypotheses-grid">`;
         mathProcess.hypotheses.forEach((hypothesis, index) => {
@@ -4186,7 +4128,7 @@ function renderActiveMathPipeline() {
                     glowClass = 'hypothesis-contradiction';
                     break;
                 default:
-                    if (hypothesis.proverStatus === 'processing' || hypothesis.disproverStatus === 'processing') {
+                    if (hypothesis.testerStatus === 'processing') {
                         statusClass = 'status-processing';
                         statusText = 'Processing';
                     }
@@ -4198,14 +4140,10 @@ function renderActiveMathPipeline() {
                 <div class="hypothesis-status">
                     <span class="status-badge ${statusClass}">${statusText}</span>
                 </div>
-                <div class="prover-disprover-status">
-                    <div class="prover-status">
-                        <span class="agent-label">Prover:</span>
-                        <span class="status-badge ${hypothesis.proverStatus === 'completed' ? 'status-completed' : hypothesis.proverStatus === 'processing' ? 'status-processing' : hypothesis.proverStatus === 'error' ? 'status-error' : 'status-pending'}">${hypothesis.proverStatus}</span>
-                    </div>
-                    <div class="disprover-status">
-                        <span class="agent-label">Disprover:</span>
-                        <span class="status-badge ${hypothesis.disproverStatus === 'completed' ? 'status-completed' : hypothesis.disproverStatus === 'processing' ? 'status-processing' : hypothesis.disproverStatus === 'error' ? 'status-error' : 'status-pending'}">${hypothesis.disproverStatus}</span>
+                <div class="hypothesis-tester-status">
+                    <div class="tester-status">
+                        <span class="agent-label">Hypothesis Tester:</span>
+                        <span class="status-badge ${hypothesis.testerStatus === 'completed' ? 'status-completed' : hypothesis.testerStatus === 'processing' ? 'status-processing' : hypothesis.testerStatus === 'error' ? 'status-error' : 'status-pending'}">${hypothesis.testerStatus}</span>
                     </div>
                 </div>
                 <button class="button view-argument-button" data-hypothesis-id="${hypothesis.id}">View The Argument</button>
@@ -4236,17 +4174,7 @@ function renderActiveMathPipeline() {
     redTeamContentPane.setAttribute('role', 'tabpanel');
     redTeamContentPane.setAttribute('aria-labelledby', `math-tab-red-team-evaluator`);
     
-    let redTeamHtml = `<div class="math-red-team model-detail-card">
-        <h4 class="model-title">Red Team Strategy Evaluator</h4>
-        <p class="track-description">Three parallel Red Team agents evaluate strategies and sub-strategies to eliminate futile approaches before solution attempts.</p>`;
-    
-    if (mathProcess.redTeamComplete) {
-        redTeamHtml += `<p class="status-badge status-completed">Red Team Evaluation Complete</p>`;
-    } else if (mathProcess.redTeamStatus === 'processing') {
-        redTeamHtml += `<p class="status-badge status-processing">Red Team Evaluation In Progress</p>`;
-    } else if (mathProcess.redTeamStatus === 'error') {
-        redTeamHtml += `<p class="status-badge status-error">Red Team Evaluation Error</p>`;
-    }
+let redTeamHtml = `<div class="math-red-team model-detail-card">`;
 
     if (mathProcess.redTeamAgents && mathProcess.redTeamAgents.length > 0) {
         redTeamHtml += `<div class="red-team-agents-grid">`;
@@ -4285,11 +4213,16 @@ function renderActiveMathPipeline() {
                 
                 redTeamHtml += `
                     <div class="red-team-results">
-                        <p><strong>Evaluation Results:</strong></p>
-                        <ul>
-                            <li>Killed Strategies: ${killedStrategiesCount}</li>
-                            <li>Killed Sub-Strategies: ${killedSubStrategiesCount}</li>
-                        </ul>`;
+                        <div class="red-team-evaluation-summary">
+                            <div class="evaluation-metric">
+                                <span class="metric-value">${killedStrategiesCount}</span>
+                                <span class="metric-label">Killed Strategies</span>
+                            </div>
+                            <div class="evaluation-metric">
+                                <span class="metric-value">${killedSubStrategiesCount}</span>
+                                <span class="metric-label">Killed Sub-Strategies</span>
+                            </div>
+                        </div>`;
 
                 if (killedStrategiesCount > 0 || killedSubStrategiesCount > 0) {
                     redTeamHtml += `<div class="killed-items">`;
@@ -4309,28 +4242,25 @@ function renderActiveMathPipeline() {
                 redTeamHtml += `<div class="status-message error"><pre>${escapeHtml(redTeamAgent.error)}</pre></div>`;
             }
 
-            if (redTeamAgent.requestPrompt) {
-                redTeamHtml += `
-                    <details class="model-detail-section collapsible-section" ${redTeamAgent.isDetailsOpen ? 'open' : ''}>
-                        <summary class="model-section-title">Request Prompt</summary>
-                        <div class="scrollable-content-area custom-scrollbar"><pre>${escapeHtml(redTeamAgent.requestPrompt)}</pre></div>
-                    </details>`;
-            }
-
-            if (redTeamAgent.evaluationResponse) {
-                redTeamHtml += `
-                    <details class="model-detail-section collapsible-section" ${redTeamAgent.isDetailsOpen ? 'open' : ''}>
-                        <summary class="model-section-title">Evaluation Response</summary>
-                        <div class="scrollable-content-area custom-scrollbar"><pre>${escapeHtml(redTeamAgent.evaluationResponse)}</pre></div>
-                    </details>`;
-            }
-
             if (redTeamAgent.reasoning) {
                 redTeamHtml += `
-                    <details class="model-detail-section collapsible-section" ${redTeamAgent.isDetailsOpen ? 'open' : ''}>
-                        <summary class="model-section-title">Reasoning</summary>
-                        <div class="scrollable-content-area custom-scrollbar"><pre>${escapeHtml(redTeamAgent.reasoning)}</pre></div>
-                    </details>`;
+                    <div class="red-team-reasoning-section">
+                        <div class="red-team-reasoning-header">
+                            <div class="red-team-reasoning-toggle">
+                                <span class="code-icon">&lt;&gt;</span>
+                                <span>Reasoning</span>
+                            </div>
+                            <div class="red-team-reasoning-buttons">
+                                <button class="red-team-reasoning-btn" onclick="toggleRedTeamReasoning('${redTeamAgent.id}')">
+                                    <span class="material-symbols-outlined">visibility</span>
+                                </button>
+                                <button class="red-team-reasoning-btn" onclick="showFullRedTeamReasoning('${redTeamAgent.id}', \`${escapeHtml(redTeamAgent.evaluationResponse || redTeamAgent.reasoning || '').replace(/`/g, '\\`')}\`)">
+                                    <span class="material-symbols-outlined">fullscreen</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="red-team-reasoning-${redTeamAgent.id}" class="red-team-reasoning-content"></div>
+                    </div>`;
             }
 
             redTeamHtml += `
@@ -4339,7 +4269,10 @@ function renderActiveMathPipeline() {
         });
         redTeamHtml += `</div>`;
     } else {
-        redTeamHtml += `<p class="no-data-message">No Red Team agents available yet.</p>`;
+        redTeamHtml += `<div class="no-data-message">
+            <h4>Red Team Evaluator</h4>
+            <p>No Red Team agents have been generated yet. Red Team agents will appear here once the evaluation process begins.</p>
+        </div>`;
     }
 
     if (mathProcess.redTeamError) {
@@ -4350,15 +4283,29 @@ function renderActiveMathPipeline() {
     redTeamContentPane.innerHTML = redTeamHtml;
     pipelinesContentContainer.appendChild(redTeamContentPane);
 
+    // Add Red Team full screen modal to body if it doesn't exist
+    if (!document.getElementById('red-team-full-modal')) {
+        const modalHtml = `
+            <div id="red-team-full-modal" class="red-team-full-modal">
+                <div class="red-team-modal-header">
+                    <h3 class="red-team-modal-title">Full Red Team Reasoning</h3>
+                    <button class="red-team-modal-close" onclick="closeRedTeamModal()">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <div id="red-team-modal-content" class="red-team-modal-content"></div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
     // Final Result Pane
     const finalResultContentPane = document.createElement('div');
     finalResultContentPane.id = `pipeline-content-final-result`;
     finalResultContentPane.className = 'pipeline-content';
     finalResultContentPane.setAttribute('role', 'tabpanel');
     finalResultContentPane.setAttribute('aria-labelledby', `math-tab-final-result`);
-    let finalResultHtml = `<div class="math-final-result model-detail-card">
-        <h4 class="model-title">Final Result</h4>
-        <p class="track-description">The ultimate solution selected from all refined strategies.</p>`;
+    let finalResultHtml = `<div class="math-final-result model-detail-card">`;
     if (mathProcess.finalJudgingStatus === 'completed' && mathProcess.finalJudgedBestSolution) {
         finalResultHtml += `<div class="final-solution-display">
             <div class="markdown-content">
@@ -6103,7 +6050,45 @@ function closeDiffModal() {
 
 // ---------- END DIFF MODAL FUNCTIONS ----------
 
+// Red Team reasoning functions
+(window as any).toggleRedTeamReasoning = function(agentId: string) {
+    const content = document.getElementById(`red-team-reasoning-${agentId}`);
+    if (content) {
+        if (!content.classList.contains('expanded')) {
+            // Load content on first expand
+            if (activeMathPipeline) {
+                const agent = activeMathPipeline.redTeamAgents.find((a: any) => a.id === agentId);
+                if (agent && agent.reasoning) {
+                    content.innerHTML = escapeHtml(agent.reasoning);
+                }
+            }
+            content.classList.add('expanded');
+        } else {
+            // Clear content and collapse
+            content.innerHTML = '';
+            content.classList.remove('expanded');
+        }
+    }
+};
+
+(window as any).showFullRedTeamReasoning = function(agentId: string, fullContent: string) {
+    const modal = document.getElementById('red-team-full-modal');
+    const modalContent = document.getElementById('red-team-modal-content');
+    if (modal && modalContent) {
+        modalContent.innerHTML = `<pre>${fullContent}</pre>`;
+        modal.classList.add('active');
+    }
+};
+
+(window as any).closeRedTeamModal = function() {
+    const modal = document.getElementById('red-team-full-modal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing UI...');
     initializeUI();
 
     // Default to first mode if none specifically checked (e.g. after import or on fresh load)
