@@ -172,11 +172,11 @@ body {
   position: absolute;
   top: 0; left: 50%;
   transform: translateX(-20%);
-  width: 150%; height: 60vh;
+  width: 320%; height: 50vh;
   background: radial-gradient(
       ellipse at center top,
-      rgba(63, 190, 300, 0.22) 0%,
-      rgba(var(--bg-color-rgb), 0) 65%
+      rgba(120, 100, 300, 0.22) 0%,
+      rgba(var(--bg-color-rgb), 0) 35%
   );
   pointer-events: none;
 }
@@ -2009,7 +2009,6 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 0.75rem;
-    border-top: 1px solid var(--border-color);
     padding-top: 1.5rem;
 }
 .sub-strategy-card {
@@ -2343,8 +2342,13 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
     margin-top: 1.5rem;
 }
 .math-sub-strategy-card {
-    padding: 1.5rem;
-    background-color: rgba(var(--bg-color-rgb), 0.3);
+    padding: 2rem;
+    background: var(--card-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    backdrop-filter: var(--card-blur-effect);
+    -webkit-backdrop-filter: var(--card-blur-effect);
+    box-shadow: var(--shadow-lg);
 }
 .math-sub-strategy-card .sub-strategy-header {
     display: flex;
