@@ -4510,9 +4510,42 @@ function openSolutionModal(subStrategyId: string) {
     modalOverlay.appendChild(modalContent);
     document.body.appendChild(modalOverlay);
 
-    // Trigger the modal animation
+    // Add keyboard and click-outside support
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            closeSolutionModal();
+        }
+    };
+    
+    const handleOverlayClick = (e: MouseEvent) => {
+        if (e.target === modalOverlay) {
+            closeSolutionModal();
+        }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    modalOverlay.addEventListener('click', handleOverlayClick);
+    
+    // Store cleanup function on modal for proper removal
+    (modalOverlay as any).cleanup = () => {
+        document.removeEventListener('keydown', handleKeyDown);
+        modalOverlay.removeEventListener('click', handleOverlayClick);
+    };
+
+    // Trigger the modal animation and re-render KaTeX for math mode
     setTimeout(() => {
         modalOverlay.classList.add('is-visible');
+        // Re-render KaTeX after DOM insertion for proper display
+        requestAnimationFrame(() => {
+            const leftContentEl = leftContent;
+            const rightContentEl = rightContent;
+            if (leftContentEl) {
+                leftContentEl.innerHTML = renderMathContent(subStrategy.solutionAttempt || 'Solution attempt not available');
+            }
+            if (rightContentEl) {
+                rightContentEl.innerHTML = renderMathContent(subStrategy.refinedSolution || 'Refined solution not available');
+            }
+        });
     }, 10);
 }
 
@@ -4530,7 +4563,16 @@ function activateSolutionTab(targetId: string) {
 function closeSolutionModal() {
     const modalOverlay = document.getElementById('solution-modal-overlay');
     if (modalOverlay) {
-        modalOverlay.remove();
+        // Clean up event listeners
+        if ((modalOverlay as any).cleanup) {
+            (modalOverlay as any).cleanup();
+        }
+        // Add fade-out animation
+        modalOverlay.classList.remove('is-visible');
+        // Remove modal after animation completes
+        setTimeout(() => {
+            modalOverlay.remove();
+        }, 200);
     }
 }
 function openDeepthinkSolutionModal(subStrategyId: string) {
@@ -4674,7 +4716,7 @@ function openDeepthinkSolutionModal(subStrategyId: string) {
     leftContent.style.flex = '1';
     leftContent.style.overflow = 'auto';
     leftContent.style.padding = '16px';
-    leftContent.innerHTML = renderMarkdown(subStrategy.solutionAttempt || 'Solution attempt not available');
+    leftContent.innerHTML = renderMathContent(subStrategy.solutionAttempt || 'Solution attempt not available');
     leftPanel.appendChild(leftContent);
     
     const rightPanel = document.createElement('div');
@@ -4698,7 +4740,7 @@ function openDeepthinkSolutionModal(subStrategyId: string) {
     rightContent.style.flex = '1';
     rightContent.style.overflow = 'auto';
     rightContent.style.padding = '16px';
-    rightContent.innerHTML = renderMarkdown(subStrategy.solution || 'Final solution not available');
+    rightContent.innerHTML = renderMathContent(subStrategy.refinedSolution || 'Final solution not available');
     rightPanel.appendChild(rightContent);
     
     solutionComparison.appendChild(leftPanel);
@@ -4711,8 +4753,42 @@ function openDeepthinkSolutionModal(subStrategyId: string) {
     modalOverlay.appendChild(modalContent);
     document.body.appendChild(modalOverlay);
 
+    // Add keyboard and click-outside support
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            closeSolutionModal();
+        }
+    };
+    
+    const handleOverlayClick = (e: MouseEvent) => {
+        if (e.target === modalOverlay) {
+            closeSolutionModal();
+        }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    modalOverlay.addEventListener('click', handleOverlayClick);
+    
+    // Store cleanup function on modal for proper removal
+    (modalOverlay as any).cleanup = () => {
+        document.removeEventListener('keydown', handleKeyDown);
+        modalOverlay.removeEventListener('click', handleOverlayClick);
+    };
+
+    // Trigger the modal animation and re-render KaTeX for deepthink mode
     setTimeout(() => {
         modalOverlay.classList.add('is-visible');
+        // Re-render KaTeX after DOM insertion for proper display
+        requestAnimationFrame(() => {
+            const leftContentEl = leftContent;
+            const rightContentEl = rightContent;
+            if (leftContentEl) {
+                leftContentEl.innerHTML = renderMathContent(subStrategy.solutionAttempt || 'Solution attempt not available');
+            }
+            if (rightContentEl) {
+                rightContentEl.innerHTML = renderMathContent(subStrategy.refinedSolution || 'Final solution not available');
+            }
+        });
     }, 10);
 }
 
