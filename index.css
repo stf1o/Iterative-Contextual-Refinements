@@ -1992,6 +1992,28 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
     /* Uses the standard .tab-button.math-mode-tab.active.status-math-completed styles */
 }
 
+/* Red Team Tab Pink Glow - Always Active */
+.tab-button.red-team-pink-glow {
+    background: linear-gradient(135deg, rgba(var(--accent-pink-rgb), 0.15), rgba(var(--accent-pink-rgb), 0.08)) !important;
+    color: var(--accent-pink) !important;
+    border-color: rgba(var(--accent-pink-rgb), 0.4) !important;
+    box-shadow: 0 0 15px -3px rgba(var(--accent-pink-rgb), 0.3), 0 2px 8px rgba(var(--bg-color-rgb), 0.2) !important;
+    animation: pulse-glow-pink 2s infinite;
+}
+
+.tab-button.red-team-pink-glow::after {
+    background: linear-gradient(90deg, transparent, var(--accent-pink), transparent) !important;
+}
+
+@keyframes pulse-glow-pink {
+    0%, 100% { 
+        box-shadow: 0 0 15px -3px rgba(var(--accent-pink-rgb), 0.3), 0 2px 8px rgba(var(--bg-color-rgb), 0.2);
+    }
+    50% { 
+        box-shadow: 0 0 20px -2px rgba(var(--accent-pink-rgb), 0.5), 0 2px 12px rgba(var(--bg-color-rgb), 0.3);
+    }
+}
+
 /* Deepthink Mode Tab Status Styles */
 .tab-button.deepthink-mode-tab.status-deepthink-processing:not(.active) { 
     border-color: rgba(var(--accent-yellow-rgb), 0.3); 
@@ -2143,6 +2165,169 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
   margin: 0.5rem auto 0;
   background-color: var(--text-tertiary-color); /* pending */
   transition: all var(--transition-speed-fast);
+}
+
+/* Strategy Card Content Limiting and Expand/Collapse */
+.strategy-content {
+    max-height: 300px;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    position: relative;
+}
+
+.strategy-content.expanded {
+    max-height: none;
+}
+
+.strategy-content.collapsible::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(transparent, var(--card-bg));
+    pointer-events: none;
+}
+
+.strategy-content.expanded::after {
+    display: none;
+}
+
+.expand-toggle {
+    background: var(--accent-purple);
+    color: var(--bg-color);
+    border: none;
+    border-radius: 20px;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 0.75rem;
+    transition: all var(--transition-speed) var(--easing-curve);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.expand-toggle:hover {
+    background: var(--accent-blue);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--accent-purple-rgb), 0.3);
+}
+
+.expand-toggle .material-symbols-outlined {
+    font-size: 1rem;
+    transition: transform 0.3s ease;
+}
+
+.expand-toggle.expanded .material-symbols-outlined {
+    transform: rotate(180deg);
+}
+
+/* Panel action buttons for solution modal */
+.panel-action-btn {
+    background: rgba(var(--bg-color-rgb), 0.8);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(var(--border-color-rgb), 0.4);
+    color: var(--text-color-secondary);
+    border-radius: var(--border-radius-sm);
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all var(--transition-speed) var(--easing-curve);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+}
+
+.panel-action-btn:hover {
+    background: rgba(var(--accent-purple-rgb), 0.1);
+    border-color: rgba(var(--accent-purple-rgb), 0.4);
+    color: var(--accent-purple);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px -4px rgba(var(--accent-purple-rgb), 0.3);
+}
+
+.panel-action-btn .material-symbols-outlined {
+    font-size: 1rem;
+}
+
+/* Sub-strategy content limiting */
+.sub-strategy-content {
+    max-height: 200px;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    position: relative;
+}
+
+.sub-strategy-content.expanded {
+    max-height: none;
+}
+
+.sub-strategy-content.collapsible::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background: linear-gradient(transparent, var(--card-bg-color));
+    pointer-events: none;
+}
+
+.sub-strategy-content.expanded::after {
+    display: none;
+}
+
+.sub-strategy-expand-toggle {
+    background: rgba(var(--bg-color-rgb), 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(var(--border-color-rgb), 0.3);
+    color: var(--text-color);
+    border-radius: var(--border-radius-md);
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-speed) var(--easing-curve);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    white-space: nowrap;
+    min-width: fit-content;
+}
+
+.sub-strategy-expand-toggle:hover {
+    background: rgba(var(--bg-color-rgb), 0.9);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border-color: rgba(var(--accent-purple-rgb), 0.5);
+    box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.3);
+    transform: translateY(-1px);
+    color: var(--accent-purple);
+}
+
+.sub-strategy-expand-toggle .material-symbols-outlined {
+    font-size: 1rem;
+    transition: transform 0.3s ease;
+}
+
+.sub-strategy-expand-toggle.expanded .material-symbols-outlined {
+    transform: rotate(180deg);
+}
+
+/* Button container for sub-strategy actions */
+.sub-strategy-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    align-items: center;
 }
 .sub-strategy-card.status-completed::after { background-color: var(--accent-green); box-shadow: 0 0 8px -2px var(--success-glow); }
 .sub-strategy-card.status-processing::after,
@@ -2301,12 +2486,9 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-lg);
     padding: 1.5rem;
-    backdrop-filter: var(--card-blur-effect);
-    -webkit-backdrop-filter: var(--card-blur-effect);
-    box-shadow: var(--shadow-md);
+    margin-bottom: 1.5rem;
     transition: all var(--transition-speed) var(--easing-curve);
-    position: relative;
-    overflow: hidden;
+    box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.1);
 }
 
 .sub-strategy-card:hover {
@@ -2330,13 +2512,15 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
 .sub-strategy-card .markdown-content {
     margin-bottom: 1.5rem;
     text-align: left;
-    line-height: 1.7;
+    line-height: 1.8;
     color: var(--text-secondary-color);
+    font-size: 0.9rem;
 }
 
 .sub-strategy-card .markdown-content p {
-    margin-bottom: 1rem;
+    margin-bottom: 1.2rem;
     text-align: left;
+    line-height: 1.8;
 }
 
 .sub-strategy-card .markdown-content h1,
@@ -2347,20 +2531,58 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
 .sub-strategy-card .markdown-content h6 {
     text-align: left;
     color: var(--text-color);
-    margin-top: 1rem;
-    margin-bottom: 0.5rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    line-height: 1.4;
 }
+
+.sub-strategy-card .markdown-content h1 { font-size: 1.25rem; }
+.sub-strategy-card .markdown-content h2 { font-size: 1.15rem; }
+.sub-strategy-card .markdown-content h3 { font-size: 1.05rem; }
+.sub-strategy-card .markdown-content h4 { font-size: 1rem; }
+.sub-strategy-card .markdown-content h5 { font-size: 0.95rem; }
+.sub-strategy-card .markdown-content h6 { font-size: 0.9rem; }
 
 .sub-strategy-card .markdown-content ul,
 .sub-strategy-card .markdown-content ol {
     text-align: left;
-    padding-left: 1.5rem;
-    margin: 1rem 0;
+    padding-left: 1.75rem;
+    margin: 1.25rem 0;
+    line-height: 1.8;
 }
 
 .sub-strategy-card .markdown-content li {
     text-align: left;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.8;
+}
+
+.sub-strategy-card .markdown-content code {
+    background: rgba(var(--accent-blue-rgb), 0.1);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: var(--accent-blue);
+}
+
+.sub-strategy-card .markdown-content pre {
+    background: rgba(var(--bg-color-rgb), 0.5);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    line-height: 1.6;
+    font-size: 0.85rem;
+}
+
+.sub-strategy-card .markdown-content blockquote {
+    border-left: 3px solid var(--accent-purple);
+    padding-left: 1rem;
+    margin: 1rem 0;
+    font-style: italic;
+    color: var(--text-tertiary-color);
 }
 
 .sub-strategy-card .button {

@@ -4254,9 +4254,72 @@ function openSolutionModal(subStrategyId: string) {
     leftPanel.style.border = '1px solid #333';
     leftPanel.style.borderRadius = '8px';
     leftPanel.style.overflow = 'hidden';
-    const leftHeader = document.createElement('h4');
-    leftHeader.className = 'comparison-panel-title';
-    leftHeader.innerHTML = '<span class="material-symbols-outlined">psychology</span>Attempted Solution';
+    const leftHeader = document.createElement('div');
+    leftHeader.className = 'comparison-panel-header';
+    leftHeader.style.display = 'flex';
+    leftHeader.style.justifyContent = 'space-between';
+    leftHeader.style.alignItems = 'center';
+    leftHeader.style.padding = '12px 16px';
+    leftHeader.style.background = 'rgba(15, 17, 32, 0.4)';
+    leftHeader.style.backdropFilter = 'blur(10px)';
+    leftHeader.style.borderBottom = '1px solid #333';
+    
+    const leftTitle = document.createElement('h4');
+    leftTitle.className = 'comparison-panel-title';
+    leftTitle.innerHTML = '<span class="material-symbols-outlined">psychology</span>Attempted Solution';
+    leftTitle.style.margin = '0';
+    leftHeader.appendChild(leftTitle);
+    
+    const leftActions = document.createElement('div');
+    leftActions.className = 'panel-actions';
+    leftActions.style.display = 'flex';
+    leftActions.style.gap = '0.5rem';
+    
+    const leftCopyBtn = document.createElement('button');
+    leftCopyBtn.className = 'button';
+    leftCopyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span><span class="button-text">Copy</span>';
+    leftCopyBtn.addEventListener('click', () => {
+        const buttonTextElement = leftCopyBtn.querySelector('.button-text');
+        const originalText = buttonTextElement?.textContent;
+        navigator.clipboard.writeText(subStrategy.solutionAttempt || '').then(() => {
+            if (buttonTextElement) {
+                buttonTextElement.textContent = 'Copied!';
+                leftCopyBtn.classList.add('copy-success');
+                setTimeout(() => {
+                    buttonTextElement.textContent = originalText;
+                    leftCopyBtn.classList.remove('copy-success');
+                }, 2000);
+            }
+        }).catch(() => {
+            if (buttonTextElement) {
+                buttonTextElement.textContent = 'Copy Failed';
+                leftCopyBtn.classList.add('copy-failed');
+                setTimeout(() => {
+                    buttonTextElement.textContent = originalText;
+                    leftCopyBtn.classList.remove('copy-failed');
+                }, 2000);
+            }
+        });
+    });
+    
+    const leftDownloadBtn = document.createElement('button');
+    leftDownloadBtn.className = 'button';
+    leftDownloadBtn.innerHTML = '<span class="material-symbols-outlined">download</span><span class="button-text">Download</span>';
+    leftDownloadBtn.addEventListener('click', () => {
+        const blob = new Blob([subStrategy.solutionAttempt || ''], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attempted-solution-${subStrategy.id}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+    
+    leftActions.appendChild(leftCopyBtn);
+    leftActions.appendChild(leftDownloadBtn);
+    leftHeader.appendChild(leftActions);
     leftHeader.style.padding = '12px 16px';
     leftHeader.style.margin = '0';
     leftHeader.style.background = 'rgba(15, 17, 32, 0.4)';
@@ -4278,14 +4341,72 @@ function openSolutionModal(subStrategyId: string) {
     rightPanel.style.border = '1px solid #333';
     rightPanel.style.borderRadius = '8px';
     rightPanel.style.overflow = 'hidden';
-    const rightHeader = document.createElement('h4');
-    rightHeader.className = 'comparison-panel-title';
-    rightHeader.innerHTML = '<span class="material-symbols-outlined">auto_fix_high</span>Refined Solution';
+    const rightHeader = document.createElement('div');
+    rightHeader.className = 'comparison-panel-header';
+    rightHeader.style.display = 'flex';
+    rightHeader.style.justifyContent = 'space-between';
+    rightHeader.style.alignItems = 'center';
     rightHeader.style.padding = '12px 16px';
-    rightHeader.style.margin = '0';
     rightHeader.style.background = 'rgba(15, 17, 32, 0.4)';
     rightHeader.style.backdropFilter = 'blur(10px)';
     rightHeader.style.borderBottom = '1px solid #333';
+    
+    const rightTitle = document.createElement('h4');
+    rightTitle.className = 'comparison-panel-title';
+    rightTitle.innerHTML = '<span class="material-symbols-outlined">auto_fix_high</span>Refined Solution';
+    rightTitle.style.margin = '0';
+    rightHeader.appendChild(rightTitle);
+    
+    const rightActions = document.createElement('div');
+    rightActions.className = 'panel-actions';
+    rightActions.style.display = 'flex';
+    rightActions.style.gap = '0.5rem';
+    
+    const rightCopyBtn = document.createElement('button');
+    rightCopyBtn.className = 'button';
+    rightCopyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span><span class="button-text">Copy</span>';
+    rightCopyBtn.addEventListener('click', () => {
+        const buttonTextElement = rightCopyBtn.querySelector('.button-text');
+        const originalText = buttonTextElement?.textContent || 'Copy';
+        navigator.clipboard.writeText(subStrategy.refinedSolution || '').then(() => {
+            if (buttonTextElement) {
+                buttonTextElement.textContent = 'Copied!';
+                rightCopyBtn.classList.add('copy-success');
+                setTimeout(() => {
+                    buttonTextElement.textContent = originalText;
+                    rightCopyBtn.classList.remove('copy-success');
+                }, 2000);
+            }
+        }).catch(() => {
+            if (buttonTextElement) {
+                buttonTextElement.textContent = 'Copy Failed';
+                rightCopyBtn.classList.add('copy-failed');
+                setTimeout(() => {
+                    buttonTextElement.textContent = originalText;
+                    rightCopyBtn.classList.remove('copy-failed');
+                }, 2000);
+            }
+        });
+    });
+    
+    const rightDownloadBtn = document.createElement('button');
+    rightDownloadBtn.className = 'button';
+    rightDownloadBtn.innerHTML = '<span class="material-symbols-outlined">download</span><span class="button-text">Download</span>';
+    rightDownloadBtn.addEventListener('click', () => {
+        const blob = new Blob([subStrategy.refinedSolution || ''], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `refined-solution-${subStrategy.id}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+    
+    rightActions.appendChild(rightCopyBtn);
+    rightActions.appendChild(rightDownloadBtn);
+    rightHeader.appendChild(rightActions);
     rightPanel.appendChild(rightHeader);
     const rightContent = document.createElement('div');
     rightContent.className = 'comparison-content custom-scrollbar';
@@ -4392,9 +4513,72 @@ function openDeepthinkSolutionModal(subStrategyId: string) {
     leftPanel.style.border = '1px solid #333';
     leftPanel.style.borderRadius = '8px';
     leftPanel.style.overflow = 'hidden';
-    const leftHeader = document.createElement('h4');
-    leftHeader.className = 'comparison-panel-title';
-    leftHeader.innerHTML = '<span class="material-symbols-outlined">psychology</span>Attempted Solution';
+    const leftHeader = document.createElement('div');
+    leftHeader.className = 'comparison-panel-header';
+    leftHeader.style.display = 'flex';
+    leftHeader.style.justifyContent = 'space-between';
+    leftHeader.style.alignItems = 'center';
+    leftHeader.style.padding = '12px 16px';
+    leftHeader.style.background = 'rgba(15, 17, 32, 0.4)';
+    leftHeader.style.backdropFilter = 'blur(10px)';
+    leftHeader.style.borderBottom = '1px solid #333';
+    
+    const leftTitle = document.createElement('h4');
+    leftTitle.className = 'comparison-panel-title';
+    leftTitle.innerHTML = '<span class="material-symbols-outlined">psychology</span>Attempted Solution';
+    leftTitle.style.margin = '0';
+    leftHeader.appendChild(leftTitle);
+    
+    const leftActions = document.createElement('div');
+    leftActions.className = 'panel-actions';
+    leftActions.style.display = 'flex';
+    leftActions.style.gap = '0.5rem';
+    
+    const leftCopyBtn = document.createElement('button');
+    leftCopyBtn.className = 'button';
+    leftCopyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span><span class="button-text">Copy</span>';
+    leftCopyBtn.addEventListener('click', () => {
+        const buttonTextElement = leftCopyBtn.querySelector('.button-text');
+        const originalText = buttonTextElement?.textContent;
+        navigator.clipboard.writeText(subStrategy.solutionAttempt || '').then(() => {
+            if (buttonTextElement) {
+                buttonTextElement.textContent = 'Copied!';
+                leftCopyBtn.classList.add('copy-success');
+                setTimeout(() => {
+                    buttonTextElement.textContent = originalText;
+                    leftCopyBtn.classList.remove('copy-success');
+                }, 2000);
+            }
+        }).catch(() => {
+            if (buttonTextElement) {
+                buttonTextElement.textContent = 'Copy Failed';
+                leftCopyBtn.classList.add('copy-failed');
+                setTimeout(() => {
+                    buttonTextElement.textContent = originalText;
+                    leftCopyBtn.classList.remove('copy-failed');
+                }, 2000);
+            }
+        });
+    });
+    
+    const leftDownloadBtn = document.createElement('button');
+    leftDownloadBtn.className = 'button';
+    leftDownloadBtn.innerHTML = '<span class="material-symbols-outlined">download</span><span class="button-text">Download</span>';
+    leftDownloadBtn.addEventListener('click', () => {
+        const blob = new Blob([subStrategy.solutionAttempt || ''], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attempted-solution-${subStrategy.id}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+    
+    leftActions.appendChild(leftCopyBtn);
+    leftActions.appendChild(leftDownloadBtn);
+    leftHeader.appendChild(leftActions);
     leftHeader.style.padding = '12px 16px';
     leftHeader.style.margin = '0';
     leftHeader.style.background = 'rgba(15, 17, 32, 0.4)';
@@ -4749,14 +4933,30 @@ function renderActiveMathPipeline() {
     tabsNavContainer.innerHTML = '';
     pipelinesContentContainer.innerHTML = '';
 
-    // Main Tabs
+    // Main Tabs - Final Result moved to the right
     const mainTabs = [
         { id: 'strategic-solver', text: 'Strategic Leap' },
         { id: 'hypothesis-explorer', text: 'Hypothesis Testing' },
-        { id: 'red-team-evaluator', text: 'Red Team' },
+        { id: 'red-team-evaluator', text: 'Red Team' }
+    ];
+    
+    const rightAlignedTabs = [
         { id: 'final-result', text: 'Final Result' }
     ];
 
+    // Create left-aligned tabs container
+    const leftTabsContainer = document.createElement('div');
+    leftTabsContainer.style.display = 'flex';
+    leftTabsContainer.style.gap = '0.5rem';
+    leftTabsContainer.style.alignItems = 'center';
+    
+    // Create right-aligned tabs container
+    const rightTabsContainer = document.createElement('div');
+    rightTabsContainer.style.display = 'flex';
+    rightTabsContainer.style.gap = '0.5rem';
+    rightTabsContainer.style.alignItems = 'center';
+    rightTabsContainer.style.marginLeft = 'auto';
+    
     mainTabs.forEach(tabInfo => {
         const tabButton = document.createElement('button');
         tabButton.className = 'tab-button math-mode-tab';
@@ -4765,7 +4965,13 @@ function renderActiveMathPipeline() {
         tabButton.setAttribute('role', 'tab');
         tabButton.setAttribute('aria-controls', `pipeline-content-${tabInfo.id}`);
         tabButton.addEventListener('click', () => activateTab(tabInfo.id));
-        tabsNavContainer.appendChild(tabButton);
+        
+        // Add pink glow to Red Team tab always
+        if (tabInfo.id === 'red-team-evaluator') {
+            tabButton.classList.add('red-team-pink-glow');
+        }
+        
+        leftTabsContainer.appendChild(tabButton);
 
         if (tabInfo.id === 'strategic-solver') {
             if (mathProcess.strategicSolverComplete) {
@@ -4799,6 +5005,32 @@ function renderActiveMathPipeline() {
             }
         }
     });
+    
+    // Add right-aligned tabs
+    rightAlignedTabs.forEach(tabInfo => {
+        const tabButton = document.createElement('button');
+        tabButton.className = 'tab-button math-mode-tab';
+        tabButton.id = `math-tab-${tabInfo.id}`;
+        tabButton.textContent = tabInfo.text;
+        tabButton.setAttribute('role', 'tab');
+        tabButton.setAttribute('aria-controls', `pipeline-content-${tabInfo.id}`);
+        tabButton.addEventListener('click', () => activateTab(tabInfo.id));
+        rightTabsContainer.appendChild(tabButton);
+        
+        if (tabInfo.id === 'final-result') {
+            if (mathProcess.finalJudgingStatus === 'completed') {
+                tabButton.classList.add('status-math-completed');
+            } else if (mathProcess.finalJudgingStatus === 'processing' || mathProcess.finalJudgingStatus === 'retrying') {
+                tabButton.classList.add('status-math-processing');
+            } else if (mathProcess.finalJudgingStatus === 'error') {
+                tabButton.classList.add('status-math-error');
+            }
+        }
+    });
+    
+    // Append both containers to the tabs nav
+    tabsNavContainer.appendChild(leftTabsContainer);
+    tabsNavContainer.appendChild(rightTabsContainer);
 
     // Problem Details Pane
     let problemContentPane = document.createElement('div');
@@ -4901,10 +5133,19 @@ function renderActiveMathPipeline() {
                 subStrategyCard.appendChild(eliminationReason);
             }
 
+            // Create content wrapper with size limiting
+            const subStrategyContentWrapper = document.createElement('div');
+            subStrategyContentWrapper.className = 'sub-strategy-content collapsible';
+            
             const subStrategyText = document.createElement('div');
             subStrategyText.className = 'markdown-content';
             subStrategyText.innerHTML = renderMarkdown(subStrategy.subStrategyText);
-            subStrategyCard.appendChild(subStrategyText);
+            subStrategyContentWrapper.appendChild(subStrategyText);
+            subStrategyCard.appendChild(subStrategyContentWrapper);
+            
+            // Create actions container for buttons
+            const actionsContainer = document.createElement('div');
+            actionsContainer.className = 'sub-strategy-actions';
 
             const solutionButton = document.createElement('button');
             solutionButton.className = 'button';
@@ -4916,7 +5157,38 @@ function renderActiveMathPipeline() {
                 solutionButton.textContent = 'Solution';
                 solutionButton.addEventListener('click', () => openSolutionModal(subStrategy.id));
             }
-            subStrategyCard.appendChild(solutionButton);
+            actionsContainer.appendChild(solutionButton);
+            
+            // Add expand/collapse button if content is long enough
+            if (subStrategy.subStrategyText.length > 500) {
+                const expandButton = document.createElement('button');
+                expandButton.className = 'sub-strategy-expand-toggle';
+                expandButton.innerHTML = `
+                    <span>Show More</span>
+                    <span class="material-symbols-outlined">expand_more</span>
+                `;
+                expandButton.addEventListener('click', () => {
+                    const isExpanded = subStrategyContentWrapper.classList.contains('expanded');
+                    if (isExpanded) {
+                        subStrategyContentWrapper.classList.remove('expanded');
+                        expandButton.classList.remove('expanded');
+                        expandButton.innerHTML = `
+                            <span>Show More</span>
+                            <span class="material-symbols-outlined">expand_more</span>
+                        `;
+                    } else {
+                        subStrategyContentWrapper.classList.add('expanded');
+                        expandButton.classList.add('expanded');
+                        expandButton.innerHTML = `
+                            <span>Show Less</span>
+                            <span class="material-symbols-outlined">expand_more</span>
+                        `;
+                    }
+                });
+                actionsContainer.appendChild(expandButton);
+            }
+
+            subStrategyCard.appendChild(actionsContainer);
 
             subStrategiesGrid.appendChild(subStrategyCard);
         });
@@ -5671,14 +5943,30 @@ function renderActiveDeepthinkPipeline() {
     tabsNavContainer.innerHTML = '';
     pipelinesContentContainer.innerHTML = '';
 
-    // Main Tabs
+    // Main Tabs - Final Result moved to the right
     const mainTabs = [
         { id: 'strategic-solver', text: 'Strategic Leap' },
         { id: 'hypothesis-explorer', text: 'Hypothesis Testing' },
-        { id: 'red-team-evaluator', text: 'Red Team' },
+        { id: 'red-team-evaluator', text: 'Red Team' }
+    ];
+    
+    const rightAlignedTabs = [
         { id: 'final-result', text: 'Final Result' }
     ];
 
+    // Create left-aligned tabs container
+    const leftTabsContainer = document.createElement('div');
+    leftTabsContainer.style.display = 'flex';
+    leftTabsContainer.style.gap = '0.5rem';
+    leftTabsContainer.style.alignItems = 'center';
+    
+    // Create right-aligned tabs container
+    const rightTabsContainer = document.createElement('div');
+    rightTabsContainer.style.display = 'flex';
+    rightTabsContainer.style.gap = '0.5rem';
+    rightTabsContainer.style.alignItems = 'center';
+    rightTabsContainer.style.marginLeft = 'auto';
+    
     mainTabs.forEach(tabInfo => {
         const tabButton = document.createElement('button');
         tabButton.className = 'tab-button deepthink-mode-tab';
@@ -5687,7 +5975,13 @@ function renderActiveDeepthinkPipeline() {
         tabButton.setAttribute('role', 'tab');
         tabButton.setAttribute('aria-controls', `pipeline-content-${tabInfo.id}`);
         tabButton.addEventListener('click', () => activateTab(tabInfo.id));
-        tabsNavContainer.appendChild(tabButton);
+        
+        // Add pink glow to Red Team tab always
+        if (tabInfo.id === 'red-team-evaluator') {
+            tabButton.classList.add('red-team-pink-glow');
+        }
+        
+        leftTabsContainer.appendChild(tabButton);
 
         if (tabInfo.id === 'strategic-solver') {
             if (deepthinkProcess.strategicSolverComplete) {
@@ -5721,6 +6015,32 @@ function renderActiveDeepthinkPipeline() {
             }
         }
     });
+    
+    // Add right-aligned tabs
+    rightAlignedTabs.forEach(tabInfo => {
+        const tabButton = document.createElement('button');
+        tabButton.className = 'tab-button deepthink-mode-tab';
+        tabButton.id = `deepthink-tab-${tabInfo.id}`;
+        tabButton.textContent = tabInfo.text;
+        tabButton.setAttribute('role', 'tab');
+        tabButton.setAttribute('aria-controls', `pipeline-content-${tabInfo.id}`);
+        tabButton.addEventListener('click', () => activateTab(tabInfo.id));
+        rightTabsContainer.appendChild(tabButton);
+        
+        if (tabInfo.id === 'final-result') {
+            if (deepthinkProcess.finalJudgingStatus === 'completed') {
+                tabButton.classList.add('status-deepthink-completed');
+            } else if (deepthinkProcess.finalJudgingStatus === 'processing' || deepthinkProcess.finalJudgingStatus === 'retrying') {
+                tabButton.classList.add('status-deepthink-processing');
+            } else if (deepthinkProcess.finalJudgingStatus === 'error') {
+                tabButton.classList.add('status-deepthink-error');
+            }
+        }
+    });
+    
+    // Append both containers to the tabs nav
+    tabsNavContainer.appendChild(leftTabsContainer);
+    tabsNavContainer.appendChild(rightTabsContainer);
 
     // Challenge Details Pane
     let challengeContentPane = document.createElement('div');
@@ -5823,10 +6143,19 @@ function renderActiveDeepthinkPipeline() {
                     subStrategyCard.appendChild(eliminationReason);
                 }
 
+                // Create content wrapper with size limiting
+                const subStrategyContentWrapper = document.createElement('div');
+                subStrategyContentWrapper.className = 'sub-strategy-content collapsible';
+                
                 const subStrategyText = document.createElement('div');
                 subStrategyText.className = 'markdown-content';
                 subStrategyText.innerHTML = renderMarkdown(subStrategy.subStrategyText);
-                subStrategyCard.appendChild(subStrategyText);
+                subStrategyContentWrapper.appendChild(subStrategyText);
+                subStrategyCard.appendChild(subStrategyContentWrapper);
+                
+                // Create actions container for buttons
+                const actionsContainer = document.createElement('div');
+                actionsContainer.className = 'sub-strategy-actions';
 
                 const solutionButton = document.createElement('button');
                 solutionButton.className = 'button';
@@ -5838,7 +6167,38 @@ function renderActiveDeepthinkPipeline() {
                     solutionButton.textContent = 'Solution';
                     solutionButton.addEventListener('click', () => openDeepthinkSolutionModal(subStrategy.id));
                 }
-                subStrategyCard.appendChild(solutionButton);
+                actionsContainer.appendChild(solutionButton);
+                
+                // Add expand/collapse button if content is long enough
+                if (subStrategy.subStrategyText.length > 500) {
+                    const expandButton = document.createElement('button');
+                    expandButton.className = 'sub-strategy-expand-toggle';
+                    expandButton.innerHTML = `
+                        <span>Show More</span>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    `;
+                    expandButton.addEventListener('click', () => {
+                        const isExpanded = subStrategyContentWrapper.classList.contains('expanded');
+                        if (isExpanded) {
+                            subStrategyContentWrapper.classList.remove('expanded');
+                            expandButton.classList.remove('expanded');
+                            expandButton.innerHTML = `
+                                <span>Show More</span>
+                                <span class="material-symbols-outlined">expand_more</span>
+                            `;
+                        } else {
+                            subStrategyContentWrapper.classList.add('expanded');
+                            expandButton.classList.add('expanded');
+                            expandButton.innerHTML = `
+                                <span>Show Less</span>
+                                <span class="material-symbols-outlined">expand_more</span>
+                            `;
+                        }
+                    });
+                    actionsContainer.appendChild(expandButton);
+                }
+
+                subStrategyCard.appendChild(actionsContainer);
 
                 subStrategiesGrid.appendChild(subStrategyCard);
             });
