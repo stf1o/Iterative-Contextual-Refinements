@@ -8615,11 +8615,30 @@ document.addEventListener('DOMContentLoaded', () => {
             expandButton.addEventListener('click', (e) => {
                 console.log('Expand button clicked');
                 e.preventDefault();
+                e.stopPropagation();
                 const controlsSidebar = document.getElementById('controls-sidebar');
+                const mainContent = document.getElementById('main-content');
+                
                 if (controlsSidebar) {
+                    // Force layout recalculation before transition
+                    controlsSidebar.offsetHeight;
+                    
+                    // Add transition and expand
+                    controlsSidebar.style.transition = 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
                     controlsSidebar.classList.remove('collapsed');
                     expandButton.style.display = 'none';
                     sidebarIsCollapsed = false;
+                    
+                    // Force repaint to ensure smooth transition
+                    requestAnimationFrame(() => {
+                        // Trigger layout recalculation for main content
+                        if (mainContent) {
+                            mainContent.style.transform = 'translateZ(0)';
+                            setTimeout(() => {
+                                mainContent.style.transform = '';
+                            }, 300);
+                        }
+                    });
                 }
             });
         }
@@ -8630,6 +8649,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeSidebarControls() {
         const sidebarCollapseButton = document.getElementById('sidebar-collapse-button');
         const controlsSidebar = document.getElementById('controls-sidebar');
+        const mainContent = document.getElementById('main-content');
         
         // Ensure expand button exists
         ensureExpandButton();
@@ -8642,14 +8662,32 @@ document.addEventListener('DOMContentLoaded', () => {
             newCollapseButton.addEventListener('click', (e) => {
                 console.log('Collapse button clicked');
                 e.preventDefault();
+                e.stopPropagation();
+                
+                // Force layout recalculation before transition
+                controlsSidebar.offsetHeight;
+                
+                // Add transition class and collapse
+                controlsSidebar.style.transition = 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
                 controlsSidebar.classList.add('collapsed');
                 sidebarIsCollapsed = true;
                 
-                // Ensure expand button exists and is visible
-                const expandButton = ensureExpandButton();
-                if (expandButton) {
-                    expandButton.style.display = 'flex';
-                }
+                // Force repaint to ensure smooth transition
+                requestAnimationFrame(() => {
+                    // Ensure expand button exists and is visible
+                    const expandButton = ensureExpandButton();
+                    if (expandButton) {
+                        expandButton.style.display = 'flex';
+                    }
+                    
+                    // Trigger layout recalculation for main content
+                    if (mainContent) {
+                        mainContent.style.transform = 'translateZ(0)';
+                        setTimeout(() => {
+                            mainContent.style.transform = '';
+                        }, 300);
+                    }
+                });
             });
             
             console.log('Sidebar event listeners attached successfully');
