@@ -2466,6 +2466,122 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
     display: block;
 }
 
+/* LaTeX math content styling */
+.katex {
+    color: var(--accent-pink) !important;
+    font-size: 1.3em !important;
+}
+
+.katex-display {
+    margin: 1.5em 0 !important;
+    color: var(--accent-pink) !important;
+}
+
+.katex .base {
+    color: var(--accent-pink) !important;
+}
+
+/* Enhanced content formatting for better readability */
+.markdown-content {
+    line-height: 1.8;
+    font-size: 20px;
+    letter-spacing: 0.3px;
+}
+
+.markdown-content p {
+    margin-bottom: 1.2em;
+    line-height: 1.8;
+}
+
+.markdown-content h1, .markdown-content h2, .markdown-content h3, 
+.markdown-content h4, .markdown-content h5, .markdown-content h6 {
+    margin-top: 1.5em;
+    margin-bottom: 0.8em;
+    line-height: 1.4;
+    font-weight: 600;
+}
+
+.markdown-content ul, .markdown-content ol {
+    margin-bottom: 1.2em;
+    padding-left: 2em;
+}
+
+.markdown-content li {
+    margin-bottom: 0.5em;
+    line-height: 1.7;
+}
+
+.markdown-content blockquote {
+    margin: 1.5em 0;
+    padding: 1em 1.5em;
+    border-left: 4px solid var(--accent-pink);
+    background-color: rgba(255, 105, 180, 0.05);
+    font-style: italic;
+}
+
+.markdown-content code {
+    background-color: rgba(255, 105, 180, 0.1);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+.markdown-content pre {
+    background-color: rgba(255, 105, 180, 0.05);
+    padding: 1.2em;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 1.2em 0;
+}
+
+.markdown-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.2em 0;
+}
+
+.markdown-content th, .markdown-content td {
+    border: 1px solid rgba(255, 105, 180, 0.3);
+    padding: 0.8em;
+    text-align: left;
+}
+
+.markdown-content th {
+    background-color: rgba(255, 105, 180, 0.1);
+    font-weight: 600;
+}
+
+/* Theorem-like environment styling */
+.theorem-theorem, .theorem-lemma, .theorem-proposition, .theorem-corollary,
+.theorem-definition, .theorem-proof, .theorem-remark, .theorem-example, .theorem-note {
+    margin: 1.5em 0;
+    padding: 1.2em 1.5em;
+    border-radius: 8px;
+    border-left: 4px solid var(--accent-pink);
+    background-color: rgba(255, 105, 180, 0.03);
+    box-shadow: 0 2px 4px rgba(255, 105, 180, 0.1);
+}
+
+.theorem-theorem strong, .theorem-lemma strong, .theorem-proposition strong,
+.theorem-corollary strong, .theorem-definition strong, .theorem-proof strong,
+.theorem-remark strong, .theorem-example strong, .theorem-note strong {
+    color: var(--accent-pink);
+    font-weight: 700;
+    font-size: 1.1em;
+}
+
+.theorem-definition {
+    background-color: rgba(255, 105, 180, 0.05);
+    border-left-color: #ff69b4;
+}
+
+.theorem-proof {
+    background-color: rgba(255, 105, 180, 0.02);
+    border-left-color: rgba(255, 105, 180, 0.7);
+    font-style: italic;
+}
+
 /* Enhanced Sub-strategies Grid */
 .sub-strategies-grid {
     display: grid;
@@ -2946,10 +3062,10 @@ hr.sub-divider {
 .solution-markdown-content {
     background-color: transparent;
     border: none;
-    padding: 1rem 1.25rem;
+    padding: 2rem 2.5rem;
     font-family: var(--font-family);
-    font-size: 0.95rem;
-    line-height: 1.7;
+    font-size: 1.5rem; /* 24px */
+    line-height: 1.8;
     color: var(--text-color);
     border-radius: var(--border-radius-md);
     width: 100%;
@@ -2958,6 +3074,78 @@ hr.sub-divider {
     flex-grow: 1;
     overflow-y: auto;
     max-height: 500px;
+}
+
+/* Better typography for solution content */
+.solution-markdown-content h1,
+.solution-markdown-content h2,
+.solution-markdown-content h3,
+.solution-markdown-content h4,
+.solution-markdown-content h5,
+.solution-markdown-content h6 {
+    color: var(--accent-green);
+    font-weight: 600;
+    margin: 1.5rem 0 1rem 0;
+    line-height: 1.4;
+}
+
+.solution-markdown-content h1 { font-size: 2rem; }
+.solution-markdown-content h2 { font-size: 1.75rem; }
+.solution-markdown-content h3 { font-size: 1.5rem; }
+.solution-markdown-content h4 { font-size: 1.25rem; }
+
+.solution-markdown-content strong,
+.solution-markdown-content b {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+
+.solution-markdown-content em,
+.solution-markdown-content i {
+    color: var(--accent-orange);
+    font-style: italic;
+}
+
+.solution-markdown-content p {
+    margin: 1rem 0;
+    line-height: 1.8;
+}
+
+.solution-markdown-content ul,
+.solution-markdown-content ol {
+    margin: 1rem 0;
+    padding-left: 2rem;
+}
+
+.solution-markdown-content li {
+    margin: 0.5rem 0;
+    line-height: 1.7;
+}
+
+.solution-markdown-content code,
+.math-pipeline-container code,
+.deepthink-pipeline-container code,
+.markdown-content code {
+    background-color: rgba(18, 18, 18, 0.6) !important;
+    color: #e86b6b !important;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 1.3rem;
+}
+
+.solution-markdown-content pre {
+    background-color: rgba(var(--accent-color-rgb), 0.05);
+    padding: 1.5rem;
+    border-radius: var(--border-radius-md);
+    overflow-x: auto;
+    margin: 1.5rem 0;
+}
+
+.solution-markdown-content pre code {
+    background: none;
+    padding: 0;
+    font-size: 1.2rem;
 }
 
 .solution-markdown-content:focus {
@@ -4072,6 +4260,134 @@ hr.sub-divider {
     background: var(--secondary-bg);
     border-radius: 6px;
     margin: 1rem 0;
+}
+
+/* Math Mode Styles */
+.math-pipeline-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+/* Math content wrapper for solution modals */
+.math-content-wrapper {
+    font-size: 1.15rem;
+    line-height: 1.8;
+    color: var(--text-color);
+    font-family: var(--font-family);
+    padding: 1.5rem;
+    margin: 0;
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+.math-content-wrapper h1,
+.math-content-wrapper h2,
+.math-content-wrapper h3,
+.math-content-wrapper h4,
+.math-content-wrapper h5,
+.math-content-wrapper h6 {
+    color: var(--accent-green) !important;
+    font-weight: 600;
+    margin: 1.5rem 0 1rem 0;
+    line-height: 1.4;
+}
+
+.math-content-wrapper h1 { font-size: 2rem; }
+.math-content-wrapper h2 { font-size: 1.75rem; }
+.math-content-wrapper h3 { font-size: 1.5rem; }
+.math-content-wrapper h4 { font-size: 1.25rem; }
+
+.math-content-wrapper strong,
+.math-content-wrapper b {
+    color: var(--accent-green) !important;
+    font-weight: 600;
+}
+
+.math-content-wrapper em,
+.math-content-wrapper i {
+    color: var(--accent-orange) !important;
+    font-style: italic;
+}
+
+.math-content-wrapper p {
+    margin: 1rem 0;
+    line-height: 1.8;
+}
+
+.math-content-wrapper ul,
+.math-content-wrapper ol {
+    margin: 1rem 0;
+    padding-left: 2rem;
+}
+
+.math-content-wrapper li {
+    margin: 0.5rem 0;
+    line-height: 1.7;
+}
+
+.math-content-wrapper code {
+    background-color: rgba(23, 23, 23, 0.6) !important;
+    color: #e86b6b !important;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 1.3rem;
+}
+
+.math-content-wrapper pre {
+    background-color: rgba(var(--accent-color-rgb), 0.05);
+    padding: 1.5rem;
+    border-radius: var(--border-radius-md);
+    overflow-x: auto;
+    margin: 1.5rem 0;
+}
+
+.math-content-wrapper pre code {
+    background: none;
+    padding: 0;
+    font-size: 1.2rem;
+}
+
+/* Global styling for bold/headings and italics in Math and Deepthink modes */
+.math-pipeline-container strong,
+.math-pipeline-container b,
+.math-pipeline-container h1,
+.math-pipeline-container h2,
+.math-pipeline-container h3,
+.math-pipeline-container h4,
+.math-pipeline-container h5,
+.math-pipeline-container h6,
+.deepthink-pipeline-container strong,
+.deepthink-pipeline-container b,
+.deepthink-pipeline-container h1,
+.deepthink-pipeline-container h2,
+.deepthink-pipeline-container h3,
+.deepthink-pipeline-container h4,
+.deepthink-pipeline-container h5,
+.deepthink-pipeline-container h6,
+.markdown-content strong,
+.markdown-content b,
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    color: var(--accent-green) !important;
+    font-weight: 600;
+}
+
+.math-pipeline-container em,
+.math-pipeline-container i,
+.deepthink-pipeline-container em,
+.deepthink-pipeline-container i,
+.markdown-content em,
+.markdown-content i {
+    color: var(--accent-orange) !important;
+    font-style: italic;
 }
 
 /* Custom Slider Styling */

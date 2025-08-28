@@ -8,6 +8,7 @@ import JSZip from 'jszip';
 import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import katex from 'katex';
 import hljs from 'highlight.js';
 import {
     defaultCustomPromptsWebsite,
@@ -1398,8 +1399,14 @@ function getEmptyStateMessage(status: IterationData['status'], contentType: stri
     }
 }
 
-function renderMarkdown(content: string | undefined): string {
+function renderMarkdown(content: string): string {
     if (typeof content !== 'string') return '';
+    console.log('renderMarkdown called with mode:', currentMode, 'Content preview:', content.substring(0, 50));
+    // For Math and Deepthink modes, use LaTeX rendering
+    if (currentMode === 'math' || currentMode === 'deepthink') {
+        console.log('Using LaTeX rendering for mode:', currentMode);
+        return renderMathContent(content);
+    }
     // Use DOMPurify to prevent XSS attacks after rendering markdown.
     // marked.parse is synchronous since the highlighter is synchronous.
     return DOMPurify.sanitize(marked.parse(content));
@@ -1602,6 +1609,81 @@ function renderIteration(pipelineId: number, iter: IterationData): string {
             ${previewHtml ? `<div class="preview-column">${previewHtml}</div>` : ''}
         </div>
     </li>`;
+}
+
+// Utility function to render LaTeX math expressions in content
+function renderMathContent(content: string): string {
+    if (!content) return '';
+    
+    // Simple regex-based approach that was working before
+    let processedContent = content;
+    
+    // Handle display math $$...$$
+    processedContent = processedContent.replace(/\$\$([\s\S]*?)\$\$/g, (match, mathContent) => {
+        try {
+            return katex.renderToString(mathContent.trim(), {
+                displayMode: true,
+                throwOnError: false,
+                trust: true,
+                strict: false
+            });
+        } catch (e) {
+            console.warn('Failed to render display math:', mathContent, e);
+            return match;
+        }
+    });
+    
+    // Handle inline math $...$
+    processedContent = processedContent.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
+        try {
+            return katex.renderToString(mathContent.trim(), {
+                displayMode: false,
+                throwOnError: false,
+                trust: true,
+                strict: false
+            });
+        } catch (e) {
+            console.warn('Failed to render inline math:', mathContent, e);
+            return match;
+        }
+    });
+    
+    // Handle LaTeX delimiters \[...\]
+    processedContent = processedContent.replace(/\\\[([\s\S]*?)\\\]/g, (match, mathContent) => {
+        try {
+            return katex.renderToString(mathContent.trim(), {
+                displayMode: true,
+                throwOnError: false,
+                trust: true,
+                strict: false
+            });
+        } catch (e) {
+            console.warn('Failed to render LaTeX display math:', mathContent, e);
+            return match;
+        }
+    });
+    
+    // Handle LaTeX delimiters \(...\)
+    processedContent = processedContent.replace(/\\\(([\s\S]*?)\\\)/g, (match, mathContent) => {
+        try {
+            return katex.renderToString(mathContent.trim(), {
+                displayMode: false,
+                throwOnError: false,
+                trust: true,
+                strict: false
+            });
+        } catch (e) {
+            console.warn('Failed to render LaTeX inline math:', mathContent, e);
+            return match;
+        }
+    });
+    
+    // Now process markdown
+    let htmlContent = marked(processedContent);
+    htmlContent = DOMPurify.sanitize(htmlContent);
+    
+    // Wrap content in a div with proper styling classes
+    return `<div class="math-content-wrapper">${htmlContent}</div>`;
 }
 
 async function copyToClipboard(text: string, buttonElement: HTMLButtonElement) {
@@ -4330,8 +4412,9 @@ function openSolutionModal(subStrategyId: string) {
     leftContent.className = 'comparison-content custom-scrollbar';
     leftContent.style.flex = '1';
     leftContent.style.overflow = 'auto';
-    leftContent.style.padding = '16px';
-    leftContent.innerHTML = renderMarkdown(subStrategy.solutionAttempt || 'Solution attempt not available');
+    leftContent.style.padding = '0';
+    leftContent.style.minHeight = '0';
+    leftContent.innerHTML = renderMathContent(subStrategy.solutionAttempt || 'Solution attempt not available');
     leftPanel.appendChild(leftContent);
     
     const rightPanel = document.createElement('div');
@@ -4367,7 +4450,7 @@ function openSolutionModal(subStrategyId: string) {
     rightCopyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span><span class="button-text">Copy</span>';
     rightCopyBtn.addEventListener('click', () => {
         const buttonTextElement = rightCopyBtn.querySelector('.button-text');
-        const originalText = buttonTextElement?.textContent || 'Copy';
+        const originalText = buttonTextElement?.textContent;
         navigator.clipboard.writeText(subStrategy.refinedSolution || '').then(() => {
             if (buttonTextElement) {
                 buttonTextElement.textContent = 'Copied!';
@@ -4412,8 +4495,9 @@ function openSolutionModal(subStrategyId: string) {
     rightContent.className = 'comparison-content custom-scrollbar';
     rightContent.style.flex = '1';
     rightContent.style.overflow = 'auto';
-    rightContent.style.padding = '16px';
-    rightContent.innerHTML = renderMarkdown(subStrategy.refinedSolution || 'Refined solution not available');
+    rightContent.style.padding = '0';
+    rightContent.style.minHeight = '0';
+    rightContent.innerHTML = renderMathContent(subStrategy.refinedSolution || 'Refined solution not available');
     rightPanel.appendChild(rightContent);
     
     solutionComparison.appendChild(leftPanel);
@@ -6391,7 +6475,7 @@ function renderDeepthinkStrategyContent(strategyIndex: number): string {
             ${strategy.judgedBestSolution ? `
                 <div class="best-solution">
                     <h4>🏆 Selected Best Solution</h4>
-                    <pre>${strategy.judgedBestSolution}</pre>
+                    <div class="markdown-content">${renderMarkdown(strategy.judgedBestSolution)}</div>
                 </div>
             ` : ''}
         </div>
