@@ -2147,8 +2147,8 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
 }
 .sub-strategies-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.75rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
     padding-top: 1.5rem;
 }
 .sub-strategy-card {
@@ -2185,6 +2185,7 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
     overflow: hidden;
     transition: max-height 0.3s ease-out;
     position: relative;
+    margin-bottom: 1rem; /* Add space below main strategy content */
 }
 
 .strategy-content.expanded {
@@ -2334,13 +2335,32 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
     transform: rotate(180deg);
 }
 
+/* Strategy title styling */
+.strategy-title {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--text-color);
+    margin-bottom: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* Button container for strategy-level actions */
+.strategy-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+    justify-content: flex-start;
+}
+
 /* Button container for sub-strategy actions */
 .sub-strategy-actions {
     display: flex;
     gap: 0.75rem;
-    margin-top: 1rem;
-    align-items: center;
+    /* margin-top: 1rem; */ /* Removed to reduce space */
+    align-items: center; /* Vertically align buttons */
 }
+
 .sub-strategy-card.status-completed::after { background-color: var(--accent-green); box-shadow: 0 0 8px -2px var(--success-glow); }
 .sub-strategy-card.status-processing::after,
 .sub-strategy-card.status-retrying::after { background-color: var(--accent-yellow); box-shadow: 0 0 8px -2px rgba(var(--accent-yellow-rgb), 0.4); animation: pulse-glow-yellow 2s infinite; }
@@ -2398,13 +2418,22 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
 .sub-tabs-nav {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 2rem;
+    margin-bottom: 0.75rem;
     padding: 0.5rem;
     background: rgba(var(--card-bg-base-rgb), 0.2);
     border-radius: var(--border-radius-lg);
     border: 1px solid var(--border-color);
     backdrop-filter: var(--card-blur-effect);
     -webkit-backdrop-filter: var(--card-blur-effect);
+}
+
+/* Remove leading top margin from the first Markdown element under strategy areas */
+.strategy-content > :first-child,
+.sub-strategy-content > :first-child,
+.sub-strategy-card .markdown-content > :first-child,
+.math-sub-strategy-card .markdown-content > :first-child,
+.markdown-content > :first-child {
+    margin-top: 0 !important;
 }
 
 .sub-tab-button {
@@ -2501,14 +2530,15 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
 }
 
 .markdown-content p {
-    margin-bottom: 1.2em;
+    margin-top: 0.2em;
+    margin-bottom: 0.4em;
     line-height: 1.8;
 }
 
 .markdown-content h1, .markdown-content h2, .markdown-content h3, 
 .markdown-content h4, .markdown-content h5, .markdown-content h6 {
-    margin-top: 1.5em;
-    margin-bottom: 0.8em;
+    margin-top: 0.2em;
+    margin-bottom: 0.3em;
     line-height: 1.4;
     font-weight: 600;
 }
@@ -2521,6 +2551,27 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
 .markdown-content li {
     margin-bottom: 0.5em;
     line-height: 1.7;
+}
+
+/* Strategy content typography: align with final solution styling */
+.strategy-content .markdown-content h1,
+.strategy-content .markdown-content h2,
+.strategy-content .markdown-content h3,
+.strategy-content .markdown-content h4,
+.strategy-content .markdown-content h5,
+.strategy-content .markdown-content h6 {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+.strategy-content .markdown-content strong,
+.strategy-content .markdown-content b {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+.strategy-content .markdown-content em,
+.strategy-content .markdown-content i {
+    color: var(--accent-orange);
+    font-style: italic;
 }
 
 .markdown-content blockquote {
@@ -2599,7 +2650,7 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 1.5rem;
-    margin: 2rem 0;
+    margin: 0.5rem 0 2rem 0;
     padding: 0;
 }
 
@@ -2646,7 +2697,8 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
 }
 
 .sub-strategy-card .markdown-content p {
-    margin-bottom: 1.2rem;
+    margin-top: 0.2rem;
+    margin-bottom: 0.4rem;
     text-align: left;
     line-height: 1.8;
 }
@@ -2658,9 +2710,9 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
 .sub-strategy-card .markdown-content h5,
 .sub-strategy-card .markdown-content h6 {
     text-align: left;
-    color: var(--text-color);
-    margin-top: 1.5rem;
-    margin-bottom: 0.75rem;
+    color: var(--accent-green);
+    margin-top: 0.2rem;
+    margin-bottom: 0.3rem;
     font-weight: 600;
     line-height: 1.4;
 }
@@ -2671,6 +2723,18 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
 .sub-strategy-card .markdown-content h4 { font-size: 1rem; }
 .sub-strategy-card .markdown-content h5 { font-size: 0.95rem; }
 .sub-strategy-card .markdown-content h6 { font-size: 0.9rem; }
+
+/* Sub-strategy content emphasis and italics to match final solution */
+.sub-strategy-card .markdown-content strong,
+.sub-strategy-card .markdown-content b {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+.sub-strategy-card .markdown-content em,
+.sub-strategy-card .markdown-content i {
+    color: var(--accent-orange);
+    font-style: italic;
+}
 
 .sub-strategy-card .markdown-content ul,
 .sub-strategy-card .markdown-content ol {
@@ -4363,31 +4427,19 @@ hr.sub-divider {
     font-size: 1.2rem;
 }
 
-/* Global styling for bold/headings and italics in Math and Deepthink modes */
-.math-pipeline-container strong,
-.math-pipeline-container b,
+/* Scoped styling for headings and italics in Math and Deepthink modes */
 .math-pipeline-container h1,
 .math-pipeline-container h2,
 .math-pipeline-container h3,
 .math-pipeline-container h4,
 .math-pipeline-container h5,
 .math-pipeline-container h6,
-.deepthink-pipeline-container strong,
-.deepthink-pipeline-container b,
 .deepthink-pipeline-container h1,
 .deepthink-pipeline-container h2,
 .deepthink-pipeline-container h3,
 .deepthink-pipeline-container h4,
 .deepthink-pipeline-container h5,
-.deepthink-pipeline-container h6,
-.markdown-content strong,
-.markdown-content b,
-.markdown-content h1,
-.markdown-content h2,
-.markdown-content h3,
-.markdown-content h4,
-.markdown-content h5,
-.markdown-content h6 {
+.deepthink-pipeline-container h6 {
     color: var(--accent-green) !important;
     font-weight: 600;
 }
@@ -4395,9 +4447,7 @@ hr.sub-divider {
 .math-pipeline-container em,
 .math-pipeline-container i,
 .deepthink-pipeline-container em,
-.deepthink-pipeline-container i,
-.markdown-content em,
-.markdown-content i {
+.deepthink-pipeline-container i {
     color: var(--accent-orange) !important;
     font-style: italic;
 }

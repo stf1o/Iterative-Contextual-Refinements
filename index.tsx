@@ -174,6 +174,7 @@ interface MathSubStrategyData {
     error?: string;
     isDetailsOpen?: boolean;
     retryAttempt?: number;
+    subStrategyFormat?: string;
 }
 
 // New interfaces for Hypothesis Explorer
@@ -229,6 +230,7 @@ interface MathMainStrategyData {
     judgingStatus?: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
     judgingError?: string;
     judgingRetryAttempt?: number;
+    strategyFormat?: string;
 }
 interface MathPipelineState {
     id: string; // unique ID for this math problem instance
@@ -296,6 +298,7 @@ interface DeepthinkSubStrategyData {
     error?: string;
     isDetailsOpen?: boolean;
     retryAttempt?: number;
+    subStrategyFormat?: string;
 }
 
 // Deepthink Hypothesis Explorer interfaces
@@ -352,6 +355,7 @@ interface DeepthinkMainStrategyData {
     judgingStatus?: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
     judgingError?: string;
     judgingRetryAttempt?: number;
+    strategyFormat?: string;
 }
 
 interface DeepthinkPipelineState {
@@ -1066,7 +1070,7 @@ function updateUIAfterModeChange() {
     } else if (currentMode === 'deepthink') {
         if (initialIdeaLabel) initialIdeaLabel.textContent = 'Core Challenge:';
         if (initialIdeaInput) initialIdeaInput.placeholder = 'E.g., "Design a sustainable urban transportation system", "Analyze the impact of remote work on company culture"...';
-        if (generateButtonText) generateButtonText.textContent = 'Analyze Challenge';
+        if (generateButtonText) generateButtonText.textContent = 'Deepthink';
         if (mathProblemImageInputContainer) mathProblemImageInputContainer.style.display = 'flex';
         if (modelSelectionContainer) modelSelectionContainer.style.display = 'flex';
         if (modelParametersContainer) modelParametersContainer.style.display = 'flex';
@@ -3097,6 +3101,7 @@ async function startMathSolvingProcess(problemText: string, imageBase64?: string
                 subStrategies: [],
                 status: 'pending',
                 isDetailsOpen: true,
+                strategyFormat: 'markdown'
             }));
             renderActiveMathPipeline();
 
@@ -3141,7 +3146,8 @@ async function startMathSolvingProcess(problemText: string, imageBase64?: string
                         subStrategyText: subText,
                         status: 'pending',
                         isDetailsOpen: true,
-                        selfImprovementStatus: 'pending'
+                        selfImprovementStatus: 'pending',
+                        subStrategyFormat: 'markdown'
                     }));
                     mainStrategy.status = 'completed';
                 } catch (e: any) {
@@ -3306,6 +3312,16 @@ async function startMathSolvingProcess(problemText: string, imageBase64?: string
                         }
                     });
                 });
+                
+                // Auto-kill main strategies if all sub-strategies are killed
+                currentProcess.initialStrategies.forEach(strategy => {
+                    const allSubStrategiesKilled = strategy.subStrategies.length > 0 && 
+                        strategy.subStrategies.every(sub => sub.isKilledByRedTeam);
+                    if (allSubStrategiesKilled && !strategy.isKilledByRedTeam) {
+                        strategy.isKilledByRedTeam = true;
+                        strategy.redTeamReason = 'All sub-strategies eliminated by Red Team';
+                    }
+                });
             }
         });
 
@@ -3462,6 +3478,17 @@ async function startMathSolvingProcess(problemText: string, imageBase64?: string
                 mainStrategy.judgingStatus = 'cancelled';
                 return;
             }
+            
+            // Skip judge if all sub-strategies are killed by red team
+            const allSubStrategiesKilled = mainStrategy.subStrategies.length > 0 && 
+                mainStrategy.subStrategies.every(sub => sub.isKilledByRedTeam);
+            if (allSubStrategiesKilled) {
+                mainStrategy.judgingStatus = 'completed';
+                mainStrategy.judgingError = 'All sub-strategies eliminated by Red Team - skipping judge.';
+                renderActiveMathPipeline();
+                return;
+            }
+            
             mainStrategy.judgingStatus = 'processing';
             renderActiveMathPipeline();
 
@@ -4055,48 +4082,78 @@ async function runDeepthinkRedTeamEvaluation(
 
             redTeamAgent.evaluationResponse = cleanTextOutput(redTeamResponse);
             
-            // Parse Red Team decision (robust: accept multiple key variants like math mode)
+            // Parse Red Team decision (align with Math mode: handle strategy_evaluations + robust JSON cleaning)
             try {
-                const redTeamDecision = JSON.parse(redTeamAgent.evaluationResponse);
-                redTeamAgent.reasoning = redTeamDecision.overall_reasoning || redTeamDecision.summary || '';
+                // Clean the response to ensure it's valid JSON
+                let cleanedResponse = redTeamResponse.trim();
+                cleanedResponse = cleanedResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+                cleanedResponse = cleanedResponse.replace(/^[^{]*/, '').replace(/[^}]*$/, '');
 
-                // Normalize IDs arrays
-                const killedStrategyIds = redTeamDecision.killed_strategy_ids
-                    || redTeamDecision.eliminated_strategies
-                    || redTeamDecision.killedStrategies
-                    || [];
-                const killedSubIds = redTeamDecision.killed_substrategy_ids
-                    || redTeamDecision.eliminated_sub_strategies
-                    || redTeamDecision.killedSubStrategies
-                    || [];
+                // Find JSON object boundaries
+                const jsonStart = cleanedResponse.indexOf('{');
+                const jsonEnd = cleanedResponse.lastIndexOf('}');
+                if (jsonStart === -1 || jsonEnd === -1 || jsonStart >= jsonEnd) {
+                    throw new Error(`No valid JSON object boundaries found. Start: ${jsonStart}, End: ${jsonEnd}`);
+                }
+                cleanedResponse = cleanedResponse.substring(jsonStart, jsonEnd + 1);
 
-                // If decisions come as objects with id/reason, separate
-                const toIds = (arr: any): string[] => {
-                    if (!Array.isArray(arr)) return [];
-                    return arr.map((x: any) => typeof x === 'string' ? x : (x?.id ?? '')).filter(Boolean);
-                };
+                const parsed = JSON.parse(cleanedResponse);
 
-                // Per-id reasons map
-                const reasonMap: Record<string, string> = {};
-                const collectReasons = (arr: any) => {
-                    if (!Array.isArray(arr)) return;
-                    arr.forEach((x: any) => {
-                        if (x && typeof x === 'object' && x.id && x.reason) {
-                            reasonMap[x.id] = String(x.reason);
+                // Optional overall reasoning field(s) - ensure we always have something to display
+                // Extract reasoning from strategy evaluations if no top-level reasoning exists
+                let extractedReasoning = parsed.challenge || parsed.evaluation_summary || parsed.summary || parsed.overall_reasoning || '';
+                
+                if (!extractedReasoning && parsed.strategy_evaluations && Array.isArray(parsed.strategy_evaluations)) {
+                    // Build reasoning from individual strategy decisions
+                    const reasoningParts = parsed.strategy_evaluations.map((evaluation: any) => 
+                        `${evaluation.id}: ${evaluation.decision} - ${evaluation.reason || 'No reason provided'}`
+                    );
+                    extractedReasoning = reasoningParts.join('\n\n');
+                }
+                
+                redTeamAgent.reasoning = extractedReasoning || redTeamAgent.evaluationResponse || 'Red Team evaluation completed';
+
+                // Preferred path: strategy_evaluations array of {id, decision, reason}
+                const killedStrategyIds: string[] = [];
+                const killedSubStrategyIds: string[] = [];
+                const reasonMap: { [key: string]: string } = {};
+
+                if (Array.isArray(parsed.strategy_evaluations)) {
+                    parsed.strategy_evaluations.forEach((evaluation: any) => {
+                        if (!evaluation || typeof evaluation !== 'object') return;
+                        const decision = String(evaluation.decision || '').toLowerCase();
+                        const id = typeof evaluation.id === 'string' ? evaluation.id : '';
+                        if (!id) return;
+                        if (decision === 'eliminate') {
+                            if (id.includes('main')) {
+                                if (id.includes('-sub')) killedSubStrategyIds.push(id); else killedStrategyIds.push(id);
+                            } else {
+                                killedSubStrategyIds.push(id);
+                            }
+                            reasonMap[id] = evaluation.reason || evaluation.reasoning || 'Eliminated by Red Team';
                         }
                     });
-                };
-                collectReasons(redTeamDecision.killed_strategy_details || redTeamDecision.eliminated_strategy_details || []);
-                collectReasons(redTeamDecision.killed_substrategy_details || redTeamDecision.eliminated_substrategy_details || redTeamDecision.eliminated_sub_strategy_details || []);
+                } else {
+                    // Back-compat path: killed_* arrays (strings or {id, reason})
+                    const toIds = (arr: any): string[] => Array.isArray(arr) ? arr.map((x: any) => typeof x === 'string' ? x : (x?.id ?? '')).filter(Boolean) : [];
+                    const collectReasons = (arr: any) => {
+                        if (!Array.isArray(arr)) return;
+                        arr.forEach((x: any) => { if (x && typeof x === 'object' && x.id && x.reason) reasonMap[x.id] = String(x.reason); });
+                    };
+                    const ks = parsed.killed_strategy_ids || parsed.eliminated_strategies || parsed.killedStrategies || [];
+                    const kss = parsed.killed_substrategy_ids || parsed.eliminated_sub_strategies || parsed.killedSubStrategies || [];
+                    const ksDetails = parsed.killed_strategy_details || parsed.eliminated_strategy_details || [];
+                    const kssDetails = parsed.killed_substrategy_details || parsed.eliminated_substrategy_details || parsed.eliminated_sub_strategy_details || [];
+                    killedStrategyIds.push(...toIds(ks));
+                    killedSubStrategyIds.push(...toIds(kss));
+                    collectReasons(ksDetails);
+                    collectReasons(kssDetails);
+                }
 
-                // Fallback global reason
-                const fallbackReason = redTeamAgent.reasoning || 'Eliminated by Red Team';
-
-                redTeamAgent.killedStrategyIds = Array.isArray(killedStrategyIds) ? toIds(killedStrategyIds) : [];
-                redTeamAgent.killedSubStrategyIds = Array.isArray(killedSubIds) ? toIds(killedSubIds) : [];
-                // attach reasons map for UI and application
+                redTeamAgent.killedStrategyIds = killedStrategyIds;
+                redTeamAgent.killedSubStrategyIds = killedSubStrategyIds;
                 (redTeamAgent as any).killedReasonMap = reasonMap;
-                (redTeamAgent as any).fallbackReason = fallbackReason;
+                (redTeamAgent as any).fallbackReason = redTeamAgent.reasoning || 'Eliminated by Red Team';
             } catch (parseError) {
                 console.warn(`Failed to parse Red Team decision for agent ${agentIndex + 1}:`, parseError);
                 // If parsing fails, try to extract useful information from text response
@@ -4121,12 +4178,15 @@ async function runDeepthinkRedTeamEvaluation(
     // Apply Red Team decisions - mark strategies and sub-strategies for elimination
     currentProcess.redTeamAgents.forEach(redTeamAgent => {
         if (redTeamAgent.status === 'completed') {
+            const reasonMap = (redTeamAgent as any).killedReasonMap || {};
+            const fallbackReason = (redTeamAgent as any).fallbackReason || `Eliminated by Red Team Agent ${redTeamAgent.id}`;
+            
             // Mark killed main strategies
             redTeamAgent.killedStrategyIds.forEach(strategyId => {
                 const strategy = currentProcess.initialStrategies.find(s => s.id === strategyId);
                 if (strategy) {
                     strategy.isKilledByRedTeam = true;
-                    strategy.redTeamReason = `Eliminated by Red Team Agent ${redTeamAgent.id}`;
+                    strategy.redTeamReason = reasonMap[strategyId] || fallbackReason;
                 }
             });
 
@@ -4136,9 +4196,19 @@ async function runDeepthinkRedTeamEvaluation(
                     const subStrategy = strategy.subStrategies.find(sub => sub.id === subStrategyId);
                     if (subStrategy) {
                         subStrategy.isKilledByRedTeam = true;
-                        subStrategy.redTeamReason = `Eliminated by Red Team Agent ${redTeamAgent.id}`;
+                        subStrategy.redTeamReason = reasonMap[subStrategyId] || fallbackReason;
                     }
                 });
+            });
+            
+            // Auto-kill main strategies if all sub-strategies are killed
+            currentProcess.initialStrategies.forEach(strategy => {
+                const allSubStrategiesKilled = strategy.subStrategies.length > 0 && 
+                    strategy.subStrategies.every(sub => sub.isKilledByRedTeam);
+                if (allSubStrategiesKilled && !strategy.isKilledByRedTeam) {
+                    strategy.isKilledByRedTeam = true;
+                    strategy.redTeamReason = 'All sub-strategies eliminated by Red Team';
+                }
             });
         }
     });
@@ -4255,6 +4325,72 @@ async function makeMathJudgingApiCall(
             }
 
             renderActiveMathPipeline();
+            if (attempt === MAX_RETRIES) {
+                if (judgingType === 'intra-strategy' && 'judgingError' in targetStatusField) {
+                    targetStatusField.judgingError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
+                } else if (judgingType === 'final' && 'finalJudgingError' in targetStatusField) {
+                    targetStatusField.finalJudgingError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
+                }
+                throw e;
+            }
+        }
+    }
+    throw new Error(`API call for ${stepDescription} failed all retries.`);
+}
+
+// Helper function for deepthink judging API calls (similar to makeMathJudgingApiCall but specialized for deepthink judging)
+async function makeDeepthinkJudgingApiCall(
+    currentProcess: DeepthinkPipelineState,
+    parts: Part[],
+    systemInstruction: string,
+    isJson: boolean,
+    stepDescription: string,
+    targetStatusField: DeepthinkMainStrategyData | DeepthinkPipelineState,
+    judgingType: 'intra-strategy' | 'final'
+): Promise<string> {
+    if (!currentProcess || currentProcess.isStopRequested) throw new PipelineStopRequestedError(`Stop requested before API call: ${stepDescription}`);
+    let responseText = "";
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (currentProcess.isStopRequested) throw new PipelineStopRequestedError(`Stop requested during retry for: ${stepDescription}`);
+
+        // Set retry attempt and status based on judging type
+        if (judgingType === 'intra-strategy' && 'judgingRetryAttempt' in targetStatusField) {
+            targetStatusField.judgingRetryAttempt = attempt;
+            targetStatusField.judgingStatus = attempt > 0 ? 'retrying' : 'processing';
+        } else if (judgingType === 'final' && 'finalJudgingRetryAttempt' in targetStatusField) {
+            targetStatusField.finalJudgingRetryAttempt = attempt;
+            targetStatusField.finalJudgingStatus = attempt > 0 ? 'retrying' : 'processing';
+        }
+
+        renderActiveDeepthinkPipeline();
+
+        if (attempt > 0) await new Promise(resolve => setTimeout(resolve, INITIAL_DELAY_MS * Math.pow(BACKOFF_FACTOR, attempt)));
+
+        try {
+            const apiResponse = await callGemini(parts, getSelectedTemperature(), getSelectedModel(), systemInstruction, isJson, getSelectedTopP());
+            responseText = apiResponse.text;
+
+            // Reset status to processing after successful call
+            if (judgingType === 'intra-strategy' && 'judgingStatus' in targetStatusField) {
+                targetStatusField.judgingStatus = 'processing';
+            } else if (judgingType === 'final' && 'finalJudgingStatus' in targetStatusField) {
+                targetStatusField.finalJudgingStatus = 'processing';
+            }
+
+            renderActiveDeepthinkPipeline();
+            return responseText;
+        } catch (e: any) {
+            console.warn(`Deepthink Solver (${stepDescription}), Attempt ${attempt + 1} failed: ${e.message}`);
+
+            // Set appropriate error field
+            if (judgingType === 'intra-strategy' && 'judgingError' in targetStatusField) {
+                targetStatusField.judgingError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
+            } else if (judgingType === 'final' && 'finalJudgingError' in targetStatusField) {
+                targetStatusField.finalJudgingError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
+            }
+
+            renderActiveDeepthinkPipeline();
             if (attempt === MAX_RETRIES) {
                 if (judgingType === 'intra-strategy' && 'judgingError' in targetStatusField) {
                     targetStatusField.judgingError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
@@ -4722,14 +4858,72 @@ function openDeepthinkSolutionModal(subStrategyId: string) {
     rightPanel.style.border = '1px solid #333';
     rightPanel.style.borderRadius = '8px';
     rightPanel.style.overflow = 'hidden';
-    const rightHeader = document.createElement('h4');
-    rightHeader.className = 'comparison-panel-title';
-    rightHeader.innerHTML = '<span class="material-symbols-outlined">verified</span>Final Solution';
+    const rightHeader = document.createElement('div');
+    rightHeader.className = 'comparison-panel-header';
+    rightHeader.style.display = 'flex';
+    rightHeader.style.justifyContent = 'space-between';
+    rightHeader.style.alignItems = 'center';
     rightHeader.style.padding = '12px 16px';
-    rightHeader.style.margin = '0';
     rightHeader.style.background = 'rgba(15, 17, 32, 0.4)';
     rightHeader.style.backdropFilter = 'blur(10px)';
     rightHeader.style.borderBottom = '1px solid #333';
+    
+    const rightTitle = document.createElement('h4');
+    rightTitle.className = 'comparison-panel-title';
+    rightTitle.innerHTML = '<span class="material-symbols-outlined">verified</span>Final Solution';
+    rightTitle.style.margin = '0';
+    rightHeader.appendChild(rightTitle);
+    
+    const rightActions = document.createElement('div');
+    rightActions.className = 'panel-actions';
+    rightActions.style.display = 'flex';
+    rightActions.style.gap = '0.5rem';
+    
+    const rightCopyBtn = document.createElement('button');
+    rightCopyBtn.className = 'button';
+    rightCopyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span><span class="button-text">Copy</span>';
+    rightCopyBtn.addEventListener('click', () => {
+        const buttonTextElement = rightCopyBtn.querySelector('.button-text');
+        const originalText = buttonTextElement?.textContent;
+        navigator.clipboard.writeText(subStrategy.refinedSolution || '').then(() => {
+            if (buttonTextElement) {
+                buttonTextElement.textContent = 'Copied!';
+                rightCopyBtn.classList.add('copy-success');
+                setTimeout(() => {
+                    buttonTextElement.textContent = originalText;
+                    rightCopyBtn.classList.remove('copy-success');
+                }, 2000);
+            }
+        }).catch(() => {
+            if (buttonTextElement) {
+                buttonTextElement.textContent = 'Copy Failed';
+                rightCopyBtn.classList.add('copy-failed');
+                setTimeout(() => {
+                    buttonTextElement.textContent = originalText;
+                    rightCopyBtn.classList.remove('copy-failed');
+                }, 2000);
+            }
+        });
+    });
+    
+    const rightDownloadBtn = document.createElement('button');
+    rightDownloadBtn.className = 'button';
+    rightDownloadBtn.innerHTML = '<span class="material-symbols-outlined">download</span><span class="button-text">Download</span>';
+    rightDownloadBtn.addEventListener('click', () => {
+        const blob = new Blob([subStrategy.refinedSolution || ''], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `final-solution-${subStrategy.id}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+    
+    rightActions.appendChild(rightCopyBtn);
+    rightActions.appendChild(rightDownloadBtn);
+    rightHeader.appendChild(rightActions);
     rightPanel.appendChild(rightHeader);
     const rightContent = document.createElement('div');
     rightContent.className = 'comparison-content custom-scrollbar';
@@ -5252,18 +5446,62 @@ function renderActiveMathPipeline() {
             subTabContent.classList.add('active');
         }
 
-        const strategyTitle = document.createElement('h5');
-        let strategyTitleHtml = escapeHtml(mainStrategy.strategyText);
+        // Create strategy content wrapper with collapsible functionality
+        const strategyContentWrapper = document.createElement('div');
+        strategyContentWrapper.className = 'strategy-content collapsible';
+        
+        const strategyContent = document.createElement('div');
+        strategyContent.className = 'markdown-content';
+        let strategyContentHtml = renderMarkdown(mainStrategy.strategyText);
         if (mainStrategy.isKilledByRedTeam) {
-            strategyTitleHtml = `<span class="killed-strategy">❌ ELIMINATED: ${strategyTitleHtml}</span>`;
-            strategyTitle.innerHTML = `${strategyTitleHtml}<div class="elimination-reason">${escapeHtml(mainStrategy.redTeamReason || 'Eliminated by Red Team')}</div>`;
+            strategyContentHtml = `<span class="killed-strategy"> ELIMINATED: ${strategyContentHtml}</span>`;
+            strategyContent.innerHTML = `${strategyContentHtml}<div class="elimination-reason">${escapeHtml(mainStrategy.redTeamReason || 'Eliminated by Red Team')}</div>`;
         } else {
-            strategyTitle.innerHTML = strategyTitleHtml;
+            strategyContent.innerHTML = strategyContentHtml;
         }
-        subTabContent.appendChild(strategyTitle);
+        strategyContentWrapper.appendChild(strategyContent);
+        
+        // Create actions container for strategy-level buttons
+        const strategyActionsContainer = document.createElement('div');
+        strategyActionsContainer.className = 'strategy-actions';
+        
+        // Add expand/collapse button for main strategy if content is long enough
+        if (mainStrategy.strategyText.length > 500) {
+            const strategyExpandButton = document.createElement('button');
+            strategyExpandButton.className = 'sub-strategy-expand-toggle';
+            strategyExpandButton.innerHTML = `
+                <span>Show More</span>
+                <span class="material-symbols-outlined">expand_more</span>
+            `;
+            strategyExpandButton.addEventListener('click', () => {
+                const isExpanded = strategyContentWrapper.classList.contains('expanded');
+                if (isExpanded) {
+                    strategyContentWrapper.classList.remove('expanded');
+                    strategyExpandButton.classList.remove('expanded');
+                    strategyExpandButton.innerHTML = `
+                        <span>Show More</span>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    `;
+                } else {
+                    strategyContentWrapper.classList.add('expanded');
+                    strategyExpandButton.classList.add('expanded');
+                    strategyExpandButton.innerHTML = `
+                        <span>Show Less</span>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    `;
+                }
+            });
+            strategyActionsContainer.appendChild(strategyExpandButton);
+        }
+        
+        subTabContent.appendChild(strategyContentWrapper);
+        if (strategyActionsContainer.children.length > 0) {
+            subTabContent.appendChild(strategyActionsContainer);
+        }
 
         const subStrategiesGrid = document.createElement('div');
         subStrategiesGrid.className = 'sub-strategies-grid';
+        subStrategiesGrid.style.gridTemplateColumns = 'repeat(2, 1fr)'; // Consistent with deepthink mode
 
         mainStrategy.subStrategies.forEach((subStrategy, subIndex) => {
             const subStrategyCard = document.createElement('div');
@@ -5277,7 +5515,7 @@ function renderActiveMathPipeline() {
             const subStrategyTitle = document.createElement('h6');
             let titleText = `Sub-Strategy ${index + 1}.${subIndex + 1}`;
             if (subStrategy.isKilledByRedTeam) {
-                titleText = `❌ ${titleText} - ELIMINATED`;
+                titleText = ` ${titleText} - ELIMINATED`;
             }
             subStrategyTitle.textContent = titleText;
             subStrategyCard.appendChild(subStrategyTitle);
@@ -5621,9 +5859,6 @@ async function startDeepthinkAnalysisProcess(challengeText: string, imageBase64?
     if (!ai) {
         return;
     }
-    isGenerating = true;
-    updateControlsState();
-
     activeDeepthinkPipeline = {
         id: `deepthink-process-${Date.now()}`,
         challengeText: challengeText,
@@ -5642,6 +5877,9 @@ async function startDeepthinkAnalysisProcess(challengeText: string, imageBase64?
         knowledgePacket: '',
         finalJudgingStatus: 'pending'
     };
+    
+    isGenerating = true;
+    updateControlsState();
     renderActiveDeepthinkPipeline();
 
     // activeDeepthinkPipeline is initialized immediately above; assert non-null for this scope
@@ -5726,7 +5964,8 @@ async function startDeepthinkAnalysisProcess(challengeText: string, imageBase64?
                         strategyText: strategies[i],
                         subStrategies: [],
                         status: 'pending',
-                        isDetailsOpen: false
+                        isDetailsOpen: false,
+                        strategyFormat: 'markdown'
                     };
                     currentProcess.initialStrategies.push(strategy);
                 }
@@ -5775,7 +6014,8 @@ async function startDeepthinkAnalysisProcess(challengeText: string, imageBase64?
                                 id: `${mainStrategy.id}-sub${j + 1}`,
                                 subStrategyText: subStrategies[j],
                                 status: 'pending',
-                                isDetailsOpen: false
+                                isDetailsOpen: false,
+                                subStrategyFormat: 'markdown'
                             };
                             mainStrategy.subStrategies.push(subStrategy);
                         }
@@ -6071,46 +6311,127 @@ async function startDeepthinkAnalysisProcess(challengeText: string, imageBase64?
 
         // Red Team Evaluation has already been performed earlier; skip legacy block here
 
-        // Final judging - select best strategy and solution
-        if (!currentProcess.isStopRequested) {
-            currentProcess.finalJudgingStatus = 'processing';
+        // --- Judging Phase 1: Intra-Strategy (using refined solutions) ---
+        const intraStrategyJudgingPromises = currentProcess.initialStrategies.map(async (mainStrategy, mainIndex) => {
+            if (currentProcess.isStopRequested) {
+                mainStrategy.judgingStatus = 'cancelled';
+                return;
+            }
+            
+            // Skip judge if all sub-strategies are killed by red team
+            const allSubStrategiesKilled = mainStrategy.subStrategies.length > 0 && 
+                mainStrategy.subStrategies.every(sub => sub.isKilledByRedTeam);
+            if (allSubStrategiesKilled) {
+                mainStrategy.judgingStatus = 'completed';
+                mainStrategy.judgingError = 'All sub-strategies eliminated by Red Team - skipping judge.';
+                renderActiveDeepthinkPipeline();
+                return;
+            }
+            
+            mainStrategy.judgingStatus = 'processing';
             renderActiveDeepthinkPipeline();
 
-            // Find the best solution from all strategies
-            let bestStrategy: DeepthinkMainStrategyData | null = null;
-            let bestSubStrategy: DeepthinkSubStrategyData | null = null;
-            let bestSolution = '';
+            // Use refined solutions instead of original solution attempts
+            const completedSolutions = mainStrategy.subStrategies
+                .filter(ss => ss.selfImprovementStatus === 'completed' && ss.refinedSolution)
+                .map(ss => ({ id: ss.id, solution: ss.refinedSolution! }));
 
-            for (const strategy of currentProcess.initialStrategies) {
-                if (strategy.isKilledByRedTeam) continue;
-                
-                for (const subStrategy of strategy.subStrategies) {
-                    if (subStrategy.isKilledByRedTeam) continue;
-                    
-                    if (subStrategy.refinedSolution) {
-                        // For simplicity, use the first available refined solution
-                        if (!bestStrategy) {
-                            bestStrategy = strategy;
-                            bestSubStrategy = subStrategy;
-                            bestSolution = subStrategy.refinedSolution;
-                        }
-                    } else if (subStrategy.solutionAttempt && !bestSolution) {
-                        bestStrategy = strategy;
-                        bestSubStrategy = subStrategy;
-                        bestSolution = subStrategy.solutionAttempt;
-                    }
+            if (completedSolutions.length === 0) {
+                mainStrategy.judgingStatus = 'completed'; // Completed with no result
+                mainStrategy.judgingError = 'No valid refined solutions from sub-strategies to judge.';
+                renderActiveDeepthinkPipeline();
+                return;
+            }
+
+            const sysPromptJudge = `You are 'Analyticus Veritas', an AI Grandmaster of Analysis and Solution Verification. Your sole purpose is to analyze multiple proposed solutions to a challenge, identify the most correct, rigorous, and elegant solution, and present it with a clear, step-by-step justification. Your output must be a JSON object.`;
+            const solutionsText = completedSolutions.map((s, i) => `--- REFINED SOLUTION ${i + 1} (ID: ${s.id}) ---\n${s.solution}`).join('\n\n');
+            const userPromptJudge = `Original Challenge: ${challengeText}\n\nMain Strategy Being Evaluated: "${mainStrategy.strategyText}"\n\nBelow are ${completedSolutions.length} refined and self-improved solutions derived from this main strategy. Your task is:\n1.  Critically analyze each solution for correctness, rigor, clarity, and elegance.\n2.  Identify the single BEST solution that most effectively and correctly solves the challenge according to the main strategy.\n3.  Present your final judgment as a JSON object with the following structure: \`{"best_solution_id": "ID of the winning sub-strategy", "best_solution_text": "The full text of the absolute best solution", "reasoning": "Your detailed reasoning for why this solution is superior"}\`\n\n${solutionsText}`;
+            mainStrategy.judgingRequestPrompt = userPromptJudge;
+
+            try {
+                const judgingResponseText = await makeDeepthinkJudgingApiCall(
+                    currentProcess,
+                    [{ text: userPromptJudge }],
+                    sysPromptJudge,
+                    true,
+                    `Judging for Main Strategy ${mainIndex + 1}`,
+                    mainStrategy,
+                    'intra-strategy'
+                );
+                mainStrategy.judgingResponseText = judgingResponseText;
+                const cleanedJson = cleanOutputByType(judgingResponseText, 'json');
+                const parsed = JSON.parse(cleanedJson);
+
+                if (!parsed.best_solution_id || !parsed.best_solution_text || !parsed.reasoning) {
+                    throw new Error("Judge LLM response is missing critical fields (best_solution_id, best_solution_text, reasoning).");
                 }
-            }
 
-            if (bestStrategy && bestSubStrategy) {
-                currentProcess.finalJudgedBestStrategyId = bestStrategy.id;
-                currentProcess.finalJudgedBestSolution = bestSolution;
-                bestStrategy.judgedBestSubStrategyId = bestSubStrategy.id;
-                bestStrategy.judgedBestSolution = bestSolution;
-            }
+                mainStrategy.judgedBestSubStrategyId = parsed.best_solution_id;
+                const subStrategyOrigin = mainStrategy.subStrategies.find(s => s.id === parsed.best_solution_id);
+                const subStrategyTitle = subStrategyOrigin ? `from Sub-Strategy originating from "${subStrategyOrigin.subStrategyText.substring(0, 50)}..."` : `from Sub-Strategy ${parsed.best_solution_id}`;
+                mainStrategy.judgedBestSolution = `### Judged Best Solution for Strategy ${mainIndex + 1}\n\n**Origin:** ${subStrategyTitle}\n\n**Reasoning for Selection:**\n${parsed.reasoning}\n\n---\n\n**Final Solution Text:**\n${parsed.best_solution_text}`;
+                mainStrategy.judgingStatus = 'completed';
 
-            currentProcess.finalJudgingStatus = 'completed';
-            renderActiveDeepthinkPipeline();
+            } catch (e: any) {
+                mainStrategy.judgingStatus = 'error';
+                mainStrategy.judgingError = e.message || 'Failed to judge solutions.';
+                console.error(`Error judging for MS ${mainIndex + 1}:`, e);
+            } finally {
+                renderActiveDeepthinkPipeline();
+            }
+        });
+
+        await Promise.allSettled(intraStrategyJudgingPromises);
+        if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped during intra-strategy judging.");
+
+        // --- Judging Phase 2: Final Verdict ---
+        currentProcess.finalJudgingStatus = 'processing';
+        renderActiveDeepthinkPipeline();
+
+        const judgedSolutions = currentProcess.initialStrategies
+            .filter(ms => !ms.isKilledByRedTeam && ms.judgingStatus === 'completed' && ms.judgedBestSolution)
+            .map(ms => ({ id: ms.id, solution: ms.judgedBestSolution! }));
+
+        if (judgedSolutions.length === 0) {
+            currentProcess.finalJudgingStatus = 'error';
+            currentProcess.finalJudgingError = "No successfully judged solutions available for final review.";
+        } else {
+            const sysPromptFinalJudge = `You are 'Analyticus Ultima', the ultimate arbiter of analytical truth and solution excellence. You review final candidate solutions from different strategic approaches and select the single most superior solution overall, presenting it with unparalleled clarity and authority. Your output must be a JSON object.`;
+            const finalSolutionsText = judgedSolutions.map((s, i) => `--- CANDIDATE SOLUTION ${i + 1} (from Main Strategy ID: ${s.id}) ---\n${s.solution}`).join('\n\n');
+            const userPromptFinalJudge = `Original Challenge: ${challengeText}\n\nBelow are ${judgedSolutions.length} final candidate solutions, each being the winner from a different overarching strategic approach. Your task is to select the SINGLE OVERALL BEST solution based on correctness, efficiency, elegance, and clarity.\n\nPresent your final verdict as a JSON object with the following structure: \`{"best_strategy_id": "ID of the winning main strategy", "final_solution_text": "The full text of the absolute best solution", "final_reasoning": "Your detailed reasoning for why this solution is the ultimate winner"}\`\n\n${finalSolutionsText}`;
+
+            currentProcess.finalJudgingRequestPrompt = userPromptFinalJudge;
+
+            try {
+                const finalJudgingResponseText = await makeDeepthinkJudgingApiCall(
+                    currentProcess,
+                    [{ text: userPromptFinalJudge }],
+                    sysPromptFinalJudge,
+                    true,
+                    'Final Judging',
+                    currentProcess,
+                    'final'
+                );
+                currentProcess.finalJudgingResponseText = finalJudgingResponseText;
+                const cleanedJson = cleanOutputByType(finalJudgingResponseText, 'json');
+                const parsed = JSON.parse(cleanedJson);
+
+                if (!parsed.best_strategy_id || !parsed.final_solution_text || !parsed.final_reasoning) {
+                    throw new Error("Final Judge LLM response is missing critical fields (best_strategy_id, final_solution_text, final_reasoning).");
+                }
+
+                currentProcess.finalJudgedBestStrategyId = parsed.best_strategy_id;
+                const strategyOrigin = currentProcess.initialStrategies.find(s => s.id === parsed.best_strategy_id);
+                const strategyTitle = strategyOrigin ? `from Strategy originating from "${strategyOrigin.strategyText.substring(0, 60)}..."` : `from Strategy ${parsed.best_strategy_id}`;
+
+                currentProcess.finalJudgedBestSolution = `### Final Judged Best Solution\n\n**Origin:** ${strategyTitle}\n\n**Final Reasoning:**\n${parsed.final_reasoning}\n\n---\n\n**Definitive Solution:**\n${parsed.final_solution_text}`;
+                currentProcess.finalJudgingStatus = 'completed';
+
+            } catch (e: any) {
+                currentProcess.finalJudgingStatus = 'error';
+                currentProcess.finalJudgingError = e.message || "Failed to perform final judging.";
+                console.error(`Error in final judging:`, e);
+            }
         }
 
         currentProcess.status = 'completed';
@@ -6312,15 +6633,58 @@ function renderActiveDeepthinkPipeline() {
                 subTabContent.classList.add('active');
             }
 
-            const strategyTitle = document.createElement('h5');
-            let strategyTitleHtml = escapeHtml(mainStrategy.strategyText);
+            // Create strategy content wrapper with collapsible functionality
+            const strategyContentWrapper = document.createElement('div');
+            strategyContentWrapper.className = 'strategy-content collapsible';
+            
+            const strategyContent = document.createElement('div');
+            strategyContent.className = 'markdown-content';
+            let strategyContentHtml = renderMarkdown(mainStrategy.strategyText);
             if (mainStrategy.isKilledByRedTeam) {
-                strategyTitleHtml = `<span class="killed-strategy">❌ ELIMINATED: ${strategyTitleHtml}</span>`;
-                strategyTitle.innerHTML = `${strategyTitleHtml}<div class="elimination-reason">${escapeHtml(mainStrategy.redTeamReason || 'Eliminated by Red Team')}</div>`;
+                strategyContentHtml = `<span class="killed-strategy">ELIMINATED: ${strategyContentHtml}</span>`;
+                strategyContent.innerHTML = `${strategyContentHtml}<div class="elimination-reason">${escapeHtml(mainStrategy.redTeamReason || 'Eliminated by Red Team')}</div>`;
             } else {
-                strategyTitle.innerHTML = strategyTitleHtml;
+                strategyContent.innerHTML = strategyContentHtml;
             }
-            subTabContent.appendChild(strategyTitle);
+            strategyContentWrapper.appendChild(strategyContent);
+            
+            // Create actions container for strategy-level buttons
+            const strategyActionsContainer = document.createElement('div');
+            strategyActionsContainer.className = 'strategy-actions';
+            
+            // Add expand/collapse button for main strategy if content is long enough
+            if (mainStrategy.strategyText.length > 500) {
+                const strategyExpandButton = document.createElement('button');
+                strategyExpandButton.className = 'sub-strategy-expand-toggle';
+                strategyExpandButton.innerHTML = `
+                    <span>Show More</span>
+                    <span class="material-symbols-outlined">expand_more</span>
+                `;
+                strategyExpandButton.addEventListener('click', () => {
+                    const isExpanded = strategyContentWrapper.classList.contains('expanded');
+                    if (isExpanded) {
+                        strategyContentWrapper.classList.remove('expanded');
+                        strategyExpandButton.classList.remove('expanded');
+                        strategyExpandButton.innerHTML = `
+                            <span>Show More</span>
+                            <span class="material-symbols-outlined">expand_more</span>
+                        `;
+                    } else {
+                        strategyContentWrapper.classList.add('expanded');
+                        strategyExpandButton.classList.add('expanded');
+                        strategyExpandButton.innerHTML = `
+                            <span>Show Less</span>
+                            <span class="material-symbols-outlined">expand_more</span>
+                        `;
+                    }
+                });
+                strategyActionsContainer.appendChild(strategyExpandButton);
+            }
+            
+            subTabContent.appendChild(strategyContentWrapper);
+            if (strategyActionsContainer.children.length > 0) {
+                subTabContent.appendChild(strategyActionsContainer);
+            }
 
             const subStrategiesGrid = document.createElement('div');
             subStrategiesGrid.className = 'sub-strategies-grid';
@@ -6336,7 +6700,7 @@ function renderActiveDeepthinkPipeline() {
                 const subStrategyTitle = document.createElement('h6');
                 let titleText = `Sub-Strategy ${index + 1}.${subIndex + 1}`;
                 if (subStrategy.isKilledByRedTeam) {
-                    titleText = `❌ ${titleText} - ELIMINATED`;
+                    titleText = ` ${titleText} - ELIMINATED`;
                 }
                 subStrategyTitle.textContent = titleText;
                 subStrategyCard.appendChild(subStrategyTitle);
@@ -6531,7 +6895,7 @@ function renderDeepthinkStrategicSolver(): string {
                     <div class="strategy-tab ${index === (activeDeepthinkPipeline.activeStrategyTab ?? 0) ? 'active' : ''}" 
                          onclick="activateDeepthinkStrategyTab(${index})">
                         Strategy ${index + 1}
-                        ${strategy.isKilledByRedTeam ? ' <span class="killed-indicator">❌</span>' : ''}
+                        ${strategy.isKilledByRedTeam ? ' <span class="killed-indicator"></span>' : ''}
                     </div>
                 `).join('')}
             </div>
@@ -6550,12 +6914,12 @@ function renderDeepthinkStrategyContent(strategyIndex: number): string {
         <div class="strategy-detail">
             <h3>Strategy ${strategyIndex + 1}</h3>
             <div class="strategy-text">
-                <pre>${strategy.strategyText}</pre>
+                <div class="markdown-content">${renderMarkdown(strategy.strategyText)}</div>
             </div>
             
             ${strategy.isKilledByRedTeam ? `
                 <div class="red-team-kill">
-                    <h4>❌ Eliminated by Red Team</h4>
+                    <h4> Eliminated by Red Team</h4>
                     <p>${strategy.redTeamReason || 'No specific reason provided.'}</p>
                 </div>
             ` : ''}
@@ -6567,7 +6931,7 @@ function renderDeepthinkStrategyContent(strategyIndex: number): string {
                     <div class="sub-strategy ${sub.isKilledByRedTeam ? 'killed' : ''}">
                         <h5>Sub-strategy ${subIndex + 1} ${sub.isKilledByRedTeam ? '❌' : ''}</h5>
                         <div class="sub-strategy-text">
-                            <pre>${sub.subStrategyText}</pre>
+                            <div class="markdown-content">${renderMarkdown(sub.subStrategyText)}</div>
                         </div>
                         
                         ${sub.solutionAttempt ? `
