@@ -73,6 +73,14 @@
   --sub-panel-border-color: rgba(var(--border-color-rgb), 0.4);
   --sub-panel-text-color: var(--text-secondary-color);
   --sub-panel-strong-text-color: var(--text-color);
+
+  /* Judge Results Section */
+  --judge-section-bg: rgba(var(--accent-purple-rgb), 0.08);
+  --judge-section-border: rgba(var(--accent-purple-rgb), 0.25);
+  --judge-completed-bg: rgba(var(--accent-green-rgb), 0.1);
+  --judge-processing-bg: rgba(var(--accent-yellow-rgb), 0.1);
+  --judge-error-bg: rgba(var(--accent-pink-rgb), 0.1);
+  --judge-pending-bg: rgba(var(--border-color-rgb), 0.1);
 }
 
 * {
@@ -2801,6 +2809,140 @@ summary.prompt-group-title::-webkit-details-marker { display: none; }
     display: none;
 }
 
+/* Judge Results Section Styles */
+.judge-results-section {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: var(--judge-section-bg);
+    border: 1px solid var(--judge-section-border);
+    border-radius: var(--border-radius-lg);
+    backdrop-filter: var(--card-blur-effect);
+    -webkit-backdrop-filter: var(--card-blur-effect);
+    box-shadow: var(--shadow-md);
+}
+
+.judge-section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--accent-purple);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.judge-section-title::before {
+    content: '';
+    font-size: 1.2rem;
+}
+
+.judge-status {
+    margin-bottom: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.selected-substrategy-badge {
+    background: linear-gradient(135deg, rgba(var(--accent-purple-rgb), 0.2), rgba(var(--accent-purple-rgb), 0.1));
+    border: 1px solid rgba(var(--accent-purple-rgb), 0.3);
+    color: var(--accent-purple);
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.judge-content {
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+}
+
+.judge-best-solution {
+    background: var(--judge-completed-bg);
+    border: 1px solid rgba(var(--accent-green-rgb), 0.2);
+    border-radius: var(--border-radius-md);
+    padding: 1.5rem;
+}
+
+.judge-best-solution .markdown-content {
+    color: var(--text-color);
+    line-height: 1.7;
+}
+
+.judge-pending {
+    background: var(--judge-pending-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    padding: 1rem;
+    color: var(--text-secondary-color);
+    font-style: italic;
+    text-align: center;
+}
+
+.judge-error {
+    background: var(--judge-error-bg);
+    border: 1px solid rgba(var(--accent-pink-rgb), 0.2);
+    border-radius: var(--border-radius-md);
+    padding: 1rem;
+    color: var(--accent-pink);
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+
+.judge-skipped {
+    background: var(--judge-pending-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    padding: 1rem;
+    color: var(--text-tertiary-color);
+    text-align: center;
+    font-style: italic;
+}
+
+/* Status badge enhancements for judge section */
+.judge-status .status-badge {
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 0.4rem 1rem;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.judge-status .status-completed {
+    background: linear-gradient(135deg, rgba(var(--accent-green-rgb), 0.2), rgba(var(--accent-green-rgb), 0.1));
+    border: 1px solid rgba(var(--accent-green-rgb), 0.3);
+    color: var(--accent-green);
+}
+
+.judge-status .status-processing {
+    background: linear-gradient(135deg, rgba(var(--accent-yellow-rgb), 0.2), rgba(var(--accent-yellow-rgb), 0.1));
+    border: 1px solid rgba(var(--accent-yellow-rgb), 0.3);
+    color: var(--accent-yellow);
+    animation: pulse-glow-yellow 2s infinite;
+}
+
+.judge-status .status-error {
+    background: linear-gradient(135deg, rgba(var(--accent-pink-rgb), 0.2), rgba(var(--accent-pink-rgb), 0.1));
+    border: 1px solid rgba(var(--accent-pink-rgb), 0.3);
+    color: var(--accent-pink);
+}
+
+.judge-status .status-pending {
+    background: linear-gradient(135deg, rgba(var(--border-color-rgb), 0.2), rgba(var(--border-color-rgb), 0.1));
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary-color);
+}
+
+.judge-status .status-eliminated {
+    background: linear-gradient(135deg, rgba(var(--text-tertiary-color), 0.2), rgba(var(--text-tertiary-color), 0.1));
+    border: 1px solid var(--text-tertiary-color);
+    color: var(--text-tertiary-color);
+}
+
 /* Best Judged Solution Section */
 .best-judged-solution {
     margin-top: 3rem;
@@ -4607,3 +4749,4 @@ input[type="range"]::-moz-range-track {
     border-radius: 3px;
     backdrop-filter: var(--card-blur-effect);
 }
+
