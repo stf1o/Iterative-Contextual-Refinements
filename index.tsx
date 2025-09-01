@@ -1893,11 +1893,13 @@ async function callGemini(promptOrParts: string | Part[], temperature: number, m
 
 function cleanHtmlOutput(rawHtml: string): string {
     if (typeof rawHtml !== 'string') return '';
-    let textToClean = rawHtml.trim(); // Already trimmed by cleanOutputByType before calling this
+    let textToClean = rawHtml.trim();
 
-    // Fence removal for HTML is handled by cleanOutputByType now,
-    // so textToClean here is already de-fenced.
-
+    // Handle single-line HTML by converting \n to actual newlines
+    textToClean = textToClean.replace(/\\n/g, '\n');
+    textToClean = textToClean.replace(/\\t/g, '\t');
+    textToClean = textToClean.replace(/\\"/g, '"');
+    
     // Try to find the start of the HTML document
     const lowerText = textToClean.toLowerCase();
     let startIndex = lowerText.indexOf('<!doctype');
@@ -1921,13 +1923,8 @@ function cleanHtmlOutput(rawHtml: string): string {
         }
     }
 
-    // If no clear HTML structure (<!doctype or <html) is found, return the de-fenced, trimmed text.
-    // This handles cases where LLM might provide an HTML snippet.
-    // It's up to the caller to validate if this is truly renderable.
-    // console.warn(`cleanHtmlOutput: Content not identified as a full HTML document. Returning de-fenced and trimmed input. Original (first 200): "${textToClean.substring(0,200) + (textToClean.length > 200 ? "..." : "")}"`);
     return textToClean;
 }
-
 
 function cleanTextOutput(rawText: string): string {
     if (typeof rawText !== 'string') return '';
@@ -1975,9 +1972,38 @@ function cleanJsonOutput(jsonString: string): string {
     
     let cleaned = jsonString.trim();
     
-    // Remove any leading/trailing non-JSON content
-    const jsonStart = cleaned.indexOf('{');
-    const jsonEnd = cleaned.lastIndexOf('}');
+    // Remove markdown code block fences if present
+    if (cleaned.startsWith('```json') || cleaned.startsWith('```')) {
+        const lines = cleaned.split('\n');
+        // Remove first line (```json or ```)
+        lines.shift();
+        // Remove last line if it's just ```
+        if (lines.length > 0 && lines[lines.length - 1].trim() === '```') {
+            lines.pop();
+        }
+        cleaned = lines.join('\n').trim();
+    }
+    
+    // Handle both JSON objects and arrays
+    let jsonStart = -1;
+    let jsonEnd = -1;
+    
+    // Look for array start
+    const arrayStart = cleaned.indexOf('[');
+    const arrayEnd = cleaned.lastIndexOf(']');
+    
+    // Look for object start
+    const objectStart = cleaned.indexOf('{');
+    const objectEnd = cleaned.lastIndexOf('}');
+    
+    // Determine which comes first and use appropriate bounds
+    if (arrayStart !== -1 && (objectStart === -1 || arrayStart < objectStart)) {
+        jsonStart = arrayStart;
+        jsonEnd = arrayEnd;
+    } else if (objectStart !== -1) {
+        jsonStart = objectStart;
+        jsonEnd = objectEnd;
+    }
     
     if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
         cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
@@ -1989,32 +2015,61 @@ function cleanJsonOutput(jsonString: string): string {
         JSON.parse(cleaned);
         return cleaned;
     } catch (e) {
-        // If parsing fails, try to fix common issues
+        console.warn("JSON parsing failed, attempting to fix common issues:", e);
         
-        // Fix newlines within strings by replacing them with escaped newlines
-        // This regex finds strings in JSON and preserves their content while fixing newlines
-        let fixed = cleaned.replace(/"([^"]*?)"/g, (match, content) => {
-            // Replace newlines and other problematic characters within the string content
-            const fixedContent = content
-                .replace(/\n/g, '\\n')
-                .replace(/\r/g, '\\r')
-                .replace(/\t/g, '\\t')
-                .replace(/\\/g, '\\\\')
-                .replace(/"/g, '\\"');
-            return `"${fixedContent}"`;
-        });
+        // More robust string content fixing
+        let fixed = cleaned;
         
-        // Try parsing again
+        // Fix unescaped quotes and newlines within string values
+        // This is a more careful approach that preserves JSON structure
         try {
+            // More robust approach: fix escaped characters and string content
+            fixed = fixed
+                // Fix bad escape sequences like \n\n -> \\n
+                .replace(/\\([^"\\nrtbfuv/])/g, '\\\\$1')
+                // Fix unescaped quotes within strings
+                .replace(/"([^"]*?)"([^,}\]\s])/g, '"$1\\"$2')
+                // Fix unescaped newlines in string values
+                .replace(/"([^"]*?)\n([^"]*?)"/g, '"$1\\n$2"')
+                // Fix unescaped carriage returns
+                .replace(/"([^"]*?)\r([^"]*?)"/g, '"$1\\r$2"')
+                // Fix unescaped tabs
+                .replace(/"([^"]*?)\t([^"]*?)"/g, '"$1\\t$2"')
+                // Remove trailing commas
+                .replace(/,\s*([}\]])/g, '$1')
+                // Fix unquoted keys
+                .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+            
+            // Try parsing the fixed version
             JSON.parse(fixed);
             return fixed;
         } catch (e2) {
-            console.warn("Failed to fix JSON, returning original with basic cleanup");
-            // Last resort: basic cleanup
-            return cleaned
-                .replace(/\n/g, '\\n')
-                .replace(/\r/g, '\\r')
-                .replace(/\t/g, '\\t');
+            console.warn("Advanced JSON fixing failed, trying aggressive cleanup:", e2);
+            
+            // Fallback: very aggressive character-by-character fixes
+            try {
+                let basicFixed = cleaned
+                    // Remove any trailing commas
+                    .replace(/,\s*([}\]])/g, '$1')
+                    // Fix common quote issues
+                    .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+                    // Escape all backslashes first
+                    .replace(/\\/g, '\\\\')
+                    // Then fix specific escape sequences
+                    .replace(/\\\\n/g, '\\n')
+                    .replace(/\\\\r/g, '\\r')
+                    .replace(/\\\\t/g, '\\t')
+                    // Basic newline escaping - more aggressive
+                    .replace(/\n/g, '\\n')
+                    .replace(/\r/g, '\\r')
+                    .replace(/\t/g, '\\t');
+                
+                JSON.parse(basicFixed);
+                return basicFixed;
+            } catch (e3) {
+                console.warn("All JSON fixing attempts failed, returning cleaned original:", e3);
+                return cleaned;
+            }
         }
     }
 }
@@ -2034,9 +2089,11 @@ function escapeRegExp(literal: string): string {
 
 function buildFlexibleWhitespaceRegex(block: string): RegExp {
     // Escape regex chars, then normalize any run of whitespace in the block to match any whitespace run in the source
-    const escaped = escapeRegExp(block).replace(/\s+/g, '\\s+');
-    // Use multiline to make ^ and $ behave per line where relevant; avoid global to ensure single replacement
-    return new RegExp(escaped, 'm');
+    const escaped = escapeRegExp(block)
+        .replace(/\s+/g, '\\s+')
+        .replace(/\\n/g, '\\s*\\n\\s*'); // Handle newlines more flexibly
+    // Use multiline and dotall flags for better matching
+    return new RegExp(escaped, 'ms');
 }
 
 function countOccurrences(haystack: string, needle: string): number {
@@ -2053,19 +2110,44 @@ function countOccurrences(haystack: string, needle: string): number {
 }
 
 function replaceOnceExact(haystack: string, needle: string, replacement: string): { result: string, applied: boolean, multiple: boolean } {
+    if (!needle || typeof needle !== 'string' || typeof haystack !== 'string') {
+        return { result: haystack, applied: false, multiple: false };
+    }
+    
+    // First try exact match - this is critical for simple cases like "<body>"
     const occurrences = countOccurrences(haystack, needle);
-    if (occurrences === 0) return { result: haystack, applied: false, multiple: false };
-    const idx = haystack.indexOf(needle);
-    const result = haystack.slice(0, idx) + replacement + haystack.slice(idx + needle.length);
-    return { result, applied: true, multiple: occurrences > 1 };
+    if (occurrences > 0) {
+        const idx = haystack.indexOf(needle);
+        const result = haystack.slice(0, idx) + replacement + haystack.slice(idx + needle.length);
+        return { result, applied: true, multiple: occurrences > 1 };
+    }
+    
+    // Only try flexible matching for multi-line blocks or complex content
+    if (needle.includes('\n') || needle.length > 50) {
+        const regex = buildFlexibleWhitespaceRegex(needle);
+        const match = haystack.match(regex);
+        if (match && match.index !== undefined) {
+            const result = haystack.slice(0, match.index) + replacement + haystack.slice(match.index + match[0].length);
+            return { result, applied: true, multiple: false };
+        }
+    }
+    
+    return { result: haystack, applied: false, multiple: false };
 }
+
 function applyPatches(currentHtml: string, patches: HtmlPatchOperation[]): string {
     let modifiedHtml = currentHtml ?? '';
-    if (!Array.isArray(patches) || patches.length === 0) return modifiedHtml;
+    if (!Array.isArray(patches) || patches.length === 0) {
+        console.log('applyPatches: No valid patches to apply');
+        return modifiedHtml;
+    }
 
-    for (const rawPatch of patches) {
+    console.log(`applyPatches: Applying ${patches.length} patches to HTML (${modifiedHtml.length} chars)`);
+    
+    for (let i = 0; i < patches.length; i++) {
+        const rawPatch = patches[i];
         if (!rawPatch || typeof rawPatch !== 'object') {
-            console.warn('applyPatches: Skipping invalid patch (not an object):', rawPatch);
+            console.warn(`applyPatches: Patch ${i + 1}: Skipping invalid patch (not an object):`, rawPatch);
             continue;
         }
 
@@ -2075,84 +2157,68 @@ function applyPatches(currentHtml: string, patches: HtmlPatchOperation[]): strin
         const newContent = (rawPatch as any).new_content ?? '';
 
         if (!op || !searchBlock || typeof searchBlock !== 'string') {
-            console.warn('applyPatches: Skipping patch with missing/invalid operation or search_block:', rawPatch);
+            console.warn(`applyPatches: Patch ${i + 1}: Skipping patch with missing/invalid operation or search_block:`, rawPatch);
             continue;
         }
 
+        console.log(`applyPatches: Patch ${i + 1}: ${op} operation on block: "${searchBlock.substring(0, 60)}${searchBlock.length > 60 ? '...' : ''}"`);        
+        
         try {
+            const beforeLength = modifiedHtml.length;
+            
             if (op === 'replace') {
-                // Try exact once
                 let { result, applied, multiple } = replaceOnceExact(modifiedHtml, searchBlock, replaceWith);
                 if (!applied) {
-                    // Fallback to flexible whitespace matching
-                    const regex = buildFlexibleWhitespaceRegex(searchBlock);
-                    if (regex.test(modifiedHtml)) {
-                        result = modifiedHtml.replace(regex, replaceWith);
-                        applied = true;
-                        // We cannot easily detect multiplicity with non-global regex; good enough to warn for exact case only
+                    console.warn(`applyPatches: Patch ${i + 1}: replace - search_block not found. Patch skipped. Block: "${searchBlock.substring(0, 120)}${searchBlock.length > 120 ? '...' : ''}"`);                    
+                } else {
+                    if (multiple) {
+                        console.warn(`applyPatches: Patch ${i + 1}: replace - multiple matches found. Only first occurrence was replaced.`);
                     }
-                }
-                if (!applied) {
-                    console.warn('applyPatches: replace - search_block not found. Patch skipped. block (first 120 chars):', searchBlock.substring(0, 120));
-                } else if (multiple) {
-                    console.warn('applyPatches: replace - multiple matches found. Only first occurrence was replaced. block (first 120 chars):', searchBlock.substring(0, 120));
+                    console.log(`applyPatches: Patch ${i + 1}: Successfully applied replace (${beforeLength} -> ${result.length} chars)`);
                 }
                 modifiedHtml = result;
             } else if (op === 'insert_after') {
-                // Exact: insert after the matched block (first occurrence)
                 let { result, applied, multiple } = replaceOnceExact(modifiedHtml, searchBlock, searchBlock + newContent);
                 if (!applied) {
-                    const regex = buildFlexibleWhitespaceRegex(searchBlock);
-                    if (regex.test(modifiedHtml)) {
-                        result = modifiedHtml.replace(regex, (m) => m + newContent);
-                        applied = true;
+                    console.warn(`applyPatches: Patch ${i + 1}: insert_after - search_block not found. Patch skipped. Block: "${searchBlock.substring(0, 120)}${searchBlock.length > 120 ? '...' : ''}"`);                    
+                } else {
+                    if (multiple) {
+                        console.warn(`applyPatches: Patch ${i + 1}: insert_after - multiple matches found. Only first occurrence was used.`);
                     }
-                }
-                if (!applied) {
-                    console.warn('applyPatches: insert_after - search_block not found. Patch skipped. block (first 120 chars):', searchBlock.substring(0, 120));
-                } else if (multiple) {
-                    console.warn('applyPatches: insert_after - multiple matches found. Only first occurrence was used. block (first 120 chars):', searchBlock.substring(0, 120));
+                    console.log(`applyPatches: Patch ${i + 1}: Successfully applied insert_after (${beforeLength} -> ${result.length} chars)`);
                 }
                 modifiedHtml = result;
             } else if (op === 'insert_before') {
-                // Exact: insert before the matched block (first occurrence)
                 let { result, applied, multiple } = replaceOnceExact(modifiedHtml, searchBlock, newContent + searchBlock);
                 if (!applied) {
-                    const regex = buildFlexibleWhitespaceRegex(searchBlock);
-                    if (regex.test(modifiedHtml)) {
-                        result = modifiedHtml.replace(regex, (m) => newContent + m);
-                        applied = true;
+                    console.warn(`applyPatches: Patch ${i + 1}: insert_before - search_block not found. Patch skipped. Block: "${searchBlock.substring(0, 120)}${searchBlock.length > 120 ? '...' : ''}"`);                    
+                } else {
+                    if (multiple) {
+                        console.warn(`applyPatches: Patch ${i + 1}: insert_before - multiple matches found. Only first occurrence was used.`);
                     }
-                }
-                if (!applied) {
-                    console.warn('applyPatches: insert_before - search_block not found. Patch skipped. block (first 120 chars):', searchBlock.substring(0, 120));
-                } else if (multiple) {
-                    console.warn('applyPatches: insert_before - multiple matches found. Only first occurrence was used. block (first 120 chars):', searchBlock.substring(0, 120));
+                    console.log(`applyPatches: Patch ${i + 1}: Successfully applied insert_before (${beforeLength} -> ${result.length} chars)`);
                 }
                 modifiedHtml = result;
             } else if (op === 'delete') {
-                // Exact delete
                 let { result, applied, multiple } = replaceOnceExact(modifiedHtml, searchBlock, '');
                 if (!applied) {
-                    const regex = buildFlexibleWhitespaceRegex(searchBlock);
-                    if (regex.test(modifiedHtml)) {
-                        result = modifiedHtml.replace(regex, '');
-                        applied = true;
+                    console.warn(`applyPatches: Patch ${i + 1}: delete - search_block not found. Patch skipped. Block: "${searchBlock.substring(0, 120)}${searchBlock.length > 120 ? '...' : ''}"`);                    
+                } else {
+                    if (multiple) {
+                        console.warn(`applyPatches: Patch ${i + 1}: delete - multiple matches found. Only first occurrence was deleted.`);
                     }
-                }
-                if (!applied) {
-                    console.warn('applyPatches: delete - search_block not found. Patch skipped. block (first 120 chars):', searchBlock.substring(0, 120));
-                } else if (multiple) {
-                    console.warn('applyPatches: delete - multiple matches found. Only first occurrence was deleted. block (first 120 chars):', searchBlock.substring(0, 120));
+                    console.log(`applyPatches: Patch ${i + 1}: Successfully applied delete (${beforeLength} -> ${result.length} chars)`);
                 }
                 modifiedHtml = result;
             } else {
-                console.warn('applyPatches: Unsupported operation. Skipping.', op, rawPatch);
+                console.warn(`applyPatches: Patch ${i + 1}: Unsupported operation '${op}'. Skipping.`, rawPatch);
             }
         } catch (e) {
-            console.warn('applyPatches: Error applying patch. Skipping this patch.', e, rawPatch);
+            console.warn(`applyPatches: Patch ${i + 1}: Error applying patch. Skipping this patch.`, e, rawPatch);
         }
     }
+    
+    console.log(`applyPatches: Completed. Final HTML length: ${modifiedHtml.length} chars`);
     return modifiedHtml;
 }
 
@@ -2386,10 +2452,29 @@ async function runPipeline(pipelineId: number, initialRequest: string) {
                 const placeholderCurrentHtml = "<!-- No significant HTML content available. Base suggestions on the original idea or propose foundational elements. -->";
 
                 if (i === 0) {
-                    const userPromptInitialGen = renderPrompt(customPromptsWebsiteState.user_initialGen, { initialIdea: initialRequest });
+                    const userPromptInitialGen = renderPrompt(customPromptsWebsiteState.user_initialGen, { initialIdea: initialRequest, currentHtml: currentHtmlContent });
                     iteration.requestPromptHtml_InitialGenerate = userPromptInitialGen;
-                    rawHtmlAfterGenOrImpl = cleanHtmlOutput(await makeApiCall(userPromptInitialGen, customPromptsWebsiteState.sys_initialGen, false, "Initial HTML Generation"));
-                    iteration.generatedRawHtml = rawHtmlAfterGenOrImpl; // Store raw output from Request 1
+                    {
+                        const initialGenResponse = await makeApiCall(userPromptInitialGen, customPromptsWebsiteState.sys_initialGen, true, "Initial HTML Generation");
+                        // Check if response is JSON patches or full HTML
+                        if (currentHtmlContent && currentHtmlContent.trim().length > 0) {
+                            // We have existing HTML, expect JSON patches
+                            const patches = parsePatchesFromJson(initialGenResponse);
+                            if (patches && patches.length > 0) {
+                                rawHtmlAfterGenOrImpl = applyPatches(currentHtmlContent, patches);
+                                iteration.providedPatchesJson = cleanOutputByType(initialGenResponse, 'json');
+                                iteration.providedPatchesContentType = 'html';
+                            } else {
+                                // Fallback: treat as full HTML
+                                const fallbackHtml = cleanOutputByType(initialGenResponse, 'html');
+                                rawHtmlAfterGenOrImpl = fallbackHtml && fallbackHtml.length > 0 ? cleanHtmlOutput(fallbackHtml) : "";
+                            }
+                        } else {
+                            // No existing HTML, expect full HTML output
+                            rawHtmlAfterGenOrImpl = cleanHtmlOutput(initialGenResponse);
+                        }
+                        iteration.generatedRawHtml = rawHtmlAfterGenOrImpl; // Store raw output from Request 1
+                    }
 
                     const userPromptInitialBugFix = renderPrompt(customPromptsWebsiteState.user_initialBugFix, { initialIdea: initialRequest, rawHtml: rawHtmlAfterGenOrImpl || placeholderRawHtml });
                     iteration.requestPromptHtml_BugFix = userPromptInitialBugFix;
@@ -2411,16 +2496,28 @@ async function runPipeline(pipelineId: number, initialRequest: string) {
 
                     const userPromptInitialFeatures = renderPrompt(customPromptsWebsiteState.user_initialFeatureSuggest, { initialIdea: initialRequest, currentHtml: currentHtmlContent || placeholderCurrentHtml });
                     iteration.requestPromptFeatures_Suggest = userPromptInitialFeatures;
-                    // Always use Gemini-2.5-Flash for feature suggestions
-                    const featuresJsonString = await callGemini(userPromptInitialFeatures, pipeline.temperature, "gemini-2.5-flash", customPromptsWebsiteState.sys_initialFeatureSuggest, true).then(response => response.text);
-                    iteration.suggestedFeatures = parseJsonSuggestions(featuresJsonString, 'features', 2);
+                    // Use the selected model for feature suggestions
+                    const featuresJsonString = await callGemini(userPromptInitialFeatures, pipeline.temperature, pipeline.modelName, customPromptsWebsiteState.sys_initialFeatureSuggest, true).then(response => response.text);
+                    iteration.suggestedFeatures = parseJsonSuggestions(featuresJsonString, 'features', 5);
                     currentSuggestions = iteration.suggestedFeatures;
                 } else if (i <= numMainRefinementLoops) {
                     const featuresToImplementStr = currentSuggestions.join('; ');
                     const userPromptRefineImplement = renderPrompt(customPromptsWebsiteState.user_refineStabilizeImplement, { currentHtml: currentHtmlContent || placeholderRawHtml, featuresToImplementStr });
                     iteration.requestPromptHtml_FeatureImplement = userPromptRefineImplement;
-                    rawHtmlAfterGenOrImpl = cleanHtmlOutput(await makeApiCall(userPromptRefineImplement, customPromptsWebsiteState.sys_refineStabilizeImplement, false, `Stabilization & Feature Impl (Iter ${i})`));
-                    iteration.generatedRawHtml = rawHtmlAfterGenOrImpl; // Store raw output from Request 1
+                    {
+                        const refineImplementResponse = await makeApiCall(userPromptRefineImplement, customPromptsWebsiteState.sys_refineStabilizeImplement, true, `Stabilization & Feature Impl (Iter ${i}) - JSON Patches`);
+                        const patches = parsePatchesFromJson(refineImplementResponse);
+                        if (patches && patches.length > 0) {
+                            rawHtmlAfterGenOrImpl = applyPatches(currentHtmlContent || "", patches);
+                            iteration.providedPatchesJson = cleanOutputByType(refineImplementResponse, 'json');
+                            iteration.providedPatchesContentType = 'html';
+                        } else {
+                            // Fallback: treat response as full HTML if JSON invalid or empty
+                            const fallbackHtml = cleanOutputByType(refineImplementResponse, 'html');
+                            rawHtmlAfterGenOrImpl = fallbackHtml && fallbackHtml.length > 0 ? cleanHtmlOutput(fallbackHtml) : (currentHtmlContent || "");
+                        }
+                        iteration.generatedRawHtml = rawHtmlAfterGenOrImpl; // Store raw output from Request 1
+                    }
 
                     const userPromptRefineBugFix = renderPrompt(customPromptsWebsiteState.user_refineBugFix, { rawHtml: rawHtmlAfterGenOrImpl || placeholderRawHtml });
                     iteration.requestPromptHtml_BugFix = userPromptRefineBugFix;
@@ -2442,15 +2539,28 @@ async function runPipeline(pipelineId: number, initialRequest: string) {
 
                     const userPromptRefineFeatures = renderPrompt(customPromptsWebsiteState.user_refineFeatureSuggest, { initialIdea: initialRequest, currentHtml: currentHtmlContent || placeholderCurrentHtml });
                     iteration.requestPromptFeatures_Suggest = userPromptRefineFeatures;
-                    // Always use Gemini-2.5-Flash for feature suggestions
-                    const featuresJsonString = await callGemini(userPromptRefineFeatures, pipeline.temperature, "gemini-2.5-flash", customPromptsWebsiteState.sys_refineFeatureSuggest, true).then(response => response.text);
-                    iteration.suggestedFeatures = parseJsonSuggestions(featuresJsonString, 'features', 2);
+                    // Use the selected model for feature suggestions
+                    const featuresJsonString = await callGemini(userPromptRefineFeatures, pipeline.temperature, pipeline.modelName, customPromptsWebsiteState.sys_refineFeatureSuggest, true).then(response => response.text);
+                    iteration.suggestedFeatures = parseJsonSuggestions(featuresJsonString, 'features', 5);
                     currentSuggestions = iteration.suggestedFeatures;
                 } else {
                     const userPromptFinalPolish = renderPrompt(customPromptsWebsiteState.user_finalPolish, { currentHtml: currentHtmlContent || placeholderRawHtml });
                     iteration.requestPromptHtml_BugFix = userPromptFinalPolish; // Re-using bugfix field for UI display of final polish prompt
-                    iteration.generatedHtml = cleanHtmlOutput(await makeApiCall(userPromptFinalPolish, customPromptsWebsiteState.sys_finalPolish, false, "Final Polish"));
-                    currentHtmlContent = iteration.generatedHtml || "";
+                    {
+                        const finalPolishResponse = await makeApiCall(userPromptFinalPolish, customPromptsWebsiteState.sys_finalPolish, true, "Final Polish - JSON Patches");
+                        const patches = parsePatchesFromJson(finalPolishResponse);
+                        if (patches && patches.length > 0) {
+                            const patched = applyPatches(currentHtmlContent || "", patches);
+                            iteration.generatedHtml = cleanHtmlOutput(patched);
+                            iteration.providedPatchesJson = cleanOutputByType(finalPolishResponse, 'json');
+                            iteration.providedPatchesContentType = 'html';
+                        } else {
+                            // Fallback: treat response as full HTML if JSON invalid or empty
+                            const fallbackHtml = cleanOutputByType(finalPolishResponse, 'html');
+                            iteration.generatedHtml = fallbackHtml && fallbackHtml.length > 0 ? cleanHtmlOutput(fallbackHtml) : (currentHtmlContent || "");
+                        }
+                        currentHtmlContent = iteration.generatedHtml || "";
+                    }
                     iteration.suggestedFeatures = [];
                 }
             } else if (currentMode === 'creative') {
