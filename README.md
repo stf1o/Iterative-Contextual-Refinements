@@ -1,15 +1,9 @@
 # Iterative Contextual Refinements
 
-This application is a powerful, multi-agent platform for iterative software development and complex problem-solving. It leverages a sophisticated system of specialized AI agents to generate, refine, and perfect various outputs, from complete websites and React applications to in-depth analytical solutions.
-
-## Features
-
-- **Multi-Agent Architecture:** Utilizes a team of specialized AI agents for different tasks, ensuring high-quality results.
-- **Iterative Refinement:** Employs a cyclical process of generation, critique, and refinement to progressively improve outputs.
-- **Multiple Modes:** Offers several distinct modes for various tasks:
-  - **HTML Mode:** For iteratively building production-grade, standalone HTML websites.
-  - **Deepthink Mode:** For tackling complex problems through a rigorous process of strategy, tactics, and verification.
-  - **React Mode:** For developing complete React applications using a multi-agent, component-based approach.
+Contains 3 Primary Modes Each One With A Different Architecture:
+HTML: Iteratively refines HTML sites (For now... will be updated to iteratively refine anything)
+Deepthink: Parallel Solution Paths Exploration
+React Mode: Currently supports developing react applications through multi-agent based work. Will support generalized full stack later.
 
 ## Architecture
 
