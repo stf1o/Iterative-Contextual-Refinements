@@ -57,15 +57,6 @@
                         <textarea id="initial-idea" class="input-base" placeholder="E.g., a personal blog about cooking..." rows="5"></textarea>
                     </div>
         
-                    <div id="math-problem-image-input-container" class="input-group" style="display: none;">
-                        <label class="input-label">Upload Image (Optional):</label>
-                        <label for="math-problem-image-input" class="file-drop-area">
-                            <span class="material-symbols-outlined file-drop-icon">upload_file</span>
-                            <span class="file-drop-message">Drag &amp; drop an image here, or click to select a file</span>
-                            <input type="file" id="math-problem-image-input" class="sr-only" accept="image/png, image/jpeg, image/webp">
-                        </label>
-                        <img id="math-problem-image-preview" src="#" alt="Image preview" style="display: none; max-width: 100%; height: auto; border-radius: var(--border-radius-md); margin-top: 1rem;"/>
-                    </div>
         
                     <div class="input-group">
                         <label class="input-label">Application Mode</label>
@@ -75,20 +66,8 @@
                                 <span>HTML</span>
                             </label>
                             <label class="radio-label-modern">
-                                <input type="radio" name="appMode" value="creative">
-                                <span>Writing</span>
-                            </label>
-                            <label class="radio-label-modern">
-                                <input type="radio" name="appMode" value="math">
-                                <span>Math</span>
-                            </label>
-                            <label class="radio-label-modern">
                                 <input type="radio" name="appMode" value="deepthink">
                                 <span>Deepthink</span>
-                            </label>
-                            <label class="radio-label-modern">
-                                <input type="radio" name="appMode" value="agent">
-                                <span>Agent</span>
                             </label>
                             <label class="radio-label-modern">
                                 <input type="radio" name="appMode" value="react">
@@ -117,6 +96,48 @@
                                 <div class="input-group-tight">
                                     <label for="top-p-slider" class="input-label">Top P: <span id="top-p-value">0.95</span></label>
                                     <input type="range" id="top-p-slider" class="slider" min="0" max="1" step="0.05" value="0.95" aria-label="Top P slider">
+                                </div>
+                                <div class="input-group-tight">
+                                    <label for="strategies-slider" class="input-label">Strategies: <span id="strategies-value">3</span></label>
+                                    <input type="range" id="strategies-slider" class="slider" min="1" max="10" step="1" value="3" aria-label="Number of strategies slider">
+                                </div>
+                                <div class="input-group-tight">
+                                    <label for="sub-strategies-slider" class="input-label">Sub-strategies: <span id="sub-strategies-value">3</span></label>
+                                    <input type="range" id="sub-strategies-slider" class="slider" min="1" max="10" step="1" value="3" aria-label="Number of sub-strategies slider">
+                                </div>
+                                <div class="input-group-tight">
+                                    <label for="hypothesis-slider" class="input-label">Hypothesis: <span id="hypothesis-value">4</span></label>
+                                    <input type="range" id="hypothesis-slider" class="slider" min="1" max="6" step="1" value="4" aria-label="Number of hypothesis slider">
+                                </div>
+                                <!-- Red Team Options Container -->
+                                <div class="red-team-options-container">
+                                    <div class="red-team-options-header">
+                                        <span class="material-symbols-outlined">security</span>
+                                        <span>Red Team Evaluation</span>
+                                    </div>
+                                    <div class="red-team-toggle-wrapper">
+                                        <div class="red-team-buttons">
+                                            <button type="button" class="red-team-button" data-value="off">Off</button>
+                                            <button type="button" class="red-team-button active" data-value="balanced">Balanced</button>
+                                            <button type="button" class="red-team-button" data-value="very_aggressive">Aggressive</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Refinement Options Container -->
+                                <div class="refinement-options-container">
+                                    <div class="refinement-options-header">
+                                        <span class="material-symbols-outlined">auto_fix_high</span>
+                                        <span>Refinement Options</span>
+                                    </div>
+                                    <div class="refinement-toggle-wrapper">
+                                        <label class="toggle-label">
+                                            <input type="checkbox" id="refinement-toggle" class="toggle-input">
+                                            <span class="toggle-slider"></span>
+                                            <span class="toggle-text">Solution Refinement</span>
+                                        </label>
+                                        <span class="refinement-description">Detect Flaws, Unjustified Assumptions and Refine</span>
+                                    </div>
                                 </div>
                             </div>
                 
@@ -282,192 +303,6 @@
                                 </div>
                             </div>
                         </div>
-                        <div id="creative-prompts-container" class="prompts-mode-container">
-                            <div class="prompt-content-pane" data-prompt-key="creative-initial-draft">
-                                <h4 class="prompt-pane-title">Initial Draft Generation</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-creative-initial-draft" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{initialPremise}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-creative-initial-draft" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                            <div class="prompt-content-pane" data-prompt-key="creative-initial-critique">
-                                <h4 class="prompt-pane-title">Initial Critique & Suggestion</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-creative-initial-critique" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{currentDraft}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-creative-initial-critique" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                            <div class="prompt-content-pane" data-prompt-key="creative-refine-revise">
-                                <h4 class="prompt-pane-title">Refinement - Revise Draft</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-creative-refine-revise" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{currentDraft}}</code>, <code>{{critiqueToImplementStr}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-creative-refine-revise" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                            <div class="prompt-content-pane" data-prompt-key="creative-refine-critique">
-                                <h4 class="prompt-pane-title">Refinement - New Critique</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-creative-refine-critique" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{currentDraft}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-creative-refine-critique" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                            <div class="prompt-content-pane" data-prompt-key="creative-final-polish">
-                                <h4 class="prompt-pane-title">Final Polish (Creative Writing)</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-creative-final-polish" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{currentDraft}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-creative-final-polish" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="math-prompts-container" class="prompts-mode-container">
-                            <div class="prompt-content-pane" data-prompt-key="math-initial-strategy">
-                                <h4 class="prompt-pane-title">Initial Strategy Generation</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-math-initial-strategy" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{originalProblemText}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-math-initial-strategy" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                            <div class="prompt-content-pane" data-prompt-key="math-sub-strategy">
-                                <h4 class="prompt-pane-title">Sub-Strategy Generation</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-math-sub-strategy" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>...</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-math-sub-strategy" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                            <div class="prompt-content-pane" data-prompt-key="math-solution-attempt">
-                                <h4 class="prompt-pane-title">Solution Attempt</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-math-solution-attempt" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{originalProblemText}}</code>, <code>{{currentSubStrategy}}</code>, <code>{{knowledgePacket}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-math-solution-attempt" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                            <div class="prompt-content-pane" data-prompt-key="math-self-improvement">
-                                <h4 class="prompt-pane-title">Self-Improvement & Refinement</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-math-self-improvement" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{originalProblemText}}</code>, <code>{{currentSubStrategy}}</code>, <code>{{solutionAttempt}}</code>, <code>{{knowledgePacket}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-math-self-improvement" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                            <div class="prompt-content-pane" data-prompt-key="math-hypothesis-generation">
-                                <h4 class="prompt-pane-title">Hypothesis Generation</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-math-hypothesis-generation" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{originalProblemText}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-math-hypothesis-generation" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                            <div class="prompt-content-pane" data-prompt-key="math-prover">
-                                <h4 class="prompt-pane-title">Hypothesis Prover</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-math-prover" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{originalProblemText}}</code>, <code>{{hypothesis}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-math-prover" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                            <div class="prompt-content-pane" data-prompt-key="math-disprover">
-                                <h4 class="prompt-pane-title">Hypothesis Disprover</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-math-disprover" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{originalProblemText}}</code>, <code>{{hypothesis}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-math-disprover" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                            <div class="prompt-content-pane" data-prompt-key="math-red-team">
-                                <h4 class="prompt-pane-title">Red Team Strategy Evaluator</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-math-red-team" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{originalProblemText}}</code>, <code>{{assignedStrategy}}</code>, <code>{{subStrategies}}</code></span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-math-red-team" class="prompt-textarea" rows="4"></textarea></div>
-                                </div>
-                            </div>
-                        </div>
                         <div id="deepthink-prompts-container" class="prompts-mode-container">
                             <div class="prompt-content-pane" data-prompt-key="deepthink-initial-strategy">
                                 <h4 class="prompt-pane-title">Initial Strategy Generation</h4>
@@ -579,21 +414,6 @@
                                 <div class="prompt-card">
                                     <div class="prompt-card-header"><span class="prompt-card-title">System Instruction</span></div>
                                     <div class="prompt-card-body"><textarea id="sys-deepthink-final-judge" class="prompt-textarea" rows="8"></textarea></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="agent-prompts-container" class="prompts-mode-container">
-                           <div class="prompt-content-pane" data-prompt-key="agent-judge-llm">
-                                <h4 class="prompt-pane-title">Agent Mode: Judge LLM Config</h4>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header"><span class="prompt-card-title">System Instruction (for Judge LLM)</span></div>
-                                    <div class="prompt-card-body"><textarea id="sys-agent-judge-llm" class="prompt-textarea" rows="10"></textarea></div>
-                                </div>
-                                <div class="prompt-card">
-                                    <div class="prompt-card-header">
-                                        <span class="prompt-card-title">User Prompt Template (for Judge LLM)</span>
-                                    </div>
-                                    <div class="prompt-card-body"><textarea id="user-agent-judge-llm" class="prompt-textarea" rows="4"></textarea></div>
                                 </div>
                             </div>
                         </div>
@@ -806,4 +626,3 @@
 <script type="module" src="/index.tsx"></script>
     </body>
 </html>
-

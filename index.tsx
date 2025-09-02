@@ -10,17 +10,16 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import katex from 'katex';
 import hljs from 'highlight.js';
-import {
-    defaultCustomPromptsWebsite,
-    defaultCustomPromptsCreative,
-    createDefaultCustomPromptsMath,
-    createDefaultCustomPromptsDeepthink,
-    createDefaultCustomPromptsAgent,
-    defaultCustomPromptsReact, // Added for React mode
-    systemInstructionHtmlOutputOnly, // Though not directly used in index.tsx, it's good to be aware it's here if needed
-    systemInstructionJsonOutputOnly, // Same as above
-    systemInstructionTextOutputOnly   // Same as above
-} from './prompts.js';
+import { defaultCustomPromptsWebsite, defaultCustomPromptsReact } from './prompts';
+import type { CustomizablePromptsWebsite, CustomizablePromptsReact } from './prompts';
+import { 
+    initializeDeepthinkModule, 
+    startDeepthinkAnalysisProcess, 
+    activateDeepthinkStrategyTab,
+    renderActiveDeepthinkPipeline,
+    setActiveDeepthinkPipelineForImport
+} from './Deepthink/Deepthink';
+import { CustomizablePromptsDeepthink, createDefaultCustomPromptsDeepthink } from './Deepthink/DeepthinkPrompts';
 
 // Helper: safer JSON parsing for AI outputs
 function parseJsonSafe(raw: string, context: string): any {
@@ -85,17 +84,7 @@ class PipelineStopRequestedError extends Error {
     }
 }
 
-type ApplicationMode = 'website' | 'creative' | 'math' | 'deepthink' | 'agent' | 'react';
-
-interface AgentGeneratedPrompts {
-    iteration_type_description: string;
-    expected_output_content_type: string; // e.g., "python", "text", "markdown"
-    placeholders_guide: Record<string, string>;
-    initial_generation: { system_instruction: string; user_prompt_template: string; };
-    feature_implementation: { system_instruction: string; user_prompt_template: string; };
-    refinement_and_suggestion: { system_instruction: string; user_prompt_template: string; }; // Expected to output JSON: { refined_content: string, suggestions: string[] }
-    final_polish: { system_instruction: string; user_prompt_template: string; };
-}
+type ApplicationMode = 'website' | 'deepthink' | 'react';
 
 interface IterationData {
     iterationNumber: number;
@@ -108,26 +97,6 @@ interface IterationData {
     generatedHtml?: string;
     generatedRawHtml?: string; // Raw output from Request 1 (before bug fixing)
     suggestedFeatures?: string[]; // Used by Website for general suggestions
-    // Creative Writing Mode Specific
-    requestPromptText_GenerateDraft?: string;
-    requestPromptText_Critique?: string;
-    requestPromptText_Revise?: string;
-    requestPromptText_Polish?: string;
-    generatedOrRevisedText?: string;
-    critiqueSuggestions?: string[];
-    // Agent Mode Specific
-    agentJudgeLLM_InitialRequest?: string; // Prompt to Judge LLM
-    agentGeneratedPrompts?: AgentGeneratedPrompts; // Output from Judge LLM (stored in iter 0)
-    requestPrompt_SysInstruction?: string; // Dynamically set system instruction for the current step
-    requestPrompt_UserTemplate?: string; // Dynamically set user prompt template
-    requestPrompt_Rendered?: string; // Actual rendered prompt sent to API
-    generatedMainContent?: string; // Main output of an agent step (text, code, etc.)
-    // For agent loop iterations that have two sub-steps (implement, then refine/suggest)
-    requestPrompt_SubStep_SysInstruction?: string;
-    requestPrompt_SubStep_UserTemplate?: string;
-    requestPrompt_SubStep_Rendered?: string;
-    generatedSubStep_Content?: string;
-    generatedSuggestions?: string[]; // For Agent mode's refine/suggest step output
 
     // Diff-format patches provided by model for this iteration's target content (if any)
     providedPatchesJson?: string; // Raw JSON string (array or object with { patches: [...] })
@@ -152,131 +121,7 @@ interface PipelineState {
     isStopRequested?: boolean;
 }
 
-// Math Mode Specific Interfaces
-interface MathSubStrategyData {
-    id: string; // e.g., "main1-sub1"
-    subStrategyText: string;
-    requestPromptSolutionAttempt?: string;
-    solutionAttempt?: string;
 
-    // New fields for self-improvement and refinement
-    requestPromptSelfImprovement?: string;
-    refinedSolution?: string;
-    selfImprovementStatus?: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
-    selfImprovementError?: string;
-    selfImprovementRetryAttempt?: number;
-
-    // Red Team evaluation
-    isKilledByRedTeam?: boolean; // Whether this sub-strategy was killed by Red Team
-    redTeamReason?: string; // Reason provided by Red Team for killing
-
-    status: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
-    error?: string;
-    isDetailsOpen?: boolean;
-    retryAttempt?: number;
-    subStrategyFormat?: string;
-}
-
-// New interfaces for Hypothesis Explorer
-interface MathHypothesisData {
-    id: string; // e.g., "hyp1", "hyp2", "hyp3"
-    hypothesisText: string;
-
-    // Hypothesis tester agent data
-    testerRequestPrompt?: string;
-    testerAttempt?: string;
-    testerStatus: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
-    testerError?: string;
-    testerRetryAttempt?: number;
-
-    // Final status determination
-    finalStatus: 'pending' | 'proven' | 'refuted' | 'unresolved' | 'contradiction' | 'needs_further_analysis';
-    isDetailsOpen?: boolean;
-}
-// Red Team Agent Interface
-interface MathRedTeamData {
-    id: string; // e.g., "redteam-1", "redteam-2", "redteam-3"
-    assignedStrategyId: string; // The main strategy ID this red team agent evaluates
-    requestPrompt?: string;
-    evaluationResponse?: string;
-    killedStrategyIds: string[]; // IDs of strategies killed (main strategy or sub-strategy IDs)
-    killedSubStrategyIds: string[]; // IDs of sub-strategies killed
-    reasoning?: string; // Red team's reasoning for their decisions
-    status: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
-    error?: string;
-    isDetailsOpen?: boolean;
-    retryAttempt?: number;
-}
-
-interface MathMainStrategyData {
-    id: string; // e.g., "main1"
-    strategyText: string;
-    requestPromptSubStrategyGen?: string;
-    subStrategies: MathSubStrategyData[];
-    status: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled'; // for sub-strategy generation
-    error?: string; // error during sub-strategy generation for this main strategy
-    isDetailsOpen?: boolean;
-    retryAttempt?: number; // for sub-strategy generation step
-
-    // Red Team evaluation
-    isKilledByRedTeam?: boolean; // Whether this entire strategy was killed by Red Team
-    redTeamReason?: string; // Reason provided by Red Team for killing
-
-    // New fields for judging sub-strategies
-    judgedBestSubStrategyId?: string;
-    judgedBestSolution?: string; // The full text of the best solution with reasoning.
-    judgingRequestPrompt?: string;
-    judgingResponseText?: string; // The raw response from the judge
-    judgingStatus?: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
-    judgingError?: string;
-    judgingRetryAttempt?: number;
-    strategyFormat?: string;
-}
-interface MathPipelineState {
-    id: string; // unique ID for this math problem instance
-    problemText: string;
-    problemImageBase64?: string | null; // Base64 encoded image
-    problemImageMimeType?: string;
-    requestPromptInitialStrategyGen?: string;
-    initialStrategies: MathMainStrategyData[];
-    status: 'idle' | 'processing' | 'retrying' | 'completed' | 'error' | 'stopping' | 'stopped' | 'cancelled'; // Overall status
-    error?: string; // Overall error for the whole process
-    isStopRequested?: boolean;
-    activeTabId?: string; // e.g., "problem-details", "strategic-solver", "hypothesis-explorer", "final-result"
-    activeStrategyTab?: number;
-    retryAttempt?: number; // for initial strategy generation step
-
-    // New fields for Hypothesis Explorer (Track B)
-    requestPromptHypothesisGen?: string;
-    hypotheses: MathHypothesisData[];
-    hypothesisGenStatus?: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
-    hypothesisGenError?: string;
-    hypothesisGenRetryAttempt?: number;
-
-    // Knowledge packet synthesized from hypothesis exploration
-    knowledgePacket?: string;
-
-    // Red Team agents for strategy evaluation
-    redTeamAgents: MathRedTeamData[];
-    redTeamStatus?: 'pending' | 'processing' | 'completed' | 'error' | 'cancelled';
-    redTeamError?: string;
-
-    // Synchronization flags
-    strategicSolverComplete?: boolean; // Track A completion
-    hypothesisExplorerComplete?: boolean; // Track B completion
-    redTeamComplete?: boolean; // Red Team evaluation completion
-
-    // New fields for final judging
-    finalJudgedBestStrategyId?: string;
-    finalJudgedBestSolution?: string;
-    finalJudgingRequestPrompt?: string;
-    finalJudgingResponseText?: string;
-    finalJudgingStatus?: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
-    finalJudgingError?: string;
-    finalJudgingRetryAttempt?: number;
-}
-
-// Deepthink Mode Specific Interfaces (generalized version of Math mode)
 interface DeepthinkSubStrategyData {
     id: string; // e.g., "main1-sub1"
     subStrategyText: string;
@@ -400,116 +245,26 @@ interface DeepthinkPipelineState {
     finalJudgingStatus?: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
     finalJudgingError?: string;
     finalJudgingRetryAttempt?: number;
+    finalJudgingStatusDescription?: string;
 }
 
 
-export interface CustomizablePromptsWebsite { // Export for prompts.ts
-    sys_initialGen: string;
-    user_initialGen: string;
-    sys_initialBugFix: string;
-    user_initialBugFix: string;
-    sys_initialFeatureSuggest: string;
-    user_initialFeatureSuggest: string;
-    sys_refineStabilizeImplement: string;
-    user_refineStabilizeImplement: string;
-    sys_refineBugFix: string;
-    user_refineBugFix: string;
-    sys_refineFeatureSuggest: string;
-    user_refineFeatureSuggest: string;
-    sys_finalPolish: string;
-    user_finalPolish: string;
-}
-
-export interface CustomizablePromptsCreative { // Export for prompts.ts
-    sys_creative_initialDraft: string;
-    user_creative_initialDraft: string; // {{initialPremise}}
-    sys_creative_initialCritique: string;
-    user_creative_initialCritique: string; // {{currentDraft}}
-    sys_creative_refine_revise: string;
-    user_creative_refine_revise: string; // {{currentDraft}}, {{critiqueToImplementStr}}
-    sys_creative_refine_critique: string;
-    user_creative_refine_critique: string; // {{currentDraft}}
-    sys_creative_final_polish: string;
-    user_creative_final_polish: string; // {{currentDraft}}
-}
-
-export interface CustomizablePromptsMath { // Export for prompts.ts
-    sys_math_initialStrategy: string;
-    user_math_initialStrategy: string; // {{originalProblemText}} (+ image if provided)
-    sys_math_subStrategy: string;
-    user_math_subStrategy: string; // {{originalProblemText}}, {{currentMainStrategy}}, {{otherMainStrategiesStr}} (+ image)
-    sys_math_solutionAttempt: string;
-    user_math_solutionAttempt: string; // {{originalProblemText}}, {{currentSubStrategy}}, {{knowledgePacket}} (+ image)
-
-    // New prompts for self-improvement and refinement
-    sys_math_selfImprovement: string;
-    user_math_selfImprovement: string; // {{originalProblemText}}, {{currentSubStrategy}}, {{solutionAttempt}}, {{knowledgePacket}} (+ image)
-
-    // New prompts for hypothesis exploration
-    sys_math_hypothesisGeneration: string;
-    user_math_hypothesisGeneration: string; // {{originalProblemText}} (+ image)
-    sys_math_hypothesisTester: string;
-    user_math_hypothesisTester: string; // {{originalProblemText}}, {{hypothesis}} (+ image)
-
-    // New prompts for Red Team evaluation
-    sys_math_redTeam: string;
-    user_math_redTeam: string; // {{originalProblemText}}, {{assignedStrategy}}, {{subStrategies}} (+ image)
-}
-
-export interface CustomizablePromptsDeepthink { // Export for prompts.ts
-    sys_deepthink_initialStrategy: string;
-    user_deepthink_initialStrategy: string; // {{originalProblemText}} (+ image if provided)
-    sys_deepthink_subStrategy: string;
-    user_deepthink_subStrategy: string; // {{originalProblemText}}, {{currentMainStrategy}}, {{otherMainStrategiesStr}} (+ image)
-    sys_deepthink_solutionAttempt: string;
-    user_deepthink_solutionAttempt: string; // {{originalProblemText}}, {{currentSubStrategy}}, {{knowledgePacket}} (+ image)
-
-    // New prompts for self-improvement and refinement
-    sys_deepthink_selfImprovement: string;
-    user_deepthink_selfImprovement: string; // {{originalProblemText}}, {{currentSubStrategy}}, {{solutionAttempt}}, {{knowledgePacket}} (+ image)
-
-    // New prompts for hypothesis exploration
-    sys_deepthink_hypothesisGeneration: string;
-    user_deepthink_hypothesisGeneration: string; // {{originalProblemText}} (+ image)
-    sys_deepthink_hypothesisTester: string;
-    user_deepthink_hypothesisTester: string; // {{originalProblemText}}, {{hypothesis}} (+ image)
-
-    // New prompts for Red Team evaluation
-    sys_deepthink_redTeam: string;
-    user_deepthink_redTeam: string; // {{originalProblemText}}, {{assignedStrategy}}, {{subStrategies}} (+ image)
-
-    // New prompts for judging (configurable, not hardcoded)
-    sys_deepthink_judge: string; // System instruction for intra-strategy judging JSON output
-    sys_deepthink_finalJudge: string; // System instruction for final judging JSON output
-}
-
-export interface CustomizablePromptsAgent { // Export for prompts.ts
-    sys_agent_judge_llm: string; // System instruction for the Judge LLM
-    user_agent_judge_llm: string; // User prompt template for Judge LLM (e.g., "{{initialRequest}}", "{{NUM_AGENT_MAIN_REFINEMENT_LOOPS}}")
-}
 
 
 interface ExportedConfig {
     currentMode: ApplicationMode;
-    initialIdea: string; // Also used for math problem text / agent request
-    problemImageBase64?: string | null; // For math mode
-    problemImageMimeType?: string; // For math mode
+    initialIdea: string;
     selectedModel: string;
-    selectedOriginalTemperatureIndices: number[]; // For website/creative/agent
-    pipelinesState: PipelineState[]; // For website/creative/agent
-    activeMathPipeline: MathPipelineState | null; // For math
+    selectedOriginalTemperatureIndices: number[]; // For website
+    pipelinesState: PipelineState[]; // For website
     activeDeepthinkPipeline?: DeepthinkPipelineState | null; // For deepthink
     activeReactPipeline: ReactPipelineState | null; // Added for React mode
-    activePipelineId: number | null; // For website/creative/agent
-    activeMathProblemTabId?: string; // For math UI
+    activePipelineId: number | null; // For website
     activeDeepthinkProblemTabId?: string; // For deepthink UI
     globalStatusText: string;
     globalStatusClass: string;
     customPromptsWebsite: CustomizablePromptsWebsite;
-    customPromptsCreative: CustomizablePromptsCreative;
-    customPromptsMath: CustomizablePromptsMath;
     customPromptsDeepthink?: CustomizablePromptsDeepthink;
-    customPromptsAgent: CustomizablePromptsAgent;
     customPromptsReact: CustomizablePromptsReact; // Added for React mode
     isCustomPromptsOpen?: boolean;
 }
@@ -543,28 +298,15 @@ export interface ReactPipelineState { // Exporting for potential use elsewhere
     orchestratorRetryAttempt?: number;
 }
 
-export interface CustomizablePromptsReact { // Export for prompts.ts
-    sys_orchestrator: string; // System instruction for the Orchestrator Agent
-    user_orchestrator: string; // User prompt template for Orchestrator Agent {{user_request}}
-}
 
 
 const NUM_WEBSITE_REFINEMENT_ITERATIONS = 3;
-const NUM_CREATIVE_REFINEMENT_ITERATIONS = 3;
-export const NUM_AGENT_MAIN_REFINEMENT_LOOPS = 3;
 const TOTAL_STEPS_WEBSITE = 1 + NUM_WEBSITE_REFINEMENT_ITERATIONS + 1;
-const TOTAL_STEPS_CREATIVE = 1 + NUM_CREATIVE_REFINEMENT_ITERATIONS + 1;
-// Agent steps: 1 (Judge) + 1 (Initial Gen) + 1 (Initial Refine/Suggest) + N (Loops) + 1 (Final Polish)
-const TOTAL_STEPS_AGENT = 1 + 1 + 1 + NUM_AGENT_MAIN_REFINEMENT_LOOPS + 1;
 
 
-export const NUM_INITIAL_STRATEGIES_MATH = 3;
-export const NUM_SUB_STRATEGIES_PER_MAIN_MATH = 3;
-const MATH_FIXED_TEMPERATURE = 1.0;
 
 export const NUM_INITIAL_STRATEGIES_DEEPTHINK = 3;
 export const NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK = 3;
-const DEEPTHINK_FIXED_TEMPERATURE = 1.0;
 
 // Function to get selected model from dropdown
 function getSelectedModel(): string {
@@ -581,11 +323,40 @@ function getSelectedTopP(): number {
     return Math.max(0, Math.min(1, topP)); // Clamp between 0 and 1
 }
 
+function getSelectedStrategiesCount(): number {
+    const strategies = parseInt(strategiesSlider?.value || '3');
+    return Math.max(1, Math.min(10, strategies)); // Clamp between 1 and 10
+}
+
+function getSelectedSubStrategiesCount(): number {
+    return subStrategiesSlider ? parseInt(subStrategiesSlider.value) : 3;
+}
+
+// Function to get selected hypothesis count
+function getSelectedHypothesisCount(): number {
+    return hypothesisSlider ? parseInt(hypothesisSlider.value) : 4;
+}
+
+// Function to get selected red team aggressiveness
+function getSelectedRedTeamAggressiveness(): string {
+    const redTeamButtons = document.querySelectorAll('.red-team-button');
+    for (const button of redTeamButtons) {
+        if ((button as HTMLElement).classList.contains('active')) {
+            return (button as HTMLElement).dataset.value || 'balanced';
+        }
+    }
+    return 'balanced';
+}
+
+// Function to get refinement toggle state
+function getRefinementEnabled(): boolean {
+    return refinementToggle ? refinementToggle.checked : false;
+}
+
 
 const temperatures = [0, 0.7, 1.0, 1.5, 2.0];
 
 let pipelinesState: PipelineState[] = [];
-let activeMathPipeline: MathPipelineState | null = null;
 let activeDeepthinkPipeline: DeepthinkPipelineState | null = null; // Added for Deepthink mode
 let activeReactPipeline: ReactPipelineState | null = null; // Added for React mode
 let ai: GoogleGenAI | null = null;
@@ -599,10 +370,16 @@ let isCustomPromptsOpen = false;
 
 
 let customPromptsWebsiteState: CustomizablePromptsWebsite = JSON.parse(JSON.stringify(defaultCustomPromptsWebsite));
-let customPromptsCreativeState: CustomizablePromptsCreative = JSON.parse(JSON.stringify(defaultCustomPromptsCreative));
-let customPromptsMathState: CustomizablePromptsMath = createDefaultCustomPromptsMath(NUM_INITIAL_STRATEGIES_MATH, NUM_SUB_STRATEGIES_PER_MAIN_MATH);
 let customPromptsDeepthinkState: CustomizablePromptsDeepthink = createDefaultCustomPromptsDeepthink(NUM_INITIAL_STRATEGIES_DEEPTHINK, NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK);
-let customPromptsAgentState: CustomizablePromptsAgent = createDefaultCustomPromptsAgent(NUM_AGENT_MAIN_REFINEMENT_LOOPS);
+
+// Function to update deepthink prompts with current slider values
+function updateDeepthinkPromptsState() {
+    const currentStrategiesCount = getSelectedStrategiesCount();
+    const currentSubStrategiesCount = getSelectedSubStrategiesCount();
+    const currentHypothesisCount = getSelectedHypothesisCount();
+    const currentRedTeamAggressiveness = getSelectedRedTeamAggressiveness();
+    customPromptsDeepthinkState = createDefaultCustomPromptsDeepthink(currentStrategiesCount, currentSubStrategiesCount, currentHypothesisCount, currentRedTeamAggressiveness);
+}
 let customPromptsReactState: CustomizablePromptsReact = JSON.parse(JSON.stringify(defaultCustomPromptsReact)); // Added for React mode
 
 
@@ -613,17 +390,22 @@ const saveApiKeyButton = document.getElementById('save-api-key-button') as HTMLB
 const clearApiKeyButton = document.getElementById('clear-api-key-button') as HTMLButtonElement;
 const initialIdeaInput = document.getElementById('initial-idea') as HTMLTextAreaElement;
 const initialIdeaLabel = document.getElementById('initial-idea-label') as HTMLLabelElement;
-const mathProblemImageInputContainer = document.getElementById('math-problem-image-input-container') as HTMLElement;
-const mathProblemImageInput = document.getElementById('math-problem-image-input') as HTMLInputElement;
-const mathProblemImagePreview = document.getElementById('math-problem-image-preview') as HTMLImageElement;
-
 const modelSelectionContainer = document.getElementById('model-selection-container') as HTMLElement;
 const modelSelectElement = document.getElementById('model-select') as HTMLSelectElement;
 const modelParametersContainer = document.getElementById('model-parameters-container') as HTMLElement;
 const temperatureSlider = document.getElementById('temperature-slider') as HTMLInputElement;
 const topPSlider = document.getElementById('top-p-slider') as HTMLInputElement;
+const strategiesSlider = document.getElementById('strategies-slider') as HTMLInputElement;
+const subStrategiesSlider = document.getElementById('sub-strategies-slider') as HTMLInputElement;
+const hypothesisSlider = document.getElementById('hypothesis-slider') as HTMLInputElement;
+// Red team slider removed - now using button toggles
+const refinementToggle = document.getElementById('refinement-toggle') as HTMLInputElement;
 const temperatureValue = document.getElementById('temperature-value') as HTMLSpanElement;
 const topPValue = document.getElementById('top-p-value') as HTMLSpanElement;
+const strategiesValue = document.getElementById('strategies-value') as HTMLSpanElement;
+const subStrategiesValue = document.getElementById('sub-strategies-value') as HTMLSpanElement;
+const hypothesisValue = document.getElementById('hypothesis-value') as HTMLSpanElement;
+// Red team value span removed - now using button toggles
 const temperatureSelectionContainer = document.getElementById('temperature-selection-container') as HTMLElement;
 
 // Add event listeners for sliders to update display values
@@ -639,6 +421,39 @@ function initializeSliderEventListeners() {
             topPValue.textContent = topPSlider.value;
         });
     }
+    
+    if (strategiesSlider && strategiesValue) {
+        strategiesSlider.addEventListener('input', () => {
+            strategiesValue.textContent = strategiesSlider.value;
+        });
+    }
+    
+    if (subStrategiesSlider && subStrategiesValue) {
+        subStrategiesSlider.addEventListener('input', () => {
+            subStrategiesValue.textContent = subStrategiesSlider.value;
+        });
+    }
+    
+    if (hypothesisSlider && hypothesisValue) {
+        hypothesisSlider.addEventListener('input', () => {
+            hypothesisValue.textContent = hypothesisSlider.value;
+            // Update deepthink prompts state when slider changes
+            updateDeepthinkPromptsState();
+        });
+    }
+    
+    // Add event listeners for red team buttons
+    const redTeamButtons = document.querySelectorAll('.red-team-button');
+    redTeamButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Remove active class from all buttons
+            redTeamButtons.forEach(btn => btn.classList.remove('active'));
+            // Add active class to clicked button
+            button.classList.add('active');
+            // Update deepthink prompts state when selection changes
+            updateDeepthinkPromptsState();
+        });
+    });
 }
 const generateButton = document.getElementById('generate-button') as HTMLButtonElement;
 const tabsNavContainer = document.getElementById('tabs-nav-container') as HTMLElement;
@@ -647,12 +462,6 @@ const globalStatusDiv = document.getElementById('global-status') as HTMLElement;
 const pipelineSelectorsContainer = document.getElementById('pipeline-selectors-container') as HTMLElement;
 const appModeSelector = document.getElementById('app-mode-selector') as HTMLElement;
 
-// Prompts containers (now inside the modal)
-const websitePromptsContainer = document.getElementById('website-prompts-container') as HTMLElement;
-const creativePromptsContainer = document.getElementById('creative-prompts-container') as HTMLElement;
-const mathPromptsContainer = document.getElementById('math-prompts-container') as HTMLElement;
-const agentPromptsContainer = document.getElementById('agent-prompts-container') as HTMLElement;
-const reactPromptsContainer = document.getElementById('react-prompts-container') as HTMLElement; // Added for React mode
 
 // Custom Prompts Modal Elements
 const promptsModalOverlay = document.getElementById('prompts-modal-overlay') as HTMLElement;
@@ -686,35 +495,6 @@ const customPromptTextareasWebsite: { [K in keyof CustomizablePromptsWebsite]: H
     sys_finalPolish: document.getElementById('sys-final-polish') as HTMLTextAreaElement,
     user_finalPolish: document.getElementById('user-final-polish') as HTMLTextAreaElement,
 };
-const customPromptTextareasCreative: { [K in keyof CustomizablePromptsCreative]: HTMLTextAreaElement | null } = {
-    sys_creative_initialDraft: document.getElementById('sys-creative-initial-draft') as HTMLTextAreaElement,
-    user_creative_initialDraft: document.getElementById('user-creative-initial-draft') as HTMLTextAreaElement,
-    sys_creative_initialCritique: document.getElementById('sys-creative-initial-critique') as HTMLTextAreaElement,
-    user_creative_initialCritique: document.getElementById('user-creative-initial-critique') as HTMLTextAreaElement,
-    sys_creative_refine_revise: document.getElementById('sys-creative-refine-revise') as HTMLTextAreaElement,
-    user_creative_refine_revise: document.getElementById('user-creative-refine-revise') as HTMLTextAreaElement,
-    sys_creative_refine_critique: document.getElementById('sys-creative-refine-critique') as HTMLTextAreaElement,
-    user_creative_refine_critique: document.getElementById('user-creative-refine-critique') as HTMLTextAreaElement,
-    sys_creative_final_polish: document.getElementById('sys-creative-final-polish') as HTMLTextAreaElement,
-    user_creative_final_polish: document.getElementById('user-creative-final-polish') as HTMLTextAreaElement,
-};
-
-const customPromptTextareasMath: { [K in keyof CustomizablePromptsMath]: HTMLTextAreaElement | null } = {
-    sys_math_initialStrategy: document.getElementById('sys-math-initial-strategy') as HTMLTextAreaElement,
-    user_math_initialStrategy: document.getElementById('user-math-initial-strategy') as HTMLTextAreaElement,
-    sys_math_subStrategy: document.getElementById('sys-math-sub-strategy') as HTMLTextAreaElement,
-    user_math_subStrategy: document.getElementById('user-math-sub-strategy') as HTMLTextAreaElement,
-    sys_math_solutionAttempt: document.getElementById('sys-math-solution-attempt') as HTMLTextAreaElement,
-    user_math_solutionAttempt: document.getElementById('user-math-solution-attempt') as HTMLTextAreaElement,
-    sys_math_selfImprovement: document.getElementById('sys-math-self-improvement') as HTMLTextAreaElement,
-    user_math_selfImprovement: document.getElementById('user-math-self-improvement') as HTMLTextAreaElement,
-    sys_math_hypothesisGeneration: document.getElementById('sys-math-hypothesis-generation') as HTMLTextAreaElement,
-    user_math_hypothesisGeneration: document.getElementById('user-math-hypothesis-generation') as HTMLTextAreaElement,
-    sys_math_hypothesisTester: document.getElementById('sys-math-hypothesis-tester') as HTMLTextAreaElement,
-    user_math_hypothesisTester: document.getElementById('user-math-hypothesis-tester') as HTMLTextAreaElement,
-    sys_math_redTeam: document.getElementById('sys-math-red-team') as HTMLTextAreaElement,
-    user_math_redTeam: document.getElementById('user-math-red-team') as HTMLTextAreaElement,
-};
 
 const customPromptTextareasDeepthink: { [K in keyof CustomizablePromptsDeepthink]: HTMLTextAreaElement | null } = {
     sys_deepthink_initialStrategy: document.getElementById('sys-deepthink-initial-strategy') as HTMLTextAreaElement,
@@ -733,11 +513,6 @@ const customPromptTextareasDeepthink: { [K in keyof CustomizablePromptsDeepthink
     user_deepthink_redTeam: document.getElementById('user-deepthink-red-team') as HTMLTextAreaElement,
     sys_deepthink_judge: document.getElementById('sys-deepthink-judge') as HTMLTextAreaElement,
     sys_deepthink_finalJudge: document.getElementById('sys-deepthink-final-judge') as HTMLTextAreaElement,
-};
-
-const customPromptTextareasAgent: { [K in keyof CustomizablePromptsAgent]: HTMLTextAreaElement | null } = {
-    sys_agent_judge_llm: document.getElementById('sys-agent-judge-llm') as HTMLTextAreaElement,
-    user_agent_judge_llm: document.getElementById('user-agent-judge-llm') as HTMLTextAreaElement,
 };
 
 const customPromptTextareasReact: { [K in keyof CustomizablePromptsReact]: HTMLTextAreaElement | null } = { // Added for React mode
@@ -821,28 +596,7 @@ function initializeCustomPromptTextareas() {
             });
         }
     }
-    // Creative Prompts
-    for (const key in customPromptTextareasCreative) {
-        const k = key as keyof CustomizablePromptsCreative;
-        const textarea = customPromptTextareasCreative[k];
-        if (textarea) {
-            textarea.value = customPromptsCreativeState[k];
-            textarea.addEventListener('input', (e) => {
-                customPromptsCreativeState[k] = (e.target as HTMLTextAreaElement).value;
-            });
-        }
-    }
-    // Math Prompts
-    for (const key in customPromptTextareasMath) {
-        const k = key as keyof CustomizablePromptsMath;
-        const textarea = customPromptTextareasMath[k];
-        if (textarea) {
-            textarea.value = customPromptsMathState[k];
-            textarea.addEventListener('input', (e) => {
-                customPromptsMathState[k] = (e.target as HTMLTextAreaElement).value;
-            });
-        }
-    }
+
     // Deepthink Prompts
     for (const key in customPromptTextareasDeepthink) {
         const k = key as keyof CustomizablePromptsDeepthink;
@@ -851,17 +605,6 @@ function initializeCustomPromptTextareas() {
             textarea.value = customPromptsDeepthinkState[k];
             textarea.addEventListener('input', (e) => {
                 customPromptsDeepthinkState[k] = (e.target as HTMLTextAreaElement).value;
-            });
-        }
-    }
-    // Agent Prompts (for Judge LLM)
-    for (const key in customPromptTextareasAgent) {
-        const k = key as keyof CustomizablePromptsAgent;
-        const textarea = customPromptTextareasAgent[k];
-        if (textarea) {
-            textarea.value = customPromptsAgentState[k];
-            textarea.addEventListener('input', (e) => {
-                customPromptsAgentState[k] = (e.target as HTMLTextAreaElement).value;
             });
         }
     }
@@ -884,25 +627,10 @@ function updateCustomPromptTextareasFromState() {
         const textarea = customPromptTextareasWebsite[k];
         if (textarea) textarea.value = customPromptsWebsiteState[k];
     }
-    for (const key in customPromptTextareasCreative) {
-        const k = key as keyof CustomizablePromptsCreative;
-        const textarea = customPromptTextareasCreative[k];
-        if (textarea) textarea.value = customPromptsCreativeState[k];
-    }
-    for (const key in customPromptTextareasMath) {
-        const k = key as keyof CustomizablePromptsMath;
-        const textarea = customPromptTextareasMath[k];
-        if (textarea) textarea.value = customPromptsMathState[k];
-    }
     for (const key in customPromptTextareasDeepthink) {
         const k = key as keyof CustomizablePromptsDeepthink;
         const textarea = customPromptTextareasDeepthink[k];
         if (textarea) textarea.value = customPromptsDeepthinkState[k];
-    }
-    for (const key in customPromptTextareasAgent) {
-        const k = key as keyof CustomizablePromptsAgent;
-        const textarea = customPromptTextareasAgent[k];
-        if (textarea) textarea.value = customPromptsAgentState[k];
     }
     for (const key in customPromptTextareasReact) { // Added for React mode
         const k = key as keyof CustomizablePromptsReact;
@@ -917,23 +645,10 @@ const promptNavStructure = {
         { groupTitle: "2. Refinement Cycle", prompts: ["refine-implement", "refine-bugfix", "refine-features"] },
         { groupTitle: "3. Final Polish", prompts: ["final-polish"] }
     ],
-    creative: [
-        { groupTitle: "1. Drafting & Critique", prompts: ["creative-initial-draft", "creative-initial-critique"] },
-        { groupTitle: "2. Revision Cycle", prompts: ["creative-refine-revise", "creative-refine-critique"] },
-        { groupTitle: "3. Final Polish", prompts: ["creative-final-polish"] }
-    ],
-    math: [
-        { groupTitle: "1. Strategic Solver", prompts: ["math-initial-strategy", "math-sub-strategy", "math-solution-attempt", "math-self-improvement"] },
-        { groupTitle: "2. Hypothesis Explorer", prompts: ["math-hypothesis-generation", "math-prover", "math-disprover"] },
-        { groupTitle: "3. Red Team Evaluator", prompts: ["math-red-team"] }
-    ],
     deepthink: [
         { groupTitle: "1. Strategic Solver", prompts: ["deepthink-initial-strategy", "deepthink-sub-strategy", "deepthink-solution-attempt", "deepthink-self-improvement"] },
         { groupTitle: "2. Hypothesis Explorer", prompts: ["deepthink-hypothesis-generation", "deepthink-prover", "deepthink-disprover"] },
         { groupTitle: "3. Red Team Evaluator", prompts: ["deepthink-red-team"] }
-    ],
-    agent: [
-        { groupTitle: "Agent Configuration", prompts: ["agent-judge-llm"] }
     ],
     react: [
         { groupTitle: "Orchestrator Agent", prompts: ["react-orchestrator"] }
@@ -1042,7 +757,6 @@ function updateUIAfterModeChange() {
     }, 100);
 
     // Default UI states
-    if (mathProblemImageInputContainer) mathProblemImageInputContainer.style.display = 'none';
     if (modelSelectionContainer) modelSelectionContainer.style.display = 'flex';
     if (modelParametersContainer) modelParametersContainer.style.display = 'flex';
     if (temperatureSelectionContainer) temperatureSelectionContainer.style.display = 'block';
@@ -1053,41 +767,16 @@ function updateUIAfterModeChange() {
         if (initialIdeaLabel) initialIdeaLabel.textContent = 'Website Idea:';
         if (initialIdeaInput) initialIdeaInput.placeholder = 'E.g., "A portfolio website for a photographer", "An e-commerce site for handmade crafts"...';
         if (generateButtonText) generateButtonText.textContent = 'Generate Website';
-        if (mathProblemImageInputContainer) mathProblemImageInputContainer.style.display = 'none';
         if (modelSelectionContainer) modelSelectionContainer.style.display = 'flex';
         if (modelParametersContainer) modelParametersContainer.style.display = 'none';
         if (temperatureSelectionContainer) temperatureSelectionContainer.style.display = 'block';
-    } else if (currentMode === 'creative') {
-        if (initialIdeaLabel) initialIdeaLabel.textContent = 'Creative Idea:';
-        if (initialIdeaInput) initialIdeaInput.placeholder = 'E.g., "A short story about time travel", "A poem about the ocean"...';
-        if (generateButtonText) generateButtonText.textContent = 'Create Content';
-        if (mathProblemImageInputContainer) mathProblemImageInputContainer.style.display = 'none';
-        if (modelSelectionContainer) modelSelectionContainer.style.display = 'flex';
-        if (modelParametersContainer) modelParametersContainer.style.display = 'none';
-        if (temperatureSelectionContainer) temperatureSelectionContainer.style.display = 'block';
-    } else if (currentMode === 'math') {
-        if (initialIdeaLabel) initialIdeaLabel.textContent = 'Math Problem:';
-        if (initialIdeaInput) initialIdeaInput.placeholder = 'E.g., "Solve for x: 2x + 5 = 15", "Find the derivative of f(x) = x^2 + 3x"...';
-        if (generateButtonText) generateButtonText.textContent = 'Solve Problem';
-        if (mathProblemImageInputContainer) mathProblemImageInputContainer.style.display = 'flex';
-        if (modelSelectionContainer) modelSelectionContainer.style.display = 'flex';
-        if (modelParametersContainer) modelParametersContainer.style.display = 'flex';
-        if (temperatureSelectionContainer) temperatureSelectionContainer.style.display = 'none';
     } else if (currentMode === 'deepthink') {
         if (initialIdeaLabel) initialIdeaLabel.textContent = 'Core Challenge:';
         if (initialIdeaInput) initialIdeaInput.placeholder = 'E.g., "Design a sustainable urban transportation system", "Analyze the impact of remote work on company culture"...';
         if (generateButtonText) generateButtonText.textContent = 'Deepthink';
-        if (mathProblemImageInputContainer) mathProblemImageInputContainer.style.display = 'flex';
         if (modelSelectionContainer) modelSelectionContainer.style.display = 'flex';
         if (modelParametersContainer) modelParametersContainer.style.display = 'flex';
         if (temperatureSelectionContainer) temperatureSelectionContainer.style.display = 'none';
-    } else if (currentMode === 'agent') {
-        if (initialIdeaLabel) initialIdeaLabel.textContent = 'Your Request:';
-        if (initialIdeaInput) initialIdeaInput.placeholder = 'E.g., "Python snake game", "Analyze iPhone sales data"...';
-        if (generateButtonText) generateButtonText.textContent = 'Start Agent Process';
-        if (modelSelectionContainer) modelSelectionContainer.style.display = 'flex';
-        if (modelParametersContainer) modelParametersContainer.style.display = 'none';
-        if (temperatureSelectionContainer) temperatureSelectionContainer.style.display = 'block';
     } else if (currentMode === 'react') { // Added for React mode
         if (initialIdeaLabel) initialIdeaLabel.textContent = 'React App Request:';
         if (initialIdeaInput) initialIdeaInput.placeholder = 'E.g., "A simple to-do list app with local storage persistence", "A weather dashboard using OpenWeatherMap API"...';
@@ -1099,10 +788,8 @@ function updateUIAfterModeChange() {
 
     if (!isGenerating) {
         pipelinesState = [];
-        activeMathPipeline = null;
         activeReactPipeline = null;
         renderPipelines();
-        renderActiveMathPipeline();
         renderReactModePipeline();
     }
     updateControlsState();
@@ -1163,24 +850,20 @@ function getSelectedTemperatures(): { temp: number, originalIndex: number }[] {
 
 function updateControlsState() {
     const anyPipelineRunningOrStopping = pipelinesState.some(p => p.status === 'running' || p.status === 'stopping');
-    const mathPipelineRunningOrStopping = activeMathPipeline?.status === 'processing' || activeMathPipeline?.status === 'stopping';
-    // Fix: Only consider deepthink pipeline as running if status is 'processing' or 'stopping', not 'completed', 'error', or 'stopped'
     const deepthinkPipelineRunningOrStopping = activeDeepthinkPipeline?.status === 'processing' || activeDeepthinkPipeline?.status === 'stopping';
     const reactPipelineRunningOrStopping = activeReactPipeline?.status === 'orchestrating' || activeReactPipeline?.status === 'processing_workers' || activeReactPipeline?.status === 'stopping'; // Added for React
-    isGenerating = anyPipelineRunningOrStopping || mathPipelineRunningOrStopping || deepthinkPipelineRunningOrStopping || reactPipelineRunningOrStopping;
+    isGenerating = anyPipelineRunningOrStopping  || deepthinkPipelineRunningOrStopping || reactPipelineRunningOrStopping;
 
     const isApiKeyReady = !!ai;
 
     if (generateButton) {
         let disabled = isGenerating || !isApiKeyReady;
         if (!disabled) {
-            if (currentMode === 'math') {
-                // Enabled if not generating
-            } else if (currentMode === 'deepthink') {
+            if (currentMode === 'deepthink') {
                 // Enabled if not generating
             } else if (currentMode === 'react') {
                 // Enabled if not generating
-            } else { // website, creative, agent
+            } else if (currentMode === 'website') { // website only
                 const selectedTemps = getSelectedTemperatures();
                 disabled = selectedTemps.length === 0;
             }
@@ -1192,13 +875,21 @@ function updateControlsState() {
     if (importConfigInput) importConfigInput.disabled = isGenerating;
     if (importConfigLabel) importConfigLabel.classList.toggle('disabled', isGenerating);
     if (initialIdeaInput) initialIdeaInput.disabled = isGenerating;
-    if (mathProblemImageInput) mathProblemImageInput.disabled = isGenerating;
 
     if (modelSelectElement) modelSelectElement.disabled = isGenerating;
     if (temperatureSlider) temperatureSlider.disabled = isGenerating;
     if (topPSlider) topPSlider.disabled = isGenerating;
+    if (strategiesSlider) strategiesSlider.disabled = isGenerating;
+    if (subStrategiesSlider) subStrategiesSlider.disabled = isGenerating;
+    if (hypothesisSlider) hypothesisSlider.disabled = isGenerating;
+    // Disable red team buttons during generation
+    const redTeamButtons = document.querySelectorAll('.red-team-button');
+    redTeamButtons.forEach(button => {
+        (button as HTMLButtonElement).disabled = isGenerating;
+    });
+    if (refinementToggle) refinementToggle.disabled = isGenerating;
     if (pipelineSelectorsContainer) {
-        const disableSelectors = isGenerating || currentMode === 'math' || currentMode === 'deepthink' || currentMode === 'react';
+        const disableSelectors = isGenerating || currentMode === 'deepthink' || currentMode === 'react';
         pipelineSelectorsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => (cb as HTMLInputElement).disabled = disableSelectors);
         const pipelineSelectHeading = document.getElementById('pipeline-select-heading');
         if (pipelineSelectHeading) {
@@ -1207,7 +898,7 @@ function updateControlsState() {
         }
     }
 
-    // Allow user to select any model for math and deepthink modes
+    // Allow user to select any model for deepthink mode
     // Removed forced model selection override
 
     // Block ALL sidebar controls during generation in ANY mode
@@ -1256,14 +947,6 @@ function initPipelines() {
             totalSteps = TOTAL_STEPS_WEBSITE;
             numRefinementIterations = NUM_WEBSITE_REFINEMENT_ITERATIONS;
             break;
-        case 'creative':
-            totalSteps = TOTAL_STEPS_CREATIVE;
-            numRefinementIterations = NUM_CREATIVE_REFINEMENT_ITERATIONS;
-            break;
-        case 'agent':
-            totalSteps = TOTAL_STEPS_AGENT;
-            numRefinementIterations = NUM_AGENT_MAIN_REFINEMENT_LOOPS;
-            break;
         default:
             return;
     }
@@ -1277,19 +960,6 @@ function initPipelines() {
                 if (i === 0) title = 'Initial Gen, Fix & Suggest';
                 else if (i <= numRefinementIterations) title = `Refine ${i}: Stabilize, Implement, Fix & Suggest`;
                 else title = 'Final Polish & Fix';
-            } else if (currentMode === 'creative') {
-                if (i === 0) title = 'Initial Draft & Critique';
-                else if (i <= numRefinementIterations) title = `Refine ${i}: Revise & Critique`;
-                else title = 'Final Polish';
-            } else if (currentMode === 'agent') {
-                if (i === 0) title = `Setup: Agent Prompt Design`;
-                else if (i === 1) title = `Step ${i}: Initial Generation`; // Step is i (1-based for users)
-                else if (i === 2) title = `Step ${i}: Initial Refinement & Suggestion`;
-                else if (i < totalSteps - 1) { // Iterations from 3 up to (but not including) the last one are loops
-                    const loopNumber = i - 2; // Loop numbers are 1-based (i=3 is Loop 1)
-                    title = `Step ${i}: Refinement Loop ${loopNumber} (Implement & Refine/Suggest)`;
-                }
-                else title = `Step ${i}: Final Polish`; // Last step is i
             }
             iterations.push({
                 iterationNumber: i,
@@ -1320,22 +990,7 @@ function initPipelines() {
 
 
 function activateTab(idToActivate: number | string) {
-    if (currentMode === 'math' && activeMathPipeline) {
-        activeMathPipeline.activeTabId = idToActivate as string;
-        // Deactivate all math tabs and panes
-        document.querySelectorAll('#tabs-nav-container .tab-button.math-mode-tab').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('#pipelines-content-container > .pipeline-content').forEach(pane => pane.classList.remove('active'));
-        // Activate the correct one
-        const tabButton = document.getElementById(`math-tab-${idToActivate}`);
-        const contentPane = document.getElementById(`pipeline-content-${idToActivate}`);
-        if (tabButton) tabButton.classList.add('active');
-        if (contentPane) contentPane.classList.add('active');
-
-        if (idToActivate === 'strategic-solver' && activeMathPipeline.initialStrategies.length > 0) {
-            activateStrategyTab(activeMathPipeline.activeStrategyTab ?? 0);
-        }
-
-    } else if (currentMode === 'deepthink' && activeDeepthinkPipeline) {
+    if (currentMode === 'deepthink' && activeDeepthinkPipeline) {
         activeDeepthinkPipeline.activeTabId = idToActivate as string;
         // Deactivate all deepthink tabs and panes
         document.querySelectorAll('#tabs-nav-container .tab-button.deepthink-mode-tab').forEach(btn => btn.classList.remove('active'));
@@ -1360,7 +1015,7 @@ function activateTab(idToActivate: number | string) {
         if (tabButton) tabButton.classList.add('active');
         if (contentPane) contentPane.classList.add('active');
 
-    } else if (currentMode !== 'math' && currentMode !== 'deepthink' && currentMode !== 'react') {
+    } else if (currentMode !== 'deepthink' && currentMode !== 'react') {
         activePipelineId = idToActivate as number;
         document.querySelectorAll('#tabs-nav-container .tab-button').forEach(btn => {
             btn.classList.toggle('active', btn.id === `pipeline-tab-${activePipelineId}`);
@@ -1372,7 +1027,20 @@ function activateTab(idToActivate: number | string) {
     }
 }
 function renderPipelines() {
-    if (currentMode === 'math' || currentMode === 'deepthink' || currentMode === 'react') { // These modes have their own renderers
+    if (currentMode === 'deepthink') {
+        // Clear containers first
+        tabsNavContainer.innerHTML = '';
+        pipelinesContentContainer.innerHTML = '';
+        // Render deepthink UI if there's an active pipeline, otherwise show initial state
+        if (activeDeepthinkPipeline) {
+            renderActiveDeepthinkPipeline();
+        } else {
+            // Show initial deepthink UI
+            tabsNavContainer.innerHTML = '<div class="tab-button deepthink-initial active">Deepthink Analysis</div>';
+            pipelinesContentContainer.innerHTML = '<div class="content-pane deepthink-initial active"><div class="status-message">Enter a challenge above and click "Deepthink" to begin analysis.</div></div>';
+        }
+        return;
+    } else if (currentMode === 'react') {
         tabsNavContainer.innerHTML = '';
         pipelinesContentContainer.innerHTML = '';
         return;
@@ -1403,7 +1071,6 @@ function renderPipelines() {
         pipelineContentDiv.setAttribute('role', 'tabpanel');
         pipelineContentDiv.setAttribute('aria-labelledby', `pipeline-tab-${pipeline.id}`);
 
-        const pipelineType = currentMode === 'agent' ? "Agent Process" : "Pipeline";
         pipelineContentDiv.innerHTML = `
             <ul class="iterations-list" id="iterations-list-${pipeline.id}">
                 ${pipeline.iterations.map(iter => renderIteration(pipeline.id, iter)).join('')}
@@ -1434,8 +1101,8 @@ function getEmptyStateMessage(status: IterationData['status'], contentType: stri
 
 function renderMarkdown(content: string): string {
     if (typeof content !== 'string') return '';
-     // For Math and Deepthink modes, use LaTeX rendering
-    if (currentMode === 'math' || currentMode === 'deepthink') {
+     // For Deepthink mode, use LaTeX rendering
+    if (currentMode === 'deepthink') {
         return renderMathContent(content);
     }
     // Use DOMPurify to prevent XSS attacks after rendering markdown.
@@ -1459,23 +1126,6 @@ function renderIteration(pipelineId: number, iter: IterationData): string {
         if (iter.requestPromptHtml_FeatureImplement) promptsContent += `<h6 class="prompt-title">Feature Implementation & Stabilization Prompt:</h6><div class="markdown-content">${renderMarkdown(iter.requestPromptHtml_FeatureImplement)}</div>`;
         if (iter.requestPromptHtml_BugFix) promptsContent += `<h6 class="prompt-title">HTML Bug Fix/Polish & Completion Prompt:</h6><div class="markdown-content">${renderMarkdown(iter.requestPromptHtml_BugFix)}</div>`;
         if (iter.requestPromptFeatures_Suggest) promptsContent += `<h6 class="prompt-title">Feature Suggestion Prompt:</h6><div class="markdown-content">${renderMarkdown(iter.requestPromptFeatures_Suggest)}</div>`;
-    } else if (currentMode === 'creative') {
-        if (iter.requestPromptText_GenerateDraft) promptsContent += `<h6 class="prompt-title">Draft Generation Prompt:</h6><div class="markdown-content">${renderMarkdown(iter.requestPromptText_GenerateDraft)}</div>`;
-        if (iter.requestPromptText_Critique) promptsContent += `<h6 class="prompt-title">Critique Prompt:</h6><div class="markdown-content">${renderMarkdown(iter.requestPromptText_Critique)}</div>`;
-        if (iter.requestPromptText_Revise) promptsContent += `<h6 class="prompt-title">Revision Prompt:</h6><div class="markdown-content">${renderMarkdown(iter.requestPromptText_Revise)}</div>`;
-        if (iter.requestPromptText_Polish) promptsContent += `<h6 class="prompt-title">Polish Prompt:</h6><div class="markdown-content">${renderMarkdown(iter.requestPromptText_Polish)}</div>`;
-    } else if (currentMode === 'agent') {
-        if (iter.agentJudgeLLM_InitialRequest) promptsContent += `<h6 class="prompt-title">Judge LLM - Initial Request to Design Prompts:</h6><div class="markdown-content">${renderMarkdown(iter.agentJudgeLLM_InitialRequest)}</div>`;
-        if (iter.agentGeneratedPrompts && iter.iterationNumber === 0) {
-            promptsContent += `<h6 class="prompt-title">Judge LLM - Generated Prompt Design:</h6><pre>${escapeHtml(JSON.stringify(iter.agentGeneratedPrompts, null, 2))}</pre>`;
-        }
-        if (iter.requestPrompt_SysInstruction) promptsContent += `<h6 class="prompt-title">System Instruction (Main Step):</h6><div class="markdown-content">${renderMarkdown(iter.requestPrompt_SysInstruction)}</div>`;
-        if (iter.requestPrompt_UserTemplate) promptsContent += `<h6 class="prompt-title">User Prompt Template (Main Step):</h6><div class="markdown-content">${renderMarkdown(iter.requestPrompt_UserTemplate)}</div>`;
-        if (iter.requestPrompt_Rendered) promptsContent += `<h6 class="prompt-title">Rendered User Prompt (Main Step - Sent to API):</h6><div class="markdown-content">${renderMarkdown(iter.requestPrompt_Rendered)}</div>`;
-
-        if (iter.requestPrompt_SubStep_SysInstruction) promptsContent += `<hr class="sub-divider"><h6 class="prompt-title">System Instruction (Loop Sub-Step - Refine/Suggest):</h6><div class="markdown-content">${renderMarkdown(iter.requestPrompt_SubStep_SysInstruction)}</div>`;
-        if (iter.requestPrompt_SubStep_UserTemplate) promptsContent += `<h6 class="prompt-title">User Prompt Template (Loop Sub-Step - Refine/Suggest):</h6><div class="markdown-content">${renderMarkdown(iter.requestPrompt_SubStep_UserTemplate)}</div>`;
-        if (iter.requestPrompt_SubStep_Rendered) promptsContent += `<h6 class="prompt-title">Rendered User Prompt (Loop Sub-Step - Refine/Suggest - Sent to API):</h6><div class="markdown-content">${renderMarkdown(iter.requestPrompt_SubStep_Rendered)}</div>`;
     }
     const promptsHtml = promptsContent ? `
         <details class="model-detail-section collapsible-section">
@@ -1485,8 +1135,6 @@ function renderIteration(pipelineId: number, iter: IterationData): string {
     ` : '';
 
     let generatedOutputHtml = '';
-    const outputContentType = (currentMode === 'agent' && iter.agentGeneratedPrompts) ? iter.agentGeneratedPrompts.expected_output_content_type :
-        (currentMode === 'agent' && pipelinesState.find(p => p.id === pipelineId)?.iterations[0]?.agentGeneratedPrompts) ? pipelinesState.find(p => p.id === pipelineId)?.iterations[0]?.agentGeneratedPrompts?.expected_output_content_type : 'text';
 
 
     if (currentMode === 'website') {
@@ -1513,80 +1161,15 @@ function renderIteration(pipelineId: number, iter: IterationData): string {
                     <div class="code-block-wrapper scrollable-content-area custom-scrollbar">${htmlContent}</div>
                 </div>`;
         }
-    } else if (currentMode === 'creative' || currentMode === 'agent') {
-        let mainContentToDisplay = iter.generatedOrRevisedText; // Creative
-        let mainContentLabel = "Generated/Revised Text";
-        let subStepHtml = '';
-        const agentContentType = (currentMode === 'agent' && iter.agentGeneratedPrompts) ? iter.agentGeneratedPrompts.expected_output_content_type :
-            (currentMode === 'agent' && pipelinesState.find(p => p.id === pipelineId)?.iterations[0]?.agentGeneratedPrompts) ? pipelinesState.find(p => p.id === pipelineId)?.iterations[0]?.agentGeneratedPrompts?.expected_output_content_type : 'markdown';
-
-
-        if (currentMode === 'agent') {
-            mainContentToDisplay = iter.generatedMainContent;
-            if (iter.iterationNumber === 0 && iter.agentGeneratedPrompts) {
-                mainContentToDisplay = "Dynamically designed prompts from Judge LLM are shown in the 'Prompts' section. No direct content output for this setup step.";
-                mainContentLabel = "Setup Information";
-            } else if (iter.generatedSubStep_Content && iter.iterationNumber > 2 && iter.iterationNumber < TOTAL_STEPS_AGENT - 1) {
-                let subStepContentToRender = iter.generatedSubStep_Content || '';
-                if (agentContentType !== 'markdown' && agentContentType !== 'text/markdown' && agentContentType !== 'text' && agentContentType !== 'text/plain') {
-                    subStepContentToRender = `\`\`\`${agentContentType}\n${iter.generatedSubStep_Content}\n\`\`\``;
-                }
-                subStepHtml = `<div class="model-detail-section">
-                     <div class="code-block-header">
-                         <span class="model-section-title">Content After Suggestion Implementation (Sub-Step)</span>
-                     </div>
-                     <div class="code-block-wrapper scrollable-content-area custom-scrollbar"><div id="agent-substep-content-${pipelineId}-${iter.iterationNumber}" class="markdown-content">${renderMarkdown(subStepContentToRender)}</div></div>
-                 </div>`;
-                mainContentLabel = "Refined Content After Suggestions";
-            } else if (iter.iterationNumber === 1) { mainContentLabel = "Initial Generated Content"; }
-            else if (iter.iterationNumber === 2) { mainContentLabel = "Refined Content (After Initial Suggestions)"; }
-            else if (iter.iterationNumber === TOTAL_STEPS_AGENT - 1) { mainContentLabel = "Final Polished Content"; }
-            else { mainContentLabel = "Generated/Refined Output"; }
-        }
-
-        if (mainContentToDisplay || ['completed', 'error', 'retrying', 'processing', 'pending', 'cancelled'].includes(iter.status)) {
-            const hasContent = !!mainContentToDisplay && !(currentMode === 'agent' && iter.iterationNumber === 0);
-            let contentBlock;
-            if (hasContent) {
-                let contentToRender = mainContentToDisplay!;
-                if (currentMode === 'agent' && agentContentType !== 'markdown' && agentContentType !== 'text/markdown' && agentContentType !== 'text' && agentContentType !== 'text/plain') {
-                    contentToRender = `\`\`\`${agentContentType}\n${mainContentToDisplay}\n\`\`\``;
-                }
-                contentBlock = `<div id="text-block-${pipelineId}-${iter.iterationNumber}" class="markdown-content">${renderMarkdown(contentToRender)}</div>`;
-            } else {
-                contentBlock = `<div class="empty-state-message">${getEmptyStateMessage(iter.status, 'output')}</div>`;
-            }
-
-            generatedOutputHtml += `
-                ${subStepHtml}
-                <div class="model-detail-section">
-                    <div class="code-block-header">
-                        <span class="model-section-title">${mainContentLabel}</span>
-                        <div class="code-actions">
-                            <button class="compare-output-button button" data-pipeline-id="${pipelineId}" data-iteration-number="${iter.iterationNumber}" data-content-type="text" type="button" ${!hasContent ? 'disabled' : ''}><span class="material-symbols-outlined">compare_arrows</span><span class="button-text">Compare</span></button>
-                            <button id="copy-text-${pipelineId}-${iter.iterationNumber}" class="button" type="button" ${!hasContent ? 'disabled' : ''}><span class="material-symbols-outlined">content_copy</span><span class="button-text">Copy</span></button>
-                            <button id="download-text-${pipelineId}-${iter.iterationNumber}" class="button" type="button" ${!hasContent ? 'disabled' : ''}><span class="material-symbols-outlined">download</span><span class="button-text">Download</span></button>
-                        </div>
-                    </div>
-                    <div class="code-block-wrapper scrollable-content-area custom-scrollbar">${contentBlock}</div>
-                </div>`;
-        }
     }
 
     let suggestionsHtml = '';
-    const suggestionsToDisplay = currentMode === 'agent' ? iter.generatedSuggestions : iter.suggestedFeatures;
-    const critiqueToDisplay = iter.critiqueSuggestions;
-
-    if ((currentMode === 'website' || currentMode === 'agent') && suggestionsToDisplay && suggestionsToDisplay.length > 0) {
-        const title = currentMode === 'website' ? "Suggested Next Steps" : "Suggested Next Steps";
+    const suggestionsToDisplay = iter.suggestedFeatures;
+    if (currentMode === 'website' && suggestionsToDisplay && suggestionsToDisplay.length > 0) {
+        const title = "Suggested Next Steps";
         suggestionsHtml = `<div class="model-detail-section">
             <h5 class="model-section-title">${title}</h5>
             <ul class="suggestion-list">${suggestionsToDisplay.map(f => `<li><p>${escapeHtml(f)}</p></li>`).join('')}</ul>
-        </div>`;
-    } else if (currentMode === 'creative' && critiqueToDisplay && critiqueToDisplay.length > 0) {
-        suggestionsHtml = `<div class="model-detail-section">
-            <h5 class="model-section-title">Critique & Suggestions</h5>
-            <ul class="suggestion-list">${critiqueToDisplay.map(s => `<li><p>${escapeHtml(s)}</p></li>`).join('')}</ul>
         </div>`;
     }
 
@@ -1635,7 +1218,7 @@ function renderIteration(pipelineId: number, iter: IterationData): string {
                 ${iter.error ? `<div class="status-message error"><pre>${escapeHtml(iter.error)}</pre></div>` : ''}
                 ${generatedOutputHtml}
                 ${suggestionsHtml}
-                ${currentMode === 'website' || (typeof outputContentType === 'string' && outputContentType.toLowerCase().includes('html')) ? '' : promptsHtml}
+                ${promptsHtml}
             </div>
             ${previewHtml ? `<div class="preview-column">${previewHtml}</div>` : ''}
         </div>
@@ -1713,9 +1296,130 @@ function renderMathContent(content: string): string {
     let htmlContent = marked(processedContent);
     htmlContent = DOMPurify.sanitize(htmlContent);
     
+    // Wrap code blocks in containers with copy/download functionality
+    htmlContent = htmlContent.replace(/<pre><code([^>]*)>([\s\S]*?)<\/code><\/pre>/g, (_match: any, attributes: any, codeContent: any) => {
+        const codeId = 'code-' + Math.random().toString(36).substr(2, 9);
+        return `
+            <div class="code-block-container expanded">
+                <div class="code-block-header" onclick="toggleCodeBlock('${codeId}')">
+                    <span class="code-block-title">Code</span>
+                    <div class="code-block-actions" onclick="event.stopPropagation()">
+                        <button class="code-action-btn copy-code-btn" onclick="copyCodeBlock('${codeId}')" title="Copy code">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </button>
+                        <button class="code-action-btn download-code-btn" onclick="downloadCodeBlock('${codeId}')" title="Download code">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7,10 12,15 17,10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                        </button>
+                        <button class="code-block-expand-toggle expanded" id="toggle-${codeId}" onclick="toggleCodeBlock('${codeId}')" title="Toggle code visibility">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6,9 12,15 18,9"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="code-block-content expanded" id="${codeId}">
+                    <pre><code${attributes}>${codeContent}</code></pre>
+                </div>
+            </div>
+        `;
+    });
+    
     // Wrap content in a div with proper styling classes
-    return `<div class="math-content-wrapper">${htmlContent}</div>`;
+    return `<div class="latex-content-wrapper">${htmlContent}</div>`;
 }
+
+// Global functions for code block actions
+(window as any).toggleCodeBlock = function(codeId: string) {
+    const codeContent = document.getElementById(codeId);
+    const toggleBtn = document.getElementById(`toggle-${codeId}`);
+    const container = codeContent?.closest('.code-block-container');
+    
+    if (!codeContent || !toggleBtn || !container) return;
+    
+    const isExpanded = codeContent.classList.contains('expanded');
+    
+    if (isExpanded) {
+        codeContent.classList.remove('expanded');
+        codeContent.classList.add('collapsed');
+        toggleBtn.classList.remove('expanded');
+        container.classList.remove('expanded');
+        container.classList.add('collapsed');
+    } else {
+        codeContent.classList.remove('collapsed');
+        codeContent.classList.add('expanded');
+        toggleBtn.classList.add('expanded');
+        container.classList.remove('collapsed');
+        container.classList.add('expanded');
+    }
+};
+
+(window as any).copyCodeBlock = async function(codeId: string) {
+    try {
+        const codeElement = document.getElementById(codeId);
+        if (!codeElement) return;
+        
+        const codeText = codeElement.textContent || '';
+        await navigator.clipboard.writeText(codeText);
+        
+        // Visual feedback
+        const copyBtn = document.querySelector(`[onclick="copyCodeBlock('${codeId}')"]`);
+        if (copyBtn) {
+            const originalText = copyBtn.innerHTML;
+            copyBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20,6 9,17 4,12"></polyline>
+                </svg>
+            `;
+            setTimeout(() => {
+                copyBtn.innerHTML = originalText;
+            }, 1000);
+        }
+    } catch (err) {
+        console.error('Failed to copy code:', err);
+    }
+};
+
+(window as any).downloadCodeBlock = function(codeId: string) {
+    try {
+        const codeElement = document.getElementById(codeId);
+        if (!codeElement) return;
+        
+        const codeText = codeElement.textContent || '';
+        const blob = new Blob([codeText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `code-${codeId}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        // Visual feedback
+        const downloadBtn = document.querySelector(`[onclick="downloadCodeBlock('${codeId}')"]`);
+        if (downloadBtn) {
+            const originalText = downloadBtn.innerHTML;
+            downloadBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20,6 9,17 4,12"></polyline>
+                </svg>
+            `;
+            setTimeout(() => {
+                downloadBtn.innerHTML = originalText;
+            }, 1000);
+        }
+    } catch (err) {
+        console.error('Failed to download code:', err);
+    }
+};
 
 async function copyToClipboard(text: string, buttonElement: HTMLButtonElement) {
     if (buttonElement.disabled) return;
@@ -1787,34 +1491,6 @@ function attachIterationActionButtons(pipelineId: number, iterationNumber: numbe
                 } else if (document.exitFullscreen) document.exitFullscreen();
             };
             fullscreenButton.disabled = !canDownloadOrCopyHtml;
-        }
-    } else if (currentMode === 'creative' || currentMode === 'agent') {
-        const textContentForActions = currentMode === 'creative' ? iter.generatedOrRevisedText : iter.generatedMainContent;
-        const isAgentSetupStep = currentMode === 'agent' && iter.iterationNumber === 0;
-        const canDownloadOrCopyText = !!textContentForActions && !isAgentSetupStep;
-
-        const defaultFileName = currentMode === 'creative' ?
-            `creative_pipeline-${pipelineId + 1}_iter-${iter.iterationNumber}_temp-${pipeline.temperature}.txt` :
-            `agent_output_variant-${pipelineId + 1}_step-${iter.iterationNumber}_temp-${pipeline.temperature}.txt`;
-        const contentType = 'text/plain';
-
-        const downloadButton = document.querySelector<HTMLButtonElement>(`#download-text-${pipelineId}-${iterationNumber}`);
-        if (downloadButton) {
-            downloadButton.onclick = () => {
-                if (canDownloadOrCopyText && textContentForActions) {
-                    downloadFile(textContentForActions, defaultFileName, contentType);
-                }
-            };
-            downloadButton.disabled = !canDownloadOrCopyText;
-        }
-
-        const copyButton = document.querySelector<HTMLButtonElement>(`#copy-text-${pipelineId}-${iterationNumber}`);
-        if (copyButton) {
-            copyButton.dataset.hasContent = String(canDownloadOrCopyText);
-            copyButton.onclick = () => {
-                if (canDownloadOrCopyText && textContentForActions) copyToClipboard(textContentForActions, copyButton);
-            };
-            copyButton.disabled = !canDownloadOrCopyText;
         }
     }
 }
@@ -1935,10 +1611,7 @@ function cleanOutputByType(rawOutput: string, type: string = 'text'): string {
     if (typeof rawOutput !== 'string') return '';
     let textToClean = rawOutput.trim();
 
-    // Universal fence removal. This regex is broad and captures content within various fences.
-    // It tries to match ```<lang> ... ``` or just ``` ... ```.
-    // The (\w*)? part matches an optional language specifier (e.g., json, html, python).
-    // The [\s\S]*? part captures any character including newlines, non-greedily.
+
     const fenceRegex = /^```(\w*)?\s*\n?([\s\S]*?)\n?\s*```$/s;
     const fenceMatch = textToClean.match(fenceRegex);
 
@@ -2280,25 +1953,25 @@ function generateFallbackCritiqueFromString(text: string, count: number = 3): st
     return fallbacks.slice(0, count);
 }
 
-function generateFallbackMathStrategies(text: string, count: number): string[] {
+function generateFallbackStrategies(text: string, count: number): string[] {
     const listItemsRegex = /(?:^\s*[-*+]|\d+\.)\s+(.*)/gm;
     let matches;
     const strategies: string[] = [];
-    if (typeof text === 'string') {
-        while ((matches = listItemsRegex.exec(text)) !== null) {
-            strategies.push(matches[1].trim());
-            if (strategies.length >= count) break;
-        }
+
+    while ((matches = listItemsRegex.exec(text)) !== null && strategies.length < count) {
+        strategies.push(matches[1].trim());
     }
+
     if (strategies.length > 0 && strategies.length <= count) return strategies;
     if (strategies.length > count) return strategies.slice(0, count);
 
-    console.warn(`generateFallbackMathStrategies: Could not extract ${count} strategies. Using generic fallbacks.`);
+    console.warn(`generateFallbackStrategies: Could not extract ${count} strategies. Using generic fallbacks.`);
     const fallbacks = [
         "Try to simplify the problem statement or break it into smaller parts.",
         "Identify relevant formulas or theorems.",
-        "Work backwards from a potential solution.",
-        "Look for patterns or symmetries."
+        "Work through the problem step by step.",
+        "Check for any given constraints or conditions.",
+        "Consider alternative approaches or methods."
     ];
     return fallbacks.slice(0, count);
 }
@@ -2308,7 +1981,7 @@ function parseJsonSuggestions(rawJsonString: string, suggestionKey: 'features' |
     if (typeof rawJsonString !== 'string' || !rawJsonString.trim()) {
         console.warn(`parseJsonSuggestions: Input string is empty or not a string. Using fallback for ${suggestionKey}.`);
         if (suggestionKey === 'features') return generateFallbackFeaturesFromString('');
-        if (suggestionKey === 'strategies' || suggestionKey === 'sub_strategies') return generateFallbackMathStrategies('', expectedCount);
+        if (suggestionKey === 'strategies' || suggestionKey === 'sub_strategies') return generateFallbackStrategies('', expectedCount);
         return generateFallbackCritiqueFromString('', expectedCount);
     }
 
@@ -2341,7 +2014,7 @@ function parseJsonSuggestions(rawJsonString: string, suggestionKey: 'features' |
             if (items.length < expectedCount) {
                 console.warn(`parseJsonSuggestions: Parsed ${items.length} ${suggestionKey}, expected ${expectedCount}. Padding with fallbacks.`);
                 const fallbacks = (suggestionKey === 'features') ? generateFallbackFeaturesFromString('') :
-                    (suggestionKey === 'strategies' || suggestionKey === 'sub_strategies') ? generateFallbackMathStrategies('', expectedCount - items.length) :
+                    (suggestionKey === 'strategies' || suggestionKey === 'sub_strategies') ? generateFallbackStrategies('', expectedCount - items.length) :
                         generateFallbackCritiqueFromString('', expectedCount - items.length);
                 return items.concat(fallbacks.slice(0, expectedCount - items.length));
             }
@@ -2351,14 +2024,14 @@ function parseJsonSuggestions(rawJsonString: string, suggestionKey: 'features' |
         // If no items found via expected structures, attempt generic string list extraction from original raw string
         console.warn(`parseJsonSuggestions: Parsed JSON for ${suggestionKey} is not in the expected format or empty. Attempting string fallback from original content. Parsed object:`, parsed, "Cleaned string for parsing:", cleanedJsonString, "Original string (first 300 chars):", rawJsonString.substring(0, 300));
         if (suggestionKey === 'features') return generateFallbackFeaturesFromString(rawJsonString);
-        if (suggestionKey === 'strategies' || suggestionKey === 'sub_strategies') return generateFallbackMathStrategies(rawJsonString, expectedCount);
+        if (suggestionKey === 'strategies' || suggestionKey === 'sub_strategies') return generateFallbackStrategies(rawJsonString, expectedCount);
         return generateFallbackCritiqueFromString(rawJsonString, expectedCount);
 
     } catch (e) {
         console.error(`parseJsonSuggestions: Failed to parse JSON for ${suggestionKey}:`, e, "Cleaned string for parsing:", cleanedJsonString, "Original string (first 300 chars):", rawJsonString.substring(0, 300));
         // Fallback to extracting from the original raw string if JSON parsing fails completely
         if (suggestionKey === 'features') return generateFallbackFeaturesFromString(rawJsonString);
-        if (suggestionKey === 'strategies' || suggestionKey === 'sub_strategies') return generateFallbackMathStrategies(rawJsonString, expectedCount);
+        if (suggestionKey === 'strategies' || suggestionKey === 'sub_strategies') return generateFallbackStrategies(rawJsonString, expectedCount);
         return generateFallbackCritiqueFromString(rawJsonString, expectedCount);
     }
 }
@@ -2374,18 +2047,10 @@ async function runPipeline(pipelineId: number, initialRequest: string) {
     let currentHtmlContent = "";
     let currentTextContent = "";
     let currentSuggestions: string[] = [];
-    let currentAgentContent = ""; // For Agent mode's primary content
-    let agentGeneratedPrompts: AgentGeneratedPrompts | undefined = undefined;
 
 
-    const totalPipelineSteps =
-        currentMode === 'website' ? TOTAL_STEPS_WEBSITE :
-            currentMode === 'creative' ? TOTAL_STEPS_CREATIVE :
-                currentMode === 'agent' ? TOTAL_STEPS_AGENT : 0;
-    const numMainRefinementLoops =
-        currentMode === 'website' ? NUM_WEBSITE_REFINEMENT_ITERATIONS :
-            currentMode === 'creative' ? NUM_CREATIVE_REFINEMENT_ITERATIONS :
-                currentMode === 'agent' ? NUM_AGENT_MAIN_REFINEMENT_LOOPS : 0;
+    const totalPipelineSteps = currentMode === 'website' ? TOTAL_STEPS_WEBSITE : 0;
+    const numMainRefinementLoops = currentMode === 'website' ? NUM_WEBSITE_REFINEMENT_ITERATIONS : 0;
 
     for (let i = 0; i < totalPipelineSteps; i++) {
         const iteration = pipeline.iterations[i];
@@ -2402,16 +2067,11 @@ async function runPipeline(pipelineId: number, initialRequest: string) {
             return;
         }
 
-        // Reset prompts and outputs for current iteration (except agentGeneratedPrompts for iter 0)
+        // Reset prompts and outputs for current iteration (website mode only)
         iteration.requestPromptHtml_InitialGenerate = iteration.requestPromptHtml_FeatureImplement = iteration.requestPromptHtml_BugFix = iteration.requestPromptFeatures_Suggest = undefined;
-        iteration.requestPromptText_GenerateDraft = iteration.requestPromptText_Critique = iteration.requestPromptText_Revise = iteration.requestPromptText_Polish = undefined;
-        iteration.requestPrompt_SysInstruction = iteration.requestPrompt_UserTemplate = iteration.requestPrompt_Rendered = undefined;
-        iteration.requestPrompt_SubStep_SysInstruction = iteration.requestPrompt_SubStep_UserTemplate = iteration.requestPrompt_SubStep_Rendered = undefined;
-        iteration.generatedSubStep_Content = undefined;
         iteration.generatedRawHtml = undefined; // Clear raw HTML output
         iteration.error = undefined;
-        // Don't clear iteration.agentGeneratedPrompts if it's already set (for iter 0)
-        // Don't clear iteration.generatedMainContent or iteration.generatedSuggestions if they are inputs to next step
+        // Website-only fields are managed; non-website fields no longer exist
 
         try {
             const makeApiCall = async (userPrompt: string, systemInstruction: string, isJson: boolean, stepDesc: string): Promise<string> => {
@@ -2563,178 +2223,6 @@ async function runPipeline(pipelineId: number, initialRequest: string) {
                     }
                     iteration.suggestedFeatures = [];
                 }
-            } else if (currentMode === 'creative') {
-                const placeholderDraft = "The story began on a dark and stormy night... (Placeholder: previous step provided no content)";
-                if (i === 0) {
-                    const userPromptInitialDraft = renderPrompt(customPromptsCreativeState.user_creative_initialDraft, { initialPremise: initialRequest });
-                    iteration.requestPromptText_GenerateDraft = userPromptInitialDraft;
-                    iteration.generatedOrRevisedText = cleanTextOutput(await makeApiCall(userPromptInitialDraft, customPromptsCreativeState.sys_creative_initialDraft, false, "Initial Draft Generation"));
-                    currentTextContent = iteration.generatedOrRevisedText || "";
-
-                    const userPromptInitialCritique = renderPrompt(customPromptsCreativeState.user_creative_initialCritique, { currentDraft: currentTextContent || placeholderDraft });
-                    iteration.requestPromptText_Critique = userPromptInitialCritique;
-                    const critiqueJsonString = await makeApiCall(userPromptInitialCritique, customPromptsCreativeState.sys_creative_initialCritique, true, "Initial Critique");
-                    iteration.critiqueSuggestions = parseJsonSuggestions(critiqueJsonString, 'suggestions', 3);
-                    currentSuggestions = iteration.critiqueSuggestions;
-                } else if (i <= numMainRefinementLoops) {
-                    const critiqueToImplementStr = currentSuggestions.map(s => `- ${s}`).join('\n');
-                    const userPromptRevise = renderPrompt(customPromptsCreativeState.user_creative_refine_revise, { currentDraft: currentTextContent || placeholderDraft, critiqueToImplementStr });
-                    iteration.requestPromptText_Revise = userPromptRevise;
-                    {
-                        const reviseResponse = await makeApiCall(userPromptRevise, customPromptsCreativeState.sys_creative_refine_revise, true, `Draft Revision (Iter ${i}) - JSON Patches or Full`);
-                        const maybePatches = parsePatchesFromJson(reviseResponse);
-                        if (maybePatches && maybePatches.length > 0 && currentTextContent) {
-                            // Apply patches to current text (treat as plain text blocks)
-                            const patched = applyPatches(currentTextContent, maybePatches as any);
-                            iteration.generatedOrRevisedText = cleanTextOutput(patched);
-                            iteration.providedPatchesJson = cleanOutputByType(reviseResponse, 'json');
-                            iteration.providedPatchesContentType = 'text';
-                        } else {
-                            // Fallback to plain text revision
-                            iteration.generatedOrRevisedText = cleanTextOutput(cleanOutputByType(reviseResponse, 'text'));
-                        }
-                    }
-                    currentTextContent = iteration.generatedOrRevisedText || "";
-
-                    const userPromptNewCritique = renderPrompt(customPromptsCreativeState.user_creative_refine_critique, { currentDraft: currentTextContent || placeholderDraft });
-                    iteration.requestPromptText_Critique = userPromptNewCritique;
-                    const critiqueJsonString = await makeApiCall(userPromptNewCritique, customPromptsCreativeState.sys_creative_refine_critique, true, `New Critique (Iter ${i})`);
-                    iteration.critiqueSuggestions = parseJsonSuggestions(critiqueJsonString, 'suggestions', 3);
-                    currentSuggestions = iteration.critiqueSuggestions;
-                } else {
-                    const userPromptFinalPolish = renderPrompt(customPromptsCreativeState.user_creative_final_polish, { currentDraft: currentTextContent || placeholderDraft });
-                    iteration.requestPromptText_Polish = userPromptFinalPolish;
-                    {
-                        const polishResponse = await makeApiCall(userPromptFinalPolish, customPromptsCreativeState.sys_creative_final_polish, true, "Final Polish - JSON Patches or Full");
-                        const maybePatches = parsePatchesFromJson(polishResponse);
-                        if (maybePatches && maybePatches.length > 0 && currentTextContent) {
-                            const patched = applyPatches(currentTextContent, maybePatches as any);
-                            iteration.generatedOrRevisedText = cleanTextOutput(patched);
-                            iteration.providedPatchesJson = cleanOutputByType(polishResponse, 'json');
-                            iteration.providedPatchesContentType = 'text';
-                        } else {
-                            iteration.generatedOrRevisedText = cleanTextOutput(cleanOutputByType(polishResponse, 'text'));
-                        }
-                    }
-                    currentTextContent = iteration.generatedOrRevisedText || "";
-                    iteration.critiqueSuggestions = [];
-                }
-            } else if (currentMode === 'agent') {
-                const placeholderContent = "<!-- No content available from previous step. Generate based on initial request or refine context. -->";
-                // Ensure agentGeneratedPrompts is fetched from iteration 0 if not already set (for current pipeline)
-                if (!agentGeneratedPrompts && pipeline.iterations[0]?.agentGeneratedPrompts) {
-                    agentGeneratedPrompts = pipeline.iterations[0].agentGeneratedPrompts;
-                }
-
-                if (i === 0) { // Judge LLM to get prompts
-                    const userPromptJudge = renderPrompt(customPromptsAgentState.user_agent_judge_llm, { initialRequest: initialRequest, NUM_AGENT_MAIN_REFINEMENT_LOOPS: String(NUM_AGENT_MAIN_REFINEMENT_LOOPS) });
-                    iteration.agentJudgeLLM_InitialRequest = userPromptJudge;
-                    const judgeLlmResponseString = await makeApiCall(userPromptJudge, customPromptsAgentState.sys_agent_judge_llm, true, "Agent Prompt Design (Judge LLM)");
-                    try {
-                        const jsonStrToParse = cleanOutputByType(judgeLlmResponseString, 'json');
-                        agentGeneratedPrompts = JSON.parse(jsonStrToParse) as AgentGeneratedPrompts;
-                        iteration.agentGeneratedPrompts = agentGeneratedPrompts; // Store in iteration 0
-                        if (!agentGeneratedPrompts ||
-                            !agentGeneratedPrompts.initial_generation?.system_instruction ||
-                            !agentGeneratedPrompts.initial_generation?.user_prompt_template ||
-                            !agentGeneratedPrompts.refinement_and_suggestion?.system_instruction ||
-                            !agentGeneratedPrompts.refinement_and_suggestion?.user_prompt_template ||
-                            !agentGeneratedPrompts.feature_implementation?.system_instruction ||
-                            !agentGeneratedPrompts.feature_implementation?.user_prompt_template ||
-                            !agentGeneratedPrompts.final_polish?.system_instruction ||
-                            !agentGeneratedPrompts.final_polish?.user_prompt_template ||
-                            !agentGeneratedPrompts.expected_output_content_type ||
-                            !agentGeneratedPrompts.iteration_type_description ||
-                            !agentGeneratedPrompts.placeholders_guide
-                        ) {
-                            throw new Error("Judge LLM output is missing critical fields for prompt design, content type, description, or placeholders guide. The received structure is incomplete.");
-                        }
-                    } catch (e: any) {
-                        console.error("Failed to parse Judge LLM response:", e, "Cleaned response for parsing:", cleanOutputByType(judgeLlmResponseString, 'json'), "Raw response (first 500 chars):", judgeLlmResponseString.substring(0, 500));
-                        throw new Error(`Failed to parse or validate prompt design from Judge LLM: ${e.message}. Ensure Judge LLM provides all required fields. Raw response (truncated): ${judgeLlmResponseString.substring(0, 500)}`);
-                    }
-                } else if (agentGeneratedPrompts) { // Subsequent steps using Judge LLM's prompts
-                    const outputType = agentGeneratedPrompts.expected_output_content_type || 'text';
-                    if (i === 1) { // Initial Generation
-                        iteration.requestPrompt_SysInstruction = agentGeneratedPrompts.initial_generation.system_instruction;
-                        iteration.requestPrompt_UserTemplate = agentGeneratedPrompts.initial_generation.user_prompt_template;
-                        iteration.requestPrompt_Rendered = renderPrompt(iteration.requestPrompt_UserTemplate, { initialRequest });
-                        const rawInitialContent = await makeApiCall(iteration.requestPrompt_Rendered, iteration.requestPrompt_SysInstruction, false, "Agent Initial Generation");
-                        iteration.generatedMainContent = cleanOutputByType(rawInitialContent, outputType);
-                        currentAgentContent = iteration.generatedMainContent || "";
-                    } else if (i === 2) { // Initial Refinement & Suggestion
-                        iteration.requestPrompt_SysInstruction = agentGeneratedPrompts.refinement_and_suggestion.system_instruction;
-                        iteration.requestPrompt_UserTemplate = agentGeneratedPrompts.refinement_and_suggestion.user_prompt_template;
-                        iteration.requestPrompt_Rendered = renderPrompt(iteration.requestPrompt_UserTemplate, { initialRequest, currentContent: currentAgentContent || placeholderContent });
-                        const refineSuggestJsonResponseString = await makeApiCall(iteration.requestPrompt_Rendered, iteration.requestPrompt_SysInstruction, true, "Agent Initial Refine & Suggest");
-                        const refineSuggestJson = cleanOutputByType(refineSuggestJsonResponseString, 'json');
-                        try {
-                            const parsedRefine = JSON.parse(refineSuggestJson);
-                            iteration.generatedMainContent = cleanOutputByType(parsedRefine.refined_content || "", outputType);
-                            iteration.generatedSuggestions = Array.isArray(parsedRefine.suggestions) ? parsedRefine.suggestions.slice(0, 2) : generateFallbackFeaturesFromString(''); // Default to 2 suggestions
-                        } catch (e: any) {
-                            console.error("Failed to parse JSON from Refinement & Suggestion LLM:", e, "Raw JSON string:", refineSuggestJson, "Original response:", refineSuggestJsonResponseString);
-                            iteration.generatedMainContent = cleanOutputByType(currentAgentContent || placeholderContent, outputType); // Fallback to current content if parsing fails
-                            iteration.generatedSuggestions = generateFallbackFeaturesFromString(refineSuggestJsonResponseString); // Try to extract from raw string
-                            iteration.error = `Error parsing Refinement & Suggestion output: ${e.message}. Output was: ${refineSuggestJson.substring(0, 200)}`;
-                        }
-                        currentAgentContent = iteration.generatedMainContent || "";
-                        currentSuggestions = iteration.generatedSuggestions || [];
-                    } else if (i < totalPipelineSteps - 1) { // Refinement Loops (loop_num starts at 1 for user, which is i-2)
-                        // Sub-Step A: Feature Implementation
-                        iteration.requestPrompt_SysInstruction = agentGeneratedPrompts.feature_implementation.system_instruction;
-                        iteration.requestPrompt_UserTemplate = agentGeneratedPrompts.feature_implementation.user_prompt_template;
-                        iteration.requestPrompt_Rendered = renderPrompt(iteration.requestPrompt_UserTemplate, { initialRequest, currentContent: currentAgentContent || placeholderContent, suggestionsToImplementStr: currentSuggestions.join('; ') });
-                        const implResponse = await makeApiCall(iteration.requestPrompt_Rendered, iteration.requestPrompt_SysInstruction, true, `Agent Loop ${i - 2} - Implement (JSON Patches or Full)`);
-                        const implPatches = parsePatchesFromJson(implResponse);
-                        if (implPatches && implPatches.length > 0) {
-                            const patched = applyPatches(currentAgentContent || placeholderContent, implPatches as any);
-                            iteration.generatedSubStep_Content = cleanOutputByType(patched, outputType);
-                            iteration.providedPatchesJson = cleanOutputByType(implResponse, 'json');
-                            iteration.providedPatchesContentType = outputType.includes('html') ? 'html' : 'text';
-                        } else {
-                            iteration.generatedSubStep_Content = cleanOutputByType(implResponse, outputType);
-                        }
-
-                        // Sub-Step B: Refine Implemented & Suggest Next
-                        iteration.requestPrompt_SubStep_SysInstruction = agentGeneratedPrompts.refinement_and_suggestion.system_instruction; // Re-use
-                        iteration.requestPrompt_SubStep_UserTemplate = agentGeneratedPrompts.refinement_and_suggestion.user_prompt_template; // Re-use
-                        iteration.requestPrompt_SubStep_Rendered = renderPrompt(iteration.requestPrompt_SubStep_UserTemplate, { initialRequest, currentContent: (iteration.generatedSubStep_Content || currentAgentContent) || placeholderContent });
-                        const refineSuggestLoopJsonResponseString = await makeApiCall(iteration.requestPrompt_SubStep_Rendered, iteration.requestPrompt_SubStep_SysInstruction, true, `Agent Loop ${i - 2} - Refine & Suggest`);
-                        const refineSuggestLoopJson = cleanOutputByType(refineSuggestLoopJsonResponseString, 'json');
-                        try {
-                            const parsedRefineLoop = JSON.parse(refineSuggestLoopJson);
-                            iteration.generatedMainContent = cleanOutputByType(parsedRefineLoop.refined_content || "", outputType);
-                            iteration.generatedSuggestions = Array.isArray(parsedRefineLoop.suggestions) ? parsedRefineLoop.suggestions.slice(0, 2) : generateFallbackFeaturesFromString('');
-                        } catch (e: any) {
-                            console.error("Failed to parse JSON from Loop Refinement & Suggestion LLM:", e, "Raw JSON string:", refineSuggestLoopJson, "Original response:", refineSuggestLoopJsonResponseString);
-                            iteration.generatedMainContent = cleanOutputByType(implementedContent || placeholderContent, outputType); // Fallback
-                            iteration.generatedSuggestions = generateFallbackFeaturesFromString(refineSuggestLoopJsonResponseString);
-                            iteration.error = `Error parsing Loop Refinement & Suggestion output: ${e.message}. Output was: ${refineSuggestLoopJson.substring(0, 200)}`;
-                        }
-                        currentAgentContent = iteration.generatedMainContent || "";
-                        currentSuggestions = iteration.generatedSuggestions || [];
-                    } else { // Final Polish
-                        iteration.requestPrompt_SysInstruction = agentGeneratedPrompts.final_polish.system_instruction;
-                        iteration.requestPrompt_UserTemplate = agentGeneratedPrompts.final_polish.user_prompt_template;
-                        iteration.requestPrompt_Rendered = renderPrompt(iteration.requestPrompt_UserTemplate, { initialRequest, currentContent: currentAgentContent || placeholderContent });
-                        const finalResponse = await makeApiCall(iteration.requestPrompt_Rendered, iteration.requestPrompt_SysInstruction, true, "Agent Final Polish (JSON Patches or Full)");
-                        const finalPatches = parsePatchesFromJson(finalResponse);
-                        if (finalPatches && finalPatches.length > 0) {
-                            const patched = applyPatches(currentAgentContent || placeholderContent, finalPatches as any);
-                            iteration.generatedMainContent = cleanOutputByType(patched, outputType);
-                            iteration.providedPatchesJson = cleanOutputByType(finalResponse, 'json');
-                            iteration.providedPatchesContentType = outputType.includes('html') ? 'html' : 'text';
-                        } else {
-                            iteration.generatedMainContent = cleanOutputByType(finalResponse, outputType);
-                        }
-                        currentAgentContent = iteration.generatedMainContent || "";
-                        iteration.generatedSuggestions = [];
-                    }
-                } else if (i > 0 && !agentGeneratedPrompts) {
-                    throw new Error("Agent prompts not generated or found from setup step (i=0). Cannot proceed with agent iteration.");
-                }
-
             }
             // If an error occurred within a try-catch inside the agent logic (e.g. JSON parse error),
             // it would set iteration.error. We should check that before setting status to 'completed'.
@@ -2868,7 +2356,7 @@ function exportConfiguration() {
         return;
     }
     const selectedOriginalIndices: number[] = [];
-    if (currentMode !== 'math' && currentMode !== 'deepthink') { // Website, Creative, Agent
+    if (currentMode === 'website') { // Website only
         pipelineSelectorsContainer.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked').forEach(checkbox => {
             selectedOriginalIndices.push(parseInt(checkbox.dataset.temperatureIndex || "-1", 10));
         });
@@ -2877,28 +2365,21 @@ function exportConfiguration() {
     const config: ExportedConfig = {
         currentMode: currentMode,
         initialIdea: initialIdeaInput.value,
-        problemImageBase64: (currentMode === 'math' || currentMode === 'deepthink') ? currentProblemImageBase64 : undefined,
-        problemImageMimeType: (currentMode === 'math' || currentMode === 'deepthink') ? currentProblemImageMimeType : undefined,
         selectedModel: modelSelectElement.value,
         selectedOriginalTemperatureIndices: selectedOriginalIndices,
         pipelinesState: JSON.parse(JSON.stringify(pipelinesState.map(p => {
             const { tabButtonElement, contentElement, stopButtonElement, ...rest } = p;
             return rest;
         }))),
-        activeMathPipeline: currentMode === 'math' ? JSON.parse(JSON.stringify(activeMathPipeline)) : null,
         activeDeepthinkPipeline: currentMode === 'deepthink' ? JSON.parse(JSON.stringify(activeDeepthinkPipeline)) : null,
         activeReactPipeline: currentMode === 'react' ? JSON.parse(JSON.stringify(activeReactPipeline)) : null,
-        activePipelineId: (currentMode !== 'math' && currentMode !== 'deepthink' && currentMode !== 'react') ? activePipelineId : null,
-        activeMathProblemTabId: (currentMode === 'math' && activeMathPipeline) ? activeMathPipeline.activeTabId : undefined,
+        activePipelineId: (currentMode !== 'deepthink' && currentMode !== 'react') ? activePipelineId : null,
         activeDeepthinkProblemTabId: (currentMode === 'deepthink' && activeDeepthinkPipeline) ? activeDeepthinkPipeline.activeTabId : undefined,
         // activeReactProblemTabId: (currentMode === 'react' && activeReactPipeline) ? activeReactPipeline.activeTabId : undefined, // For React worker tabs
         globalStatusText: "Ready.",
         globalStatusClass: "status-idle",
         customPromptsWebsite: customPromptsWebsiteState,
-        customPromptsCreative: customPromptsCreativeState,
-        customPromptsMath: customPromptsMathState,
         customPromptsDeepthink: customPromptsDeepthinkState,
-        customPromptsAgent: customPromptsAgentState,
         customPromptsReact: customPromptsReactState, // Added for React
         isCustomPromptsOpen: isCustomPromptsOpen,
     };
@@ -2925,9 +2406,6 @@ function handleImportConfiguration(event: Event) {
                 { key: 'initialIdea', type: 'string' },
                 { key: 'selectedModel', type: 'string' },
                 { key: 'customPromptsWebsite', type: 'object' },
-                { key: 'customPromptsCreative', type: 'object' },
-                { key: 'customPromptsMath', type: 'object' },
-                { key: 'customPromptsAgent', type: 'object' },
                 { key: 'customPromptsReact', type: 'object' }, // Added for React
             ];
 
@@ -2950,77 +2428,20 @@ function handleImportConfiguration(event: Event) {
             (document.querySelector(`input[name="appMode"][value="${currentMode}"]`) as HTMLInputElement).checked = true;
 
             initialIdeaInput.value = importedConfig.initialIdea;
-            if (currentMode === 'math' || currentMode === 'deepthink') {
-                currentProblemImageBase64 = importedConfig.problemImageBase64 || null;
-                currentProblemImageMimeType = importedConfig.problemImageMimeType || null;
-                if (currentProblemImageBase64 && mathProblemImagePreview) {
-                    mathProblemImagePreview.src = `data:${currentProblemImageMimeType};base64,${currentProblemImageBase64}`;
-                    mathProblemImagePreview.style.display = 'block';
-                } else if (mathProblemImagePreview) {
-                    mathProblemImagePreview.style.display = 'none';
-                    mathProblemImagePreview.src = '#';
-                }
+            if (currentMode === 'deepthink') {
+                // Deepthink mode specific initialization
             } else {
                 currentProblemImageBase64 = null;
                 currentProblemImageMimeType = null;
-                if (mathProblemImagePreview) {
-                    mathProblemImagePreview.style.display = 'none';
-                    mathProblemImagePreview.src = '#';
-                }
             }
             updateUIAfterModeChange();
 
             // Reinitialize sidebar controls after import
-            setTimeout(() => {
-                if ((window as any).reinitializeSidebarControls) {
-                    (window as any).reinitializeSidebarControls();
-                }
-            }, 200);
+            if ((window as any).reinitializeSidebarControls) {
+                (window as any).reinitializeSidebarControls();
+            }
 
-            modelSelectElement.value = importedConfig.selectedModel || "gemini-2.5-pro";
-
-            activeMathPipeline = null; // Reset other mode states
-            pipelinesState = [];
-            activeReactPipeline = null;
-
-            if (currentMode === 'website' || currentMode === 'creative' || currentMode === 'agent') {
-                const allCheckboxes = pipelineSelectorsContainer.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
-                allCheckboxes.forEach(cb => cb.checked = false);
-                (importedConfig.selectedOriginalTemperatureIndices || []).forEach(originalIndex => {
-                    const checkboxToSelect = pipelineSelectorsContainer.querySelector<HTMLInputElement>(`input[data-temperature-index="${originalIndex}"]`);
-                    if (checkboxToSelect) checkboxToSelect.checked = true;
-                });
-
-                pipelinesState = (importedConfig.pipelinesState || []).map(p => ({
-                    ...p,
-                    tabButtonElement: undefined, contentElement: undefined, stopButtonElement: undefined,
-                    isStopRequested: false,
-                    status: (p.status === 'running' || p.status === 'stopping') ? 'idle' : p.status,
-                }));
-                activePipelineId = importedConfig.activePipelineId;
-                renderPipelines();
-                if (activePipelineId !== null && pipelinesState.some(p => p.id === activePipelineId)) activateTab(activePipelineId);
-                else if (pipelinesState.length > 0) activateTab(pipelinesState[0].id);
-
-            } else if (currentMode === 'math') {
-                activeMathPipeline = importedConfig.activeMathPipeline ? {
-                    ...importedConfig.activeMathPipeline,
-                    isStopRequested: false,
-                    status: (importedConfig.activeMathPipeline.status === 'processing' || importedConfig.activeMathPipeline.status === 'stopping') ? 'idle' : importedConfig.activeMathPipeline.status,
-                    activeTabId: importedConfig.activeMathProblemTabId || 'problem-details',
-                } : null;
-                activePipelineId = null;
-                
-                // Apply red team eliminations if they exist
-                if (activeMathPipeline && activeMathPipeline.redTeamAgents) {
-                    applyRedTeamEliminations(activeMathPipeline);
-                }
-                
-                renderActiveMathPipeline();
-                if (activeMathPipeline && activeMathPipeline.activeTabId) {
-                    activateTab(activeMathPipeline.activeTabId);
-                }
-            } else if (currentMode === 'deepthink') {
+            if (currentMode === 'deepthink') {
                 const importedPipeline = importedConfig.activeDeepthinkPipeline;
                 activeDeepthinkPipeline = importedPipeline ? {
                     ...importedPipeline,
@@ -3038,15 +2459,7 @@ function handleImportConfiguration(event: Event) {
                         judgingRequestPrompt: strategy.judgingRequestPrompt,
                         judgingResponseText: strategy.judgingResponseText,
                         judgingError: strategy.judgingError,
-                        subStrategies: strategy.subStrategies?.map(subStrategy => ({
-                            ...subStrategy,
-                            // Reset processing states for sub-strategies
-                            status: subStrategy.status === 'processing' || subStrategy.status === 'retrying' ? 'pending' : subStrategy.status,
-                            selfImprovementStatus: subStrategy.selfImprovementStatus === 'processing' || subStrategy.selfImprovementStatus === 'retrying' ? 'pending' : subStrategy.selfImprovementStatus,
-                        })) || []
                     })) || [],
-                    // Reset final judging processing states but preserve completed results
-                    finalJudgingStatus: importedPipeline.finalJudgingStatus === 'processing' || importedPipeline.finalJudgingStatus === 'retrying' ? 'pending' : importedPipeline.finalJudgingStatus,
                     finalJudgedBestSolution: importedPipeline.finalJudgedBestSolution,
                     finalJudgedBestStrategyId: importedPipeline.finalJudgedBestStrategyId,
                     finalJudgingRequestPrompt: importedPipeline.finalJudgingRequestPrompt,
@@ -3054,36 +2467,28 @@ function handleImportConfiguration(event: Event) {
                     finalJudgingError: importedPipeline.finalJudgingError,
                 } : null;
                 activePipelineId = null;
+                
+                // Sync the imported pipeline with the Deepthink module
+                setActiveDeepthinkPipelineForImport(activeDeepthinkPipeline);
+                
                 renderActiveDeepthinkPipeline();
                 if (activeDeepthinkPipeline && activeDeepthinkPipeline.activeTabId) {
                     activateTab(activeDeepthinkPipeline.activeTabId);
                 }
-            } else if (currentMode === 'react') { // Added for React
+            } else if (currentMode === 'react') {
                 activeReactPipeline = importedConfig.activeReactPipeline ? {
                     ...importedConfig.activeReactPipeline,
                     isStopRequested: false,
                     status: (importedConfig.activeReactPipeline.status === 'orchestrating' || importedConfig.activeReactPipeline.status === 'processing_workers' || importedConfig.activeReactPipeline.status === 'stopping') ? 'idle' : importedConfig.activeReactPipeline.status,
-                    // activeTabId will be handled by renderReactModePipeline based on its own state
                 } : null;
                 activePipelineId = null;
-                // renderReactModePipeline(); // Will be called when implemented
-                // if (activeReactPipeline && activeReactPipeline.activeTabId) {
-                //    activateTab(activeReactPipeline.activeTabId); // This activateTab will need updates for React tabs
-                // }
             }
 
 
             customPromptsWebsiteState = importedConfig.customPromptsWebsite ? JSON.parse(JSON.stringify(importedConfig.customPromptsWebsite)) : JSON.parse(JSON.stringify(defaultCustomPromptsWebsite));
-            customPromptsCreativeState = importedConfig.customPromptsCreative ? JSON.parse(JSON.stringify(importedConfig.customPromptsCreative)) : JSON.parse(JSON.stringify(defaultCustomPromptsCreative));
-
-            const importedMathPrompts = importedConfig.customPromptsMath || createDefaultCustomPromptsMath(NUM_INITIAL_STRATEGIES_MATH, NUM_SUB_STRATEGIES_PER_MAIN_MATH);
-            customPromptsMathState = JSON.parse(JSON.stringify(importedMathPrompts));
 
             const importedDeepthinkPrompts = importedConfig.customPromptsDeepthink || createDefaultCustomPromptsDeepthink(NUM_INITIAL_STRATEGIES_DEEPTHINK, NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK);
             customPromptsDeepthinkState = JSON.parse(JSON.stringify(importedDeepthinkPrompts));
-
-            const importedAgentPrompts = importedConfig.customPromptsAgent || createDefaultCustomPromptsAgent(NUM_AGENT_MAIN_REFINEMENT_LOOPS);
-            customPromptsAgentState = JSON.parse(JSON.stringify(importedAgentPrompts));
 
             const importedReactPrompts = importedConfig.customPromptsReact || defaultCustomPromptsReact; // Using defaultCustomPromptsReact directly
             customPromptsReactState = JSON.parse(JSON.stringify(importedReactPrompts));
@@ -3103,4302 +2508,8 @@ function handleImportConfiguration(event: Event) {
     reader.readAsText(file);
 }
 
-// ---------- MATH MODE SPECIFIC FUNCTIONS ----------
 
 
-
-async function startMathSolvingProcess(problemText: string, imageBase64?: string | null, imageMimeType?: string | null) {
-    if (!ai) {
-        return;
-    }
-    isGenerating = true;
-    updateControlsState();
-
-    activeMathPipeline = {
-        id: `math-process-${Date.now()}`,
-        problemText: problemText,
-        problemImageBase64: imageBase64,
-        problemImageMimeType: imageMimeType,
-        initialStrategies: [],
-        hypotheses: [],
-        redTeamAgents: [],
-        status: 'processing',
-        isStopRequested: false,
-        activeTabId: 'problem-details',
-        activeStrategyTab: 0,
-        strategicSolverComplete: false,
-        hypothesisExplorerComplete: false,
-        redTeamComplete: false,
-        knowledgePacket: ''
-    };
-    renderActiveMathPipeline();
-
-    const currentProcess = activeMathPipeline;
-
-    const makeMathApiCall = async (
-        parts: Part[],
-        systemInstruction: string,
-        isJson: boolean,
-        stepDescription: string,
-        targetStatusField: MathMainStrategyData | MathSubStrategyData | MathPipelineState | MathHypothesisData,
-        retryAttemptField: 'retryAttempt' | 'selfImprovementRetryAttempt' | 'testerRetryAttempt' | 'hypothesisGenRetryAttempt'
-    ): Promise<string> => {
-        if (!currentProcess || currentProcess.isStopRequested) throw new PipelineStopRequestedError(`Stop requested before API call: ${stepDescription}`);
-        let responseText = "";
-
-        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-            if (currentProcess.isStopRequested) throw new PipelineStopRequestedError(`Stop requested during retry for: ${stepDescription}`);
-
-            targetStatusField[retryAttemptField] = attempt;
-
-            // Set appropriate status based on the field type
-            if ('selfImprovementStatus' in targetStatusField && retryAttemptField === 'selfImprovementRetryAttempt') {
-                targetStatusField.selfImprovementStatus = attempt > 0 ? 'retrying' : 'processing';
-            } else if ('testerStatus' in targetStatusField && retryAttemptField === 'testerRetryAttempt') {
-                targetStatusField.testerStatus = attempt > 0 ? 'retrying' : 'processing';
-            } else if ('hypothesisGenStatus' in targetStatusField && retryAttemptField === 'hypothesisGenRetryAttempt') {
-                targetStatusField.hypothesisGenStatus = attempt > 0 ? 'retrying' : 'processing';
-            } else {
-                targetStatusField.status = attempt > 0 ? 'retrying' : 'processing';
-            }
-
-            renderActiveMathPipeline();
-
-            if (attempt > 0) await new Promise(resolve => setTimeout(resolve, INITIAL_DELAY_MS * Math.pow(BACKOFF_FACTOR, attempt)));
-
-            try {
-                const apiResponse = await callGemini(parts, getSelectedTemperature(), getSelectedModel(), systemInstruction, isJson, getSelectedTopP());
-                responseText = apiResponse.text;
-
-                // Reset status to processing after successful call
-                if ('selfImprovementStatus' in targetStatusField && retryAttemptField === 'selfImprovementRetryAttempt') {
-                    targetStatusField.selfImprovementStatus = 'processing';
-                } else if ('testerStatus' in targetStatusField && retryAttemptField === 'testerRetryAttempt') {
-                    targetStatusField.testerStatus = 'processing';
-                } else if ('hypothesisGenStatus' in targetStatusField && retryAttemptField === 'hypothesisGenRetryAttempt') {
-                    targetStatusField.hypothesisGenStatus = 'processing';
-                } else {
-                    targetStatusField.status = 'processing';
-                }
-
-                renderActiveMathPipeline();
-                return responseText;
-            } catch (e: any) {
-                console.warn(`Math Solver (${stepDescription}), Attempt ${attempt + 1} failed: ${e.message}`);
-
-                // Set appropriate error field
-                if ('selfImprovementError' in targetStatusField && retryAttemptField === 'selfImprovementRetryAttempt') {
-                    targetStatusField.selfImprovementError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
-                } else if ('testerError' in targetStatusField && retryAttemptField === 'testerRetryAttempt') {
-                    targetStatusField.testerError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
-                } else if ('hypothesisGenError' in targetStatusField && retryAttemptField === 'hypothesisGenRetryAttempt') {
-                    targetStatusField.hypothesisGenError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
-                } else {
-                    targetStatusField.error = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
-                }
-
-                renderActiveMathPipeline();
-                if (attempt === MAX_RETRIES) {
-                    if ('selfImprovementError' in targetStatusField && retryAttemptField === 'selfImprovementRetryAttempt') {
-                        targetStatusField.selfImprovementError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
-                    } else if ('testerError' in targetStatusField && retryAttemptField === 'testerRetryAttempt') {
-                        targetStatusField.testerError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
-                    } else if ('hypothesisGenError' in targetStatusField && retryAttemptField === 'hypothesisGenRetryAttempt') {
-                        targetStatusField.hypothesisGenError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
-                    } else {
-                        targetStatusField.error = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
-                    }
-                    throw e;
-                }
-            }
-        }
-        throw new Error(`API call for ${stepDescription} failed all retries.`);
-    };
-    try {
-        // Phase 1: Parallel Generation (The "Race")
-        // Track A (Strategic Solver) and Track B (Hypothesis Explorer) begin simultaneously
-
-        const trackAPromise = (async () => {
-            // Track A: Strategic Solver
-            const initialUserPrompt = renderPrompt(customPromptsMathState.user_math_initialStrategy, { originalProblemText: problemText });
-            const initialPromptParts: Part[] = [{ text: initialUserPrompt }];
-            if (imageBase64 && imageMimeType) {
-                initialPromptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-            }
-            currentProcess.requestPromptInitialStrategyGen = initialUserPrompt + (imageBase64 ? "\n[Image Provided]" : "");
-
-            const initialStrategiesJsonString = await makeMathApiCall(
-                initialPromptParts,
-                customPromptsMathState.sys_math_initialStrategy,
-                true,
-                "Initial Strategy Generation",
-                currentProcess,
-                'retryAttempt'
-            );
-
-            const parsedInitialStrategies = parseJsonSuggestions(initialStrategiesJsonString, 'strategies', NUM_INITIAL_STRATEGIES_MATH);
-            currentProcess.initialStrategies = parsedInitialStrategies.map((stratText, i) => ({
-                id: `main${i}`,
-                strategyText: stratText,
-                subStrategies: [],
-                status: 'pending',
-                isDetailsOpen: true,
-                strategyFormat: 'markdown'
-            }));
-            renderActiveMathPipeline();
-
-            if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped after initial strategies.");
-
-            // Generate sub-strategies for each main strategy
-            await Promise.allSettled(currentProcess.initialStrategies.map(async (mainStrategy, mainIndex) => {
-                if (currentProcess.isStopRequested) {
-                    mainStrategy.status = 'cancelled';
-                    mainStrategy.error = "Process stopped by user.";
-                    return;
-                }
-                try {
-                    mainStrategy.status = 'processing';
-                    renderActiveMathPipeline();
-
-                    const otherMainStrategies = currentProcess.initialStrategies
-                        .filter((_, idx) => idx !== mainIndex)
-                        .map(s => s.strategyText);
-                    const subStrategyUserPrompt = renderPrompt(customPromptsMathState.user_math_subStrategy, {
-                        originalProblemText: problemText,
-                        currentMainStrategy: mainStrategy.strategyText,
-                        otherMainStrategiesStr: otherMainStrategies.join('; ') || "None"
-                    });
-                    const subStrategyPromptParts: Part[] = [{ text: subStrategyUserPrompt }];
-                    if (imageBase64 && imageMimeType) {
-                        subStrategyPromptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-                    }
-                    mainStrategy.requestPromptSubStrategyGen = subStrategyUserPrompt + (imageBase64 ? "\n[Image Provided]" : "");
-
-                    const subStrategiesJsonString = await makeMathApiCall(
-                        subStrategyPromptParts,
-                        customPromptsMathState.sys_math_subStrategy,
-                        true,
-                        `Sub-strategy Gen for Main Strategy ${mainIndex + 1}`,
-                        mainStrategy,
-                        'retryAttempt'
-                    );
-                    const parsedSubStrategies = parseJsonSuggestions(subStrategiesJsonString, 'sub_strategies', NUM_SUB_STRATEGIES_PER_MAIN_MATH);
-                    mainStrategy.subStrategies = parsedSubStrategies.map((subText, j) => ({
-                        id: `main${mainIndex}-sub${j}`,
-                        subStrategyText: subText,
-                        status: 'pending',
-                        isDetailsOpen: true,
-                        selfImprovementStatus: 'pending',
-                        subStrategyFormat: 'markdown'
-                    }));
-                    mainStrategy.status = 'completed';
-                } catch (e: any) {
-                    mainStrategy.status = 'error';
-                    if (!mainStrategy.error) mainStrategy.error = e.message || "Failed to generate sub-strategies for this branch.";
-                    console.error(`Error in sub-strategy gen for MS ${mainIndex + 1}:`, e);
-                } finally {
-                    renderActiveMathPipeline();
-                }
-            }));
-
-            currentProcess.strategicSolverComplete = true;
-            renderActiveMathPipeline();
-
-            // Start Red Team evaluation immediately after strategic solver completes
-            try {
-                await runRedTeamEvaluation(currentProcess, problemText, imageBase64, imageMimeType, makeMathApiCall);
-            } catch (e: any) {
-                console.error("Red Team evaluation failed:", e);
-                currentProcess.redTeamStatus = 'error';
-                currentProcess.redTeamError = e.message || "Red Team evaluation failed";
-                currentProcess.redTeamComplete = true;
-                renderActiveMathPipeline();
-            }
-        })();
-
-        const trackBPromise = (async () => {
-            // Track B: Hypothesis Explorer
-            const hypothesisUserPrompt = renderPrompt(customPromptsMathState.user_math_hypothesisGeneration, { originalProblemText: problemText });
-            const hypothesisPromptParts: Part[] = [{ text: hypothesisUserPrompt }];
-            if (imageBase64 && imageMimeType) {
-                hypothesisPromptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-            }
-            currentProcess.requestPromptHypothesisGen = hypothesisUserPrompt + (imageBase64 ? "\n[Image Provided]" : "");
-
-            currentProcess.hypothesisGenStatus = 'processing';
-            renderActiveMathPipeline();
-
-            const hypothesesJsonString = await makeMathApiCall(
-                hypothesisPromptParts,
-                customPromptsMathState.sys_math_hypothesisGeneration,
-                true,
-                "Hypothesis Generation",
-                currentProcess,
-                'hypothesisGenRetryAttempt'
-            );
-
-            const parsedHypotheses = parseJsonSuggestions(hypothesesJsonString, 'hypotheses', 3);
-            currentProcess.hypotheses = parsedHypotheses.map((hypText, i) => ({
-                id: `hyp${i}`,
-                hypothesisText: hypText,
-                testerStatus: 'pending',
-                finalStatus: 'pending',
-                isDetailsOpen: true
-            }));
-            currentProcess.hypothesisGenStatus = 'completed';
-            renderActiveMathPipeline();
-
-            if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped after hypothesis generation.");
-
-            // Parallel Proof & Refutation for each hypothesis
-            await Promise.allSettled(currentProcess.hypotheses.map(async (hypothesis) => {
-                if (currentProcess.isStopRequested) {
-                    hypothesis.testerStatus = 'cancelled';
-                    hypothesis.finalStatus = 'pending';
-                    return;
-                }
-
-                // Run hypothesis tester
-
-                const testerPromise = (async () => {
-                    try {
-                        const testerUserPrompt = renderPrompt(customPromptsMathState.user_math_hypothesisTester, {
-                            originalProblemText: problemText,
-                            hypothesisText: hypothesis.hypothesisText
-                        });
-                        const testerPromptParts: Part[] = [{ text: testerUserPrompt }];
-                        if (imageBase64 && imageMimeType) {
-                            testerPromptParts.push({
-                                inlineData: {
-                                    data: imageBase64,
-                                    mimeType: imageMimeType
-                                }
-                            });
-                        }
-
-                        hypothesis.testerRequestPrompt = testerUserPrompt;
-                        hypothesis.testerAttempt = await makeMathApiCall(
-                            testerPromptParts,
-                            customPromptsMathState.sys_math_hypothesisTester,
-                            false,
-                            'Hypothesis Testing',
-                            hypothesis,
-                            'testerRetryAttempt'
-                        );
-                        hypothesis.testerStatus = 'completed';
-                    } catch (error) {
-                        console.error('Hypothesis tester error:', error);
-                        hypothesis.testerStatus = 'error';
-                        hypothesis.testerError = error instanceof Error ? error.message : 'Unknown error';
-                        renderActiveMathPipeline();
-                    }
-                })();
-
-                await testerPromise;
-
-                // Determine final status based on hypothesis tester outcome
-                if (hypothesis.testerStatus === 'completed' && hypothesis.testerAttempt) {
-                    const response = hypothesis.testerAttempt.toLowerCase();
-                    if (response.includes('proven') || response.includes('true') || response.includes('correct')) {
-                        hypothesis.finalStatus = 'proven';
-                    } else if (response.includes('refuted') || response.includes('false') || response.includes('counterexample')) {
-                        hypothesis.finalStatus = 'refuted';
-                    } else if (response.includes('contradiction') || response.includes('inconsistent')) {
-                        hypothesis.finalStatus = 'contradiction';
-                    } else if (response.includes('needs further analysis') || response.includes('inconclusive')) {
-                        hypothesis.finalStatus = 'needs_further_analysis';
-                    } else {
-                        hypothesis.finalStatus = 'unresolved';
-                    }
-                } else if (hypothesis.testerStatus === 'error') {
-                    hypothesis.finalStatus = 'unresolved';
-                } else {
-                    hypothesis.finalStatus = 'pending';
-                }
-
-                renderActiveMathPipeline();
-            }));
-
-            currentProcess.hypothesisExplorerComplete = true;
-            renderActiveMathPipeline();
-        })();
-
-        // Phase 2: Synchronization Point (The "Rendezvous")
-        await Promise.allSettled([trackAPromise, trackBPromise]);
-
-        if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped during parallel processing.");
-
-        // Red Team evaluation now happens immediately after Track A completes (moved above)
-
-        // (Old Red Team processing code removed - now handled immediately after Track A completes)
-
-        // Apply Red Team decisions - mark strategies and sub-strategies for elimination
-        currentProcess.redTeamAgents.forEach(redTeamAgent => {
-            if (redTeamAgent.status === 'completed') {
-                // Mark killed main strategies
-                redTeamAgent.killedStrategyIds.forEach(strategyId => {
-                    const strategy = currentProcess.initialStrategies.find(s => s.id === strategyId);
-                    if (strategy) {
-                        strategy.isKilledByRedTeam = true;
-                        strategy.redTeamReason = `Eliminated by Red Team Agent ${redTeamAgent.id}`;
-                    }
-                });
-
-                // Mark killed sub-strategies
-                redTeamAgent.killedSubStrategyIds.forEach(subStrategyId => {
-                    currentProcess.initialStrategies.forEach(strategy => {
-                        const subStrategy = strategy.subStrategies.find(sub => sub.id === subStrategyId);
-                        if (subStrategy) {
-                            subStrategy.isKilledByRedTeam = true;
-                            subStrategy.redTeamReason = `Eliminated by Red Team Agent ${redTeamAgent.id}`;
-                        }
-                    });
-                });
-                
-                // Auto-kill main strategies if all sub-strategies are killed
-                currentProcess.initialStrategies.forEach(strategy => {
-                    const allSubStrategiesKilled = strategy.subStrategies.length > 0 && 
-                        strategy.subStrategies.every(sub => sub.isKilledByRedTeam);
-                    if (allSubStrategiesKilled && !strategy.isKilledByRedTeam) {
-                        strategy.isKilledByRedTeam = true;
-                        strategy.redTeamReason = 'All sub-strategies eliminated by Red Team';
-                    }
-                });
-            }
-        });
-
-        // Check if any Red Team agents completed successfully
-        const successfulRedTeamAgents = currentProcess.redTeamAgents.filter(agent => agent.status === 'completed');
-        const failedRedTeamAgents = currentProcess.redTeamAgents.filter(agent => agent.status === 'error');
-        
-        if (successfulRedTeamAgents.length === 0 && failedRedTeamAgents.length > 0) {
-            console.warn("All Red Team agents failed - proceeding without Red Team evaluation");
-            currentProcess.redTeamError = `All ${failedRedTeamAgents.length} Red Team agents failed. Proceeding with all strategies.`;
-        } else if (failedRedTeamAgents.length > 0) {
-            console.warn(`${failedRedTeamAgents.length} Red Team agents failed, but ${successfulRedTeamAgents.length} succeeded`);
-        }
-
-        currentProcess.redTeamStatus = 'completed';
-        currentProcess.redTeamComplete = true;
-        renderActiveMathPipeline();
-
-        if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped after Red Team evaluation.");
-
-        // Edge case handling: Check if all strategies/sub-strategies were killed (only if Red Team ran successfully)
-        const successfulRedTeamCount = currentProcess.redTeamAgents.filter(agent => agent.status === 'completed').length;
-        if (currentProcess.redTeamAgents.length > 0 && successfulRedTeamCount > 0) {
-            const remainingStrategies = currentProcess.initialStrategies.filter(s => !s.isKilledByRedTeam);
-            const remainingSubStrategies = currentProcess.initialStrategies.flatMap(s => 
-                s.subStrategies.filter(sub => !sub.isKilledByRedTeam)
-            );
-
-            if (remainingStrategies.length === 0) {
-                console.warn("All main strategies were eliminated by Red Team evaluation");
-                currentProcess.status = 'completed';
-                currentProcess.error = "All strategies were eliminated by Red Team evaluation. No solution attempts can be made.";
-                renderActiveMathPipeline();
-                return;
-            }
-
-            if (remainingSubStrategies.length === 0) {
-                console.warn("All sub-strategies were eliminated by Red Team evaluation");
-                currentProcess.status = 'completed';
-                currentProcess.error = "All sub-strategies were eliminated by Red Team evaluation. No solution attempts can be made.";
-                renderActiveMathPipeline();
-                return;
-            }
-
-        } else {
-        }
-
-        // Phase 3: Knowledge Packet Synthesis
-        currentProcess.knowledgePacket = synthesizeKnowledgePacket(currentProcess.hypotheses);
-        renderActiveMathPipeline();
-
-        // Phase 4: Informed Solution & Refinement
-        // Now that both tracks are complete and knowledge packet is synthesized,
-        // proceed with solution attempts using the knowledge packet
-
-        const solutionPromises: Promise<void>[] = [];
-        currentProcess.initialStrategies.forEach((mainStrategy, mainIndex) => {
-            // Skip killed main strategies
-            if (mainStrategy.isKilledByRedTeam) {
-                return;
-            }
-
-            mainStrategy.subStrategies.forEach(async (subStrategy, subIndex) => {
-                if (currentProcess.isStopRequested) {
-                    subStrategy.status = 'cancelled';
-                    subStrategy.error = "Process stopped by user.";
-                    return;
-                }
-
-                // Skip killed sub-strategies
-                if (subStrategy.isKilledByRedTeam) {
-                    subStrategy.status = 'cancelled';
-                    subStrategy.error = subStrategy.redTeamReason || "Eliminated by Red Team evaluation.";
-                    return;
-                }
-                solutionPromises.push((async () => {
-                    try {
-                        subStrategy.status = 'processing';
-                        renderActiveMathPipeline();
-
-                        const solutionUserPrompt = renderPrompt(customPromptsMathState.user_math_solutionAttempt, {
-                            originalProblemText: problemText,
-                            currentSubStrategy: subStrategy.subStrategyText,
-                            knowledgePacket: currentProcess.knowledgePacket || "No hypothesis exploration results available."
-                        });
-                        const solutionPromptParts: Part[] = [{ text: solutionUserPrompt }];
-                        if (imageBase64 && imageMimeType) {
-                            solutionPromptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-                        }
-                        subStrategy.requestPromptSolutionAttempt = solutionUserPrompt + (imageBase64 ? "\n[Image Provided]" : "");
-
-                        const rawSolutionAttempt = await makeMathApiCall(
-                            solutionPromptParts,
-                            customPromptsMathState.sys_math_solutionAttempt,
-                            false,
-                            `Solution Attempt for MS ${mainIndex + 1}, Sub ${subIndex + 1}`,
-                            subStrategy,
-                            'retryAttempt'
-                        );
-                        subStrategy.solutionAttempt = cleanTextOutput(rawSolutionAttempt);
-                        subStrategy.status = 'completed';
-
-                        // Now perform self-improvement and refinement
-                        if (currentProcess.isStopRequested) return;
-
-                        subStrategy.selfImprovementStatus = 'processing';
-                        renderActiveMathPipeline();
-
-                        const selfImprovementUserPrompt = renderPrompt(customPromptsMathState.user_math_selfImprovement, {
-                            originalProblemText: problemText,
-                            currentSubStrategy: subStrategy.subStrategyText,
-                            solutionAttempt: subStrategy.solutionAttempt,
-                            knowledgePacket: currentProcess.knowledgePacket || "No hypothesis exploration results available."
-                        });
-                        const selfImprovementPromptParts: Part[] = [{ text: selfImprovementUserPrompt }];
-                        if (imageBase64 && imageMimeType) {
-                            selfImprovementPromptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-                        }
-                        subStrategy.requestPromptSelfImprovement = selfImprovementUserPrompt + (imageBase64 ? "\n[Image Provided]" : "");
-
-                        const rawRefinedSolution = await makeMathApiCall(
-                            selfImprovementPromptParts,
-                            customPromptsMathState.sys_math_selfImprovement,
-                            false,
-                            `Self-Improvement for MS ${mainIndex + 1}, Sub ${subIndex + 1}`,
-                            subStrategy,
-                            'selfImprovementRetryAttempt'
-                        );
-                        subStrategy.refinedSolution = cleanTextOutput(rawRefinedSolution);
-                        subStrategy.selfImprovementStatus = 'completed';
-
-                    } catch (e: any) {
-                        if (subStrategy.selfImprovementStatus === 'processing') {
-                            subStrategy.selfImprovementStatus = 'error';
-                            if (!subStrategy.selfImprovementError) subStrategy.selfImprovementError = e.message || "Failed to perform self-improvement.";
-                        } else {
-                            subStrategy.status = 'error';
-                            if (!subStrategy.error) subStrategy.error = e.message || "Failed to attempt solution for this sub-strategy.";
-                        }
-                        console.error(`Error in solution/refinement for MS ${mainIndex + 1}, Sub ${subIndex + 1}:`, e);
-                    } finally {
-                        renderActiveMathPipeline();
-                    }
-                })());
-            });
-        });
-        await Promise.allSettled(solutionPromises);
-
-        if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped during solution attempts.");
-
-        // --- Judging Phase 1: Intra-Strategy (using refined solutions) ---
-        const intraStrategyJudgingPromises = currentProcess.initialStrategies.map(async (mainStrategy, mainIndex) => {
-            if (currentProcess.isStopRequested) {
-                mainStrategy.judgingStatus = 'cancelled';
-                return;
-            }
-            
-            // Skip judge if all sub-strategies are killed by red team
-            const allSubStrategiesKilled = mainStrategy.subStrategies.length > 0 && 
-                mainStrategy.subStrategies.every(sub => sub.isKilledByRedTeam);
-            if (allSubStrategiesKilled) {
-                mainStrategy.judgingStatus = 'completed';
-                mainStrategy.judgingError = 'All sub-strategies eliminated by Red Team - skipping judge.';
-                renderActiveMathPipeline();
-                return;
-            }
-            
-            mainStrategy.judgingStatus = 'processing';
-            renderActiveMathPipeline();
-
-            // Use refined solutions instead of original solution attempts
-            const completedSolutions = mainStrategy.subStrategies
-                .filter(ss => ss.selfImprovementStatus === 'completed' && ss.refinedSolution)
-                .map(ss => ({ id: ss.id, solution: ss.refinedSolution! }));
-
-            if (completedSolutions.length === 0) {
-                mainStrategy.judgingStatus = 'completed'; // Completed with no result
-                mainStrategy.judgingError = 'No valid refined solutions from sub-strategies to judge.';
-                renderActiveMathPipeline();
-                return;
-            }
-
-            const sysPromptJudge = `You are 'Mathesis Veritas', an AI Grandmaster of Mathematical Verification and Elegance. Your sole purpose is to analyze multiple proposed solutions to a mathematical problem, identify the most correct, rigorous, and elegant solution, and present it with a clear, step-by-step justification. Your output must be a JSON object.`;
-            const solutionsText = completedSolutions.map((s, i) => `--- REFINED SOLUTION ${i + 1} (ID: ${s.id}) ---\n${s.solution}`).join('\n\n');
-            const userPromptJudge = `Original Problem: ${problemText}\n\nMain Strategy Being Evaluated: "${mainStrategy.strategyText}"\n\nBelow are ${completedSolutions.length} refined and self-improved solutions derived from this main strategy. Your task is:\n1.  Critically analyze each solution for correctness, rigor, clarity, and elegance.\n2.  Identify the single BEST solution that most effectively and correctly solves the problem according to the main strategy.\n3.  Present your final judgment as a JSON object with the following structure: \`{"best_solution_id": "ID of the winning solution", "best_solution_text": "The full text of the winning solution, potentially corrected or clarified by you for perfection.", "reasoning": "A detailed, step-by-step explanation of why this solution is superior to the others."}\`\n\nRefined Solutions:\n${solutionsText}`;
-            mainStrategy.judgingRequestPrompt = userPromptJudge;
-
-            try {
-                const judgingResponseText = await makeMathJudgingApiCall(
-                    currentProcess,
-                    [{ text: userPromptJudge }],
-                    sysPromptJudge,
-                    true,
-                    `Judging for Main Strategy ${mainIndex + 1}`,
-                    mainStrategy,
-                    'intra-strategy'
-                );
-                mainStrategy.judgingResponseText = judgingResponseText;
-                const cleanedJson = cleanOutputByType(judgingResponseText, 'json');
-                const parsed = JSON.parse(cleanedJson);
-
-                if (!parsed.best_solution_id || !parsed.reasoning) {
-                    throw new Error("Judge LLM response is missing critical fields (best_solution_id, reasoning).");
-                }
-
-                mainStrategy.judgedBestSubStrategyId = parsed.best_solution_id;
-                const subStrategyOrigin = mainStrategy.subStrategies.find(s => s.id === parsed.best_solution_id);
-                const subStrategyTitle = subStrategyOrigin ? `from Sub-Strategy originating from "${subStrategyOrigin.subStrategyText.substring(0, 50)}..."` : `from Sub-Strategy ${parsed.best_solution_id}`;
-                
-                // Get the actual solution text from the winning sub-strategy
-                const winningSolution = subStrategyOrigin?.refinedSolution || subStrategyOrigin?.solutionAttempt || 'Solution not found';
-                
-                mainStrategy.judgedBestSolution = `### Judged Best Solution for Strategy ${mainIndex + 1}\n\n**Origin:** ${subStrategyTitle}\n\n**Reasoning for Selection:**\n${parsed.reasoning}\n\n---\n\n**Final Solution Text:**\n${winningSolution}`;
-                mainStrategy.judgingStatus = 'completed';
-
-            } catch (e: any) {
-                mainStrategy.judgingStatus = 'error';
-                mainStrategy.judgingError = e.message || 'Failed to judge solutions.';
-                console.error(`Error judging for MS ${mainIndex + 1}:`, e);
-            } finally {
-                renderActiveMathPipeline();
-            }
-        });
-
-        await Promise.allSettled(intraStrategyJudgingPromises);
-        if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped during intra-strategy judging.");
-
-        // --- Judging Phase 2: Final Verdict ---
-        currentProcess.finalJudgingStatus = 'processing';
-        renderActiveMathPipeline();
-
-        const judgedSolutions = currentProcess.initialStrategies
-            .filter(ms => !ms.isKilledByRedTeam && ms.judgingStatus === 'completed' && ms.judgedBestSolution)
-            .map(ms => ({ id: ms.id, solution: ms.judgedBestSolution! }));
-
-        if (judgedSolutions.length === 0) {
-            currentProcess.finalJudgingStatus = 'error';
-            currentProcess.finalJudgingError = "No successfully judged solutions available for final review.";
-        } else {
-            const sysPromptFinalJudge = `You are 'Mathesis Ultima', the ultimate arbiter of mathematical truth and beauty. You review final candidate solutions from different strategic approaches and select the single most superior solution overall, presenting it with unparalleled clarity and authority. Your output must be a JSON object.`;
-            const finalSolutionsText = judgedSolutions.map((s, i) => `--- CANDIDATE SOLUTION ${i + 1} (from Main Strategy ID: ${s.id}) ---\n${s.solution}`).join('\n\n');
-            const userPromptFinalJudge = `Original Problem: ${problemText}\n\nBelow are ${judgedSolutions.length} final candidate solutions, each being the winner from a different overarching strategic approach. Your task is to select the SINGLE OVERALL BEST solution based on correctness, efficiency, elegance, and clarity.\n\nPresent your final verdict as a JSON object with the following structure: \`{"best_strategy_id": "ID of the winning main strategy", "final_solution_text": "The full text of the absolute best solution, polished to perfection.", "final_reasoning": "A detailed justification for why this solution and its underlying strategy are superior to all other candidates."}\`\n\nFinal Candidate Solutions:\n${finalSolutionsText}`;
-
-            currentProcess.finalJudgingRequestPrompt = userPromptFinalJudge;
-
-            try {
-                const finalJudgingResponseText = await makeMathJudgingApiCall(
-                    currentProcess,
-                    [{ text: userPromptFinalJudge }],
-                    sysPromptFinalJudge,
-                    true,
-                    'Final Judging',
-                    currentProcess,
-                    'final'
-                );
-                currentProcess.finalJudgingResponseText = finalJudgingResponseText;
-                const cleanedJson = cleanOutputByType(finalJudgingResponseText, 'json');
-                const parsed = JSON.parse(cleanedJson);
-
-                if (!parsed.best_strategy_id || !parsed.final_reasoning) {
-                    throw new Error("Final Judge LLM response is missing critical fields (best_strategy_id, final_reasoning).");
-                }
-
-                currentProcess.finalJudgedBestStrategyId = parsed.best_strategy_id;
-                const strategyOrigin = currentProcess.initialStrategies.find(s => s.id === parsed.best_strategy_id);
-                const strategyTitle = strategyOrigin ? `from Strategy originating from "${strategyOrigin.strategyText.substring(0, 60)}..."` : `from Strategy ${parsed.best_strategy_id}`;
-
-                // Get the actual solution text from the winning strategy's best solution
-                const winningStrategy = currentProcess.initialStrategies.find(s => s.id === parsed.best_strategy_id);
-                const winningSolution = winningStrategy?.judgedBestSolution || 'Solution not found';
-
-                currentProcess.finalJudgedBestSolution = `### Final Judged Best Solution\n\n**Origin:** ${strategyTitle}\n\n**Final Reasoning:**\n${parsed.final_reasoning}\n\n---\n\n**Definitive Solution:**\n${winningSolution}`;
-                currentProcess.finalJudgingStatus = 'completed';
-
-            } catch (e: any) {
-                currentProcess.finalJudgingStatus = 'error';
-                currentProcess.finalJudgingError = e.message || "Failed to perform final judging.";
-                console.error(`Error in final judging:`, e);
-            }
-        }
-
-        currentProcess.status = 'completed';
-
-    } catch (error: any) {
-        if (currentProcess) {
-            if (error instanceof PipelineStopRequestedError) {
-                currentProcess.status = 'stopped';
-                currentProcess.error = error.message;
-            } else {
-                currentProcess.status = 'error';
-                currentProcess.error = error.message || "An unknown error occurred in math solver.";
-            }
-        }
-        console.error("Error in Math Solver process:", error);
-    } finally {
-        if (currentProcess && currentProcess.status !== 'processing' && currentProcess.status !== 'stopping') {
-            isGenerating = false;
-            updateControlsState();
-            renderActiveMathPipeline();
-        }
-    }
-}
-// Helper function to apply red team eliminations from imported data
-function applyRedTeamEliminations(currentProcess: MathPipelineState): void {
-    if (!currentProcess.redTeamAgents) return;
-    
-    currentProcess.redTeamAgents.forEach(redTeamAgent => {
-        if (redTeamAgent.status === 'completed' && redTeamAgent.evaluationResponse) {
-            try {
-                // Parse the red team response
-                const redTeamDecision = JSON.parse(redTeamAgent.evaluationResponse);
-                
-                // Parse new format with strategy_evaluations
-                const killedStrategyIds: string[] = [];
-                const killedSubStrategyIds: string[] = [];
-                const reasonMap: {[key: string]: string} = {};
-                
-                if (redTeamDecision.strategy_evaluations && Array.isArray(redTeamDecision.strategy_evaluations)) {
-                    redTeamDecision.strategy_evaluations.forEach((evaluation: any) => {
-                        if (evaluation.decision === 'eliminate') {
-                            const strategyId = evaluation.id;
-                            // Check if this is a main strategy or sub-strategy
-                            if (strategyId.includes('main')) {
-                                if (strategyId.includes('-sub')) {
-                                    killedSubStrategyIds.push(strategyId);
-                                } else {
-                                    killedStrategyIds.push(strategyId);
-                                }
-                            } else {
-                                // Default to sub-strategy for other formats
-                                killedSubStrategyIds.push(strategyId);
-                            }
-                            reasonMap[strategyId] = evaluation.reason || 'Eliminated by Red Team';
-                        }
-                    });
-                }
-                
-                // Apply eliminations to strategies
-                killedStrategyIds.forEach(strategyId => {
-                    const strategy = currentProcess.initialStrategies.find(s => s.id === strategyId);
-                    if (strategy) {
-                        strategy.isKilledByRedTeam = true;
-                        strategy.redTeamReason = reasonMap[strategyId] || `Eliminated by Red Team Agent ${redTeamAgent.id}`;
-                    }
-                });
-
-                // Apply eliminations to sub-strategies
-                killedSubStrategyIds.forEach(subStrategyId => {
-                    currentProcess.initialStrategies.forEach(strategy => {
-                        const subStrategy = strategy.subStrategies.find(sub => sub.id === subStrategyId);
-                        if (subStrategy) {
-                            subStrategy.isKilledByRedTeam = true;
-                            subStrategy.redTeamReason = reasonMap[subStrategyId] || `Eliminated by Red Team Agent ${redTeamAgent.id}`;
-                        }
-                    });
-                });
-                
-            } catch (parseError) {
-                console.warn(`Failed to parse Red Team decision for agent ${redTeamAgent.id}:`, parseError);
-            }
-        }
-    });
-}
-
-// Helper function to run Red Team evaluation for completed strategies
-async function runRedTeamEvaluation(
-    currentProcess: MathPipelineState, 
-    problemText: string, 
-    imageBase64?: string | null, 
-    imageMimeType?: string | null,
-    makeMathApiCall?: any
-): Promise<void> {
-    if (!currentProcess || !makeMathApiCall) return;
-
-    // Ensure we have valid strategies with sub-strategies before proceeding
-    const validStrategies = currentProcess.initialStrategies.filter(s => 
-        s.status === 'completed' && s.subStrategies && s.subStrategies.length > 0
-    );
-
-    if (validStrategies.length === 0) {
-        currentProcess.redTeamStatus = 'completed';
-        currentProcess.redTeamComplete = true;
-        currentProcess.redTeamAgents = [];
-        return;
-    }
-
-    // Initialize Red Team agents - one for each valid strategy
-    currentProcess.redTeamAgents = validStrategies.map((strategy, index) => ({
-        id: `redteam-${index}`,
-        assignedStrategyId: strategy.id,
-        killedStrategyIds: [],
-        killedSubStrategyIds: [],
-        status: 'pending',
-        isDetailsOpen: true
-    }));
-    currentProcess.redTeamStatus = 'processing';
-    renderActiveMathPipeline();
-
-    // Run Red Team agents in parallel
-    await Promise.allSettled(currentProcess.redTeamAgents.map(async (redTeamAgent, agentIndex) => {
-        if (currentProcess.isStopRequested) {
-            redTeamAgent.status = 'cancelled';
-            return;
-        }
-
-        try {
-            redTeamAgent.status = 'processing';
-            renderActiveMathPipeline();
-
-            const assignedStrategy = currentProcess.initialStrategies.find(s => s.id === redTeamAgent.assignedStrategyId);
-            if (!assignedStrategy) {
-                throw new Error(`Could not find assigned strategy ${redTeamAgent.assignedStrategyId}`);
-            }
-
-            // Ensure the strategy has sub-strategies
-            if (!assignedStrategy.subStrategies || assignedStrategy.subStrategies.length === 0) {
-                console.warn(`Strategy ${assignedStrategy.id} has no sub-strategies, Red Team agent will skip evaluation`);
-                redTeamAgent.status = 'completed';
-                redTeamAgent.reasoning = "No sub-strategies to evaluate - strategy passed by default";
-                return;
-            }
-
-            // Format sub-strategies for the prompt
-            const subStrategiesText = assignedStrategy.subStrategies
-                .map((sub, idx) => `${idx + 1}. [ID: ${sub.id}] ${sub.subStrategyText}`)
-                .join('\n\n');
-
-            const redTeamUserPrompt = renderPrompt(customPromptsMathState.user_math_redTeam, {
-                originalProblemText: problemText,
-                assignedStrategy: `[ID: ${assignedStrategy.id}] ${assignedStrategy.strategyText}`,
-                subStrategies: subStrategiesText
-            });
-            const redTeamPromptParts: Part[] = [{ text: redTeamUserPrompt }];
-            if (imageBase64 && imageMimeType) {
-                redTeamPromptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-            }
-            redTeamAgent.requestPrompt = redTeamUserPrompt + (imageBase64 ? "\n[Image Provided]" : "");
-
-            const redTeamResponse = await makeMathApiCall(
-                redTeamPromptParts,
-                customPromptsMathState.sys_math_redTeam,
-                true,
-                `Red Team Agent ${agentIndex + 1}`,
-                redTeamAgent,
-                'retryAttempt'
-            );
-
-            redTeamAgent.evaluationResponse = cleanTextOutput(redTeamResponse);
-            
-            // Parse Red Team decision with enhanced error handling and validation
-            try {
-                
-                // Clean the response to ensure it's valid JSON
-                let cleanedResponse = redTeamResponse.trim();
-                
-                // Remove any markdown code blocks, extra text, and common prefixes
-                cleanedResponse = cleanedResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-                cleanedResponse = cleanedResponse.replace(/^[^{]*/, '').replace(/[^}]*$/, '');
-                
-                // Find the JSON object boundaries with better validation
-                const jsonStart = cleanedResponse.indexOf('{');
-                const jsonEnd = cleanedResponse.lastIndexOf('}');
-                
-                if (jsonStart === -1 || jsonEnd === -1 || jsonStart >= jsonEnd) {
-                    throw new Error(`No valid JSON object boundaries found. Start: ${jsonStart}, End: ${jsonEnd}`);
-                }
-                
-                cleanedResponse = cleanedResponse.substring(jsonStart, jsonEnd + 1);
-                
-                // Validate JSON structure before parsing
-                if (!cleanedResponse.includes('"strategy_evaluations"')) {
-                    throw new Error('Missing required "strategy_evaluations" field in JSON response');
-                }
-                
-                const redTeamDecision = JSON.parse(cleanedResponse);
-                
-                // Validate the parsed JSON structure
-                if (!redTeamDecision || typeof redTeamDecision !== 'object') {
-                    throw new Error('Parsed JSON is not a valid object');
-                }
-                
-                if (!Array.isArray(redTeamDecision.strategy_evaluations)) {
-                    throw new Error('strategy_evaluations is not an array or is missing');
-                }
-                redTeamAgent.reasoning = redTeamDecision.challenge || redTeamDecision.evaluation_summary || redTeamDecision.summary || '';
-                
-                // Parse strategy evaluations with comprehensive validation
-                const killedStrategyIds: string[] = [];
-                const killedSubStrategyIds: string[] = [];
-                const reasonMap: {[key: string]: string} = {};
-                let validEvaluations = 0;
-                let eliminationCount = 0;
-                
-                redTeamDecision.strategy_evaluations.forEach((evaluation: any, evalIndex: number) => {
-                    // Validate each evaluation object
-                    if (!evaluation || typeof evaluation !== 'object') {
-                        console.warn(`Red Team agent ${agentIndex + 1}: Invalid evaluation object at index ${evalIndex}`);
-                        return;
-                    }
-                    
-                    if (!evaluation.id || typeof evaluation.id !== 'string') {
-                        console.warn(`Red Team agent ${agentIndex + 1}: Missing or invalid ID in evaluation ${evalIndex}`);
-                        return;
-                    }
-                    
-                    if (!evaluation.decision || typeof evaluation.decision !== 'string') {
-                        console.warn(`Red Team agent ${agentIndex + 1}: Missing or invalid decision in evaluation ${evalIndex}`);
-                        return;
-                    }
-                    
-                    validEvaluations++;
-                    
-                    if (evaluation.decision.toLowerCase() === 'eliminate') {
-                        eliminationCount++;
-                        const strategyId = evaluation.id;
-                        
-                        // Improved strategy type detection
-                        if (strategyId.includes('main')) {
-                            if (strategyId.includes('-sub')) {
-                                killedSubStrategyIds.push(strategyId);
-                            } else {
-                                killedStrategyIds.push(strategyId);
-                            }
-                        } else {
-                            // Default to sub-strategy for other formats
-                            killedSubStrategyIds.push(strategyId);
-                        }
-                        
-                        reasonMap[strategyId] = evaluation.reason || evaluation.reasoning || 'Eliminated by Red Team';
-                    }
-                });
-                
-                
-                redTeamAgent.killedStrategyIds = killedStrategyIds;
-                redTeamAgent.killedSubStrategyIds = killedSubStrategyIds;
-                (redTeamAgent as any).killedReasonMap = reasonMap;
-                
-                // Final validation of results
-                if (validEvaluations === 0) {
-                    throw new Error('No valid strategy evaluations found in response');
-                }
-                
-                
-            } catch (parseError) {
-                console.error(`CRITICAL: Failed to parse Red Team decision for agent ${agentIndex + 1}:`, parseError);
-                console.error('Raw response length:', redTeamResponse.length);
-                console.error('Raw response preview:', redTeamResponse.substring(0, 500));
-                
-                // Enhanced fallback with multiple parsing strategies
-                redTeamAgent.reasoning = `JSON parsing failed. Error: ${parseError}. Attempting fallback text analysis.`;
-                
-                const killedStrategyIds: string[] = [];
-                const killedSubStrategyIds: string[] = [];
-                let fallbackSuccess = false;
-                
-                // Strategy 1: Try to find and fix common JSON issues
-                try {
-                    let fixedResponse = redTeamResponse.trim();
-                    // Remove markdown and common prefixes
-                    fixedResponse = fixedResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-                    fixedResponse = fixedResponse.replace(/^[^{]*/, '').replace(/[^}]*$/, '');
-                    
-                    // Try to fix common JSON issues
-                    fixedResponse = fixedResponse.replace(/,\s*}/g, '}'); // Remove trailing commas
-                    fixedResponse = fixedResponse.replace(/,\s*]/g, ']'); // Remove trailing commas in arrays
-                    
-                    const fixedDecision = JSON.parse(fixedResponse);
-                    if (fixedDecision.strategy_evaluations && Array.isArray(fixedDecision.strategy_evaluations)) {
-                        fixedDecision.strategy_evaluations.forEach((evaluation: any) => {
-                            if (evaluation.decision === 'eliminate' && evaluation.id) {
-                                if (evaluation.id.includes('-sub')) {
-                                    killedSubStrategyIds.push(evaluation.id);
-                                } else {
-                                    killedStrategyIds.push(evaluation.id);
-                                }
-                            }
-                        });
-                        fallbackSuccess = true;
-                    }
-                } catch (fixError) {
-                }
-                
-                // Strategy 2: Pattern-based extraction if JSON fix failed
-                if (!fallbackSuccess) {
-                    const eliminatePattern = /"decision":\s*"eliminate"/gi;
-                    const idPattern = /"id":\s*"([^"]+)"/gi;
-                    
-                    let match;
-                    const eliminateMatches = [];
-                    while ((match = eliminatePattern.exec(redTeamResponse)) !== null) {
-                        eliminateMatches.push(match.index);
-                    }
-                    
-                    eliminateMatches.forEach(eliminateIndex => {
-                        // Look backwards for the nearest ID
-                        const beforeText = redTeamResponse.substring(Math.max(0, eliminateIndex - 300), eliminateIndex);
-                        const idMatch = beforeText.match(/"id":\s*"([^"]+)"/);  
-                        if (idMatch) {
-                            const strategyId = idMatch[1];
-                            if (strategyId.includes('-sub')) {
-                                killedSubStrategyIds.push(strategyId);
-                            } else {
-                                killedStrategyIds.push(strategyId);
-                            }
-                        }
-                    });
-                    
-                    if (eliminateMatches.length > 0) {
-                        fallbackSuccess = true;
-                    }
-                }
-                
-                redTeamAgent.killedStrategyIds = killedStrategyIds;
-                redTeamAgent.killedSubStrategyIds = killedSubStrategyIds;
-                (redTeamAgent as any).fallbackReason = 'Extracted via fallback parsing due to JSON format issues';
-                
-                if (fallbackSuccess) {
-                } else {
-                        redTeamAgent.reasoning += ' All fallback strategies failed.';
-                }
-            }
-
-            redTeamAgent.status = 'completed';
-        } catch (e: any) {
-            redTeamAgent.status = 'error';
-            redTeamAgent.error = e.message || `Failed to run Red Team Agent ${agentIndex + 1}.`;
-            console.error(`Error in Red Team Agent ${agentIndex + 1}:`, e);
-        } finally {
-            renderActiveMathPipeline();
-        }
-    }));
-
-    // Apply Red Team decisions - mark strategies and sub-strategies for elimination
-    currentProcess.redTeamAgents.forEach(redTeamAgent => {
-        if (redTeamAgent.status === 'completed') {
-            // Mark killed main strategies
-            redTeamAgent.killedStrategyIds.forEach(strategyId => {
-                const strategy = currentProcess.initialStrategies.find(s => s.id === strategyId);
-                if (strategy) {
-                    strategy.isKilledByRedTeam = true;
-                    const reasonMap = (redTeamAgent as any).killedReasonMap || {};
-                    const fallback = (redTeamAgent as any).fallbackReason || `Eliminated by Red Team Agent ${redTeamAgent.id}`;
-                    strategy.redTeamReason = reasonMap[strategyId] || fallback;
-                }
-            });
-
-            // Mark killed sub-strategies
-            redTeamAgent.killedSubStrategyIds.forEach(subStrategyId => {
-                currentProcess.initialStrategies.forEach(strategy => {
-                    const subStrategy = strategy.subStrategies.find(sub => sub.id === subStrategyId);
-                    if (subStrategy) {
-                        subStrategy.isKilledByRedTeam = true;
-                        const reasonMap = (redTeamAgent as any).killedReasonMap || {};
-                        const fallback = (redTeamAgent as any).fallbackReason || `Eliminated by Red Team Agent ${redTeamAgent.id}`;
-                        subStrategy.redTeamReason = reasonMap[subStrategyId] || fallback;
-                    }
-                });
-            });
-        }
-    });
-
-    // Check if any Red Team agents completed successfully
-    const successfulRedTeamAgents = currentProcess.redTeamAgents.filter(agent => agent.status === 'completed');
-    const failedRedTeamAgents = currentProcess.redTeamAgents.filter(agent => agent.status === 'error');
-    
-    if (successfulRedTeamAgents.length === 0 && failedRedTeamAgents.length > 0) {
-        console.warn("All Red Team agents failed - proceeding without Red Team evaluation");
-        currentProcess.redTeamError = `All ${failedRedTeamAgents.length} Red Team agents failed. Proceeding with all strategies.`;
-    } else if (failedRedTeamAgents.length > 0) {
-        console.warn(`${failedRedTeamAgents.length} Red Team agents failed, but ${successfulRedTeamAgents.length} succeeded`);
-    }
-
-    currentProcess.redTeamStatus = 'completed';
-    currentProcess.redTeamComplete = true;
-    renderActiveDeepthinkPipeline();
-
-}
-
-// Helper function to run Red Team evaluation for completed deepthink strategies
-async function runDeepthinkRedTeamEvaluation(
-    currentProcess: DeepthinkPipelineState, 
-    problemText: string, 
-    imageBase64?: string | null, 
-    imageMimeType?: string | null,
-    makeDeepthinkApiCall?: any
-): Promise<void> {
-    if (!currentProcess || !makeDeepthinkApiCall) return;
-
-    // Debug: Log all strategies and their status
-    // Iterate through strategies (intentionally empty for now)
-
-    // Ensure we have valid strategies with sub-strategies before proceeding
-    const validStrategies = currentProcess.initialStrategies.filter(s => 
-        s.status === 'completed' && s.subStrategies && s.subStrategies.length > 0
-    );
-
-
-    if (validStrategies.length === 0) {
-        currentProcess.redTeamStatus = 'completed';
-        currentProcess.redTeamComplete = true;
-        currentProcess.redTeamAgents = [];
-        renderActiveDeepthinkPipeline();
-        return;
-    }
-
-    // Initialize Red Team agents - one for each valid strategy
-    currentProcess.redTeamAgents = validStrategies.map((strategy, index) => ({
-        id: `redteam-${index}`,
-        assignedStrategyId: strategy.id,
-        killedStrategyIds: [],
-        killedSubStrategyIds: [],
-        status: 'pending',
-        isDetailsOpen: true
-    }));
-    currentProcess.redTeamStatus = 'processing';
-    renderActiveDeepthinkPipeline();
-
-    // Run Red Team agents in parallel
-    await Promise.allSettled(currentProcess.redTeamAgents.map(async (redTeamAgent, agentIndex) => {
-        if (currentProcess.isStopRequested) {
-            redTeamAgent.status = 'cancelled';
-            return;
-        }
-
-        try {
-            redTeamAgent.status = 'processing';
-            renderActiveDeepthinkPipeline();
-
-            const assignedStrategy = currentProcess.initialStrategies.find(s => s.id === redTeamAgent.assignedStrategyId);
-            if (!assignedStrategy) {
-                throw new Error(`Could not find assigned strategy ${redTeamAgent.assignedStrategyId}`);
-            }
-
-            // Ensure the strategy has sub-strategies
-            if (!assignedStrategy.subStrategies || assignedStrategy.subStrategies.length === 0) {
-                console.warn(`Strategy ${assignedStrategy.id} has no sub-strategies, Red Team agent will skip evaluation`);
-                redTeamAgent.status = 'completed';
-                redTeamAgent.reasoning = "No sub-strategies to evaluate - strategy passed by default";
-                return;
-            }
-
-            // Format sub-strategies for the prompt
-            const subStrategiesText = assignedStrategy.subStrategies
-                .map((sub, idx) => `${idx + 1}. [ID: ${sub.id}] ${sub.subStrategyText}`)
-                .join('\n\n');
-
-            const redTeamPrompt = customPromptsDeepthinkState.user_deepthink_redTeam
-                .replace('{{originalProblemText}}', problemText)
-                .replace('{{assignedStrategy}}', `[ID: ${assignedStrategy.id}] ${assignedStrategy.strategyText}`)
-                .replace('{{subStrategies}}', subStrategiesText);
-
-            const redTeamPromptParts: Part[] = [{ text: redTeamPrompt }];
-            if (imageBase64 && imageMimeType) {
-                redTeamPromptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-            }
-            redTeamAgent.requestPrompt = redTeamPrompt + (imageBase64 ? "\n[Image Provided]" : "");
-
-            const redTeamResponse = await makeDeepthinkApiCall(
-                redTeamPromptParts,
-                customPromptsDeepthinkState.sys_deepthink_redTeam,
-                true,
-                `Red Team Agent ${agentIndex + 1}`,
-                redTeamAgent,
-                'retryAttempt'
-            );
-
-            redTeamAgent.evaluationResponse = cleanTextOutput(redTeamResponse);
-            
-            // Parse Red Team decision (align with Math mode: handle strategy_evaluations + robust JSON cleaning)
-            try {
-                // Clean the response to ensure it's valid JSON
-                let cleanedResponse = redTeamResponse.trim();
-                cleanedResponse = cleanedResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-                cleanedResponse = cleanedResponse.replace(/^[^{]*/, '').replace(/[^}]*$/, '');
-
-                // Find JSON object boundaries
-                const jsonStart = cleanedResponse.indexOf('{');
-                const jsonEnd = cleanedResponse.lastIndexOf('}');
-                if (jsonStart === -1 || jsonEnd === -1 || jsonStart >= jsonEnd) {
-                    throw new Error(`No valid JSON object boundaries found. Start: ${jsonStart}, End: ${jsonEnd}`);
-                }
-                cleanedResponse = cleanedResponse.substring(jsonStart, jsonEnd + 1);
-
-                const parsed = JSON.parse(cleanedResponse);
-
-                // Optional overall reasoning field(s) - ensure we always have something to display
-                // Extract reasoning from strategy evaluations if no top-level reasoning exists
-                let extractedReasoning = parsed.challenge || parsed.evaluation_summary || parsed.summary || parsed.overall_reasoning || '';
-                
-                if (!extractedReasoning && parsed.strategy_evaluations && Array.isArray(parsed.strategy_evaluations)) {
-                    // Build reasoning from individual strategy decisions
-                    const reasoningParts = parsed.strategy_evaluations.map((evaluation: any) => 
-                        `${evaluation.id}: ${evaluation.decision} - ${evaluation.reason || 'No reason provided'}`
-                    );
-                    extractedReasoning = reasoningParts.join('\n\n');
-                }
-                
-                redTeamAgent.reasoning = extractedReasoning || redTeamAgent.evaluationResponse || 'Red Team evaluation completed';
-
-                // Preferred path: strategy_evaluations array of {id, decision, reason}
-                const killedStrategyIds: string[] = [];
-                const killedSubStrategyIds: string[] = [];
-                const reasonMap: { [key: string]: string } = {};
-
-                if (Array.isArray(parsed.strategy_evaluations)) {
-                    parsed.strategy_evaluations.forEach((evaluation: any) => {
-                        if (!evaluation || typeof evaluation !== 'object') return;
-                        const decision = String(evaluation.decision || '').toLowerCase();
-                        const id = typeof evaluation.id === 'string' ? evaluation.id : '';
-                        if (!id) return;
-                        if (decision === 'eliminate') {
-                            if (id.includes('main')) {
-                                if (id.includes('-sub')) killedSubStrategyIds.push(id); else killedStrategyIds.push(id);
-                            } else {
-                                killedSubStrategyIds.push(id);
-                            }
-                            reasonMap[id] = evaluation.reason || evaluation.reasoning || 'Eliminated by Red Team';
-                        }
-                    });
-                } else {
-                    // Back-compat path: killed_* arrays (strings or {id, reason})
-                    const toIds = (arr: any): string[] => Array.isArray(arr) ? arr.map((x: any) => typeof x === 'string' ? x : (x?.id ?? '')).filter(Boolean) : [];
-                    const collectReasons = (arr: any) => {
-                        if (!Array.isArray(arr)) return;
-                        arr.forEach((x: any) => { if (x && typeof x === 'object' && x.id && x.reason) reasonMap[x.id] = String(x.reason); });
-                    };
-                    const ks = parsed.killed_strategy_ids || parsed.eliminated_strategies || parsed.killedStrategies || [];
-                    const kss = parsed.killed_substrategy_ids || parsed.eliminated_sub_strategies || parsed.killedSubStrategies || [];
-                    const ksDetails = parsed.killed_strategy_details || parsed.eliminated_strategy_details || [];
-                    const kssDetails = parsed.killed_substrategy_details || parsed.eliminated_substrategy_details || parsed.eliminated_sub_strategy_details || [];
-                    killedStrategyIds.push(...toIds(ks));
-                    killedSubStrategyIds.push(...toIds(kss));
-                    collectReasons(ksDetails);
-                    collectReasons(kssDetails);
-                }
-
-                redTeamAgent.killedStrategyIds = killedStrategyIds;
-                redTeamAgent.killedSubStrategyIds = killedSubStrategyIds;
-                (redTeamAgent as any).killedReasonMap = reasonMap;
-                (redTeamAgent as any).fallbackReason = redTeamAgent.reasoning || 'Eliminated by Red Team';
-            } catch (parseError) {
-                console.warn(`Failed to parse Red Team decision for agent ${agentIndex + 1}:`, parseError);
-                // If parsing fails, try to extract useful information from text response
-                redTeamAgent.reasoning = `JSON parsing failed. Raw response: ${redTeamAgent.evaluationResponse.substring(0, 500)}...`;
-                // Conservative approach: assume no strategies are killed if we can't parse
-                redTeamAgent.killedStrategyIds = [];
-                redTeamAgent.killedSubStrategyIds = [];
-                (redTeamAgent as any).killedReasonMap = {};
-                (redTeamAgent as any).fallbackReason = 'Eliminated by Red Team';
-            }
-
-            redTeamAgent.status = 'completed';
-        } catch (e: any) {
-            redTeamAgent.status = 'error';
-            redTeamAgent.error = e.message || `Failed to run Red Team Agent ${agentIndex + 1}.`;
-            console.error(`Error in Red Team Agent ${agentIndex + 1}:`, e);
-        } finally {
-            renderActiveDeepthinkPipeline();
-        }
-    }));
-
-    // Apply Red Team decisions - mark strategies and sub-strategies for elimination
-    currentProcess.redTeamAgents.forEach(redTeamAgent => {
-        if (redTeamAgent.status === 'completed') {
-            const reasonMap = (redTeamAgent as any).killedReasonMap || {};
-            const fallbackReason = (redTeamAgent as any).fallbackReason || `Eliminated by Red Team Agent ${redTeamAgent.id}`;
-            
-            // Mark killed main strategies
-            redTeamAgent.killedStrategyIds.forEach(strategyId => {
-                const strategy = currentProcess.initialStrategies.find(s => s.id === strategyId);
-                if (strategy) {
-                    strategy.isKilledByRedTeam = true;
-                    strategy.redTeamReason = reasonMap[strategyId] || fallbackReason;
-                }
-            });
-
-            // Mark killed sub-strategies
-            redTeamAgent.killedSubStrategyIds.forEach(subStrategyId => {
-                currentProcess.initialStrategies.forEach(strategy => {
-                    const subStrategy = strategy.subStrategies.find(sub => sub.id === subStrategyId);
-                    if (subStrategy) {
-                        subStrategy.isKilledByRedTeam = true;
-                        subStrategy.redTeamReason = reasonMap[subStrategyId] || fallbackReason;
-                    }
-                });
-            });
-            
-            // Auto-kill main strategies if all sub-strategies are killed
-            currentProcess.initialStrategies.forEach(strategy => {
-                const allSubStrategiesKilled = strategy.subStrategies.length > 0 && 
-                    strategy.subStrategies.every(sub => sub.isKilledByRedTeam);
-                if (allSubStrategiesKilled && !strategy.isKilledByRedTeam) {
-                    strategy.isKilledByRedTeam = true;
-                    strategy.redTeamReason = 'All sub-strategies eliminated by Red Team';
-                }
-            });
-        }
-    });
-
-    // Check if any Red Team agents completed successfully
-    const successfulRedTeamAgents = currentProcess.redTeamAgents.filter(agent => agent.status === 'completed');
-    const failedRedTeamAgents = currentProcess.redTeamAgents.filter(agent => agent.status === 'error');
-    
-    if (successfulRedTeamAgents.length === 0 && failedRedTeamAgents.length > 0) {
-        console.warn("All Red Team agents failed - proceeding without Red Team evaluation");
-        currentProcess.redTeamError = `All ${failedRedTeamAgents.length} Red Team agents failed. Proceeding with all strategies.`;
-    } else if (failedRedTeamAgents.length > 0) {
-        console.warn(`${failedRedTeamAgents.length} Red Team agents failed, but ${successfulRedTeamAgents.length} succeeded`);
-    }
-
-    currentProcess.redTeamStatus = 'completed';
-    currentProcess.redTeamComplete = true;
-    renderActiveDeepthinkPipeline();
-
-}
-
-// Helper function to synthesize knowledge packet from hypothesis exploration results
-function synthesizeKnowledgePacket(hypotheses: MathHypothesisData[]): string {
-    if (!hypotheses || hypotheses.length === 0) {
-        return "No hypothesis exploration results available.";
-    }
-
-    let knowledgePacket = "";
-
-    hypotheses.forEach((hypothesis, index) => {
-        const statusText = hypothesis.finalStatus.toUpperCase();
-        let guidance = "";
-
-        switch (hypothesis.finalStatus) {
-            case 'proven':
-                guidance = "You may use this as an established fact without proof.";
-                break;
-            case 'refuted':
-                guidance = "A counterexample was found. Do NOT assume this statement is true. Avoid reasoning paths that require it.";
-                break;
-            case 'unresolved':
-                guidance = "This remains an open question. If your solution relies on this, you must explicitly state it as a conditional assumption.";
-                break;
-            case 'contradiction':
-                guidance = "Both proof and counterexample attempts were made, indicating potential logical inconsistency. Treat with extreme caution.";
-                break;
-            default:
-                guidance = "Status unclear. Proceed with caution.";
-        }
-
-        knowledgePacket += `[${statusText}] Hypothesis ${index + 1}: ${hypothesis.hypothesisText}\n`;
-        knowledgePacket += `- GUIDANCE: ${guidance}\n`;
-
-        if (hypothesis.testerAttempt && (hypothesis.finalStatus === 'proven' || hypothesis.finalStatus === 'refuted')) {
-            const summaryLabel = hypothesis.finalStatus === 'proven' ? 'PROOF SUMMARY' : 'ANALYSIS SUMMARY';
-            knowledgePacket += `- ${summaryLabel}: ${hypothesis.testerAttempt.substring(0, 200)}${hypothesis.testerAttempt.length > 200 ? '...' : ''}\n`;
-        }
-
-        knowledgePacket += "\n";
-    });
-
-    return knowledgePacket;
-}
-// Helper function for math judging API calls (similar to makeMathApiCall but specialized for judging)
-async function makeMathJudgingApiCall(
-    currentProcess: MathPipelineState,
-    parts: Part[],
-    systemInstruction: string,
-    isJson: boolean,
-    stepDescription: string,
-    targetStatusField: MathMainStrategyData | MathPipelineState,
-    judgingType: 'intra-strategy' | 'final'
-): Promise<string> {
-    if (!currentProcess || currentProcess.isStopRequested) throw new PipelineStopRequestedError(`Stop requested before API call: ${stepDescription}`);
-    let responseText = "";
-
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        if (currentProcess.isStopRequested) throw new PipelineStopRequestedError(`Stop requested during retry for: ${stepDescription}`);
-
-        // Set retry attempt and status based on judging type
-        if (judgingType === 'intra-strategy' && 'judgingRetryAttempt' in targetStatusField) {
-            targetStatusField.judgingRetryAttempt = attempt;
-            targetStatusField.judgingStatus = attempt > 0 ? 'retrying' : 'processing';
-        } else if (judgingType === 'final' && 'finalJudgingRetryAttempt' in targetStatusField) {
-            targetStatusField.finalJudgingRetryAttempt = attempt;
-            targetStatusField.finalJudgingStatus = attempt > 0 ? 'retrying' : 'processing';
-        }
-
-        renderActiveMathPipeline();
-
-        if (attempt > 0) await new Promise(resolve => setTimeout(resolve, INITIAL_DELAY_MS * Math.pow(BACKOFF_FACTOR, attempt)));
-
-        try {
-            const apiResponse = await callGemini(parts, getSelectedTemperature(), getSelectedModel(), systemInstruction, isJson, getSelectedTopP());
-            responseText = apiResponse.text;
-
-            // Reset status to processing after successful call
-            if (judgingType === 'intra-strategy' && 'judgingStatus' in targetStatusField) {
-                targetStatusField.judgingStatus = 'processing';
-            } else if (judgingType === 'final' && 'finalJudgingStatus' in targetStatusField) {
-                targetStatusField.finalJudgingStatus = 'processing';
-            }
-
-            renderActiveMathPipeline();
-            return responseText;
-        } catch (e: any) {
-            console.warn(`Math Solver (${stepDescription}), Attempt ${attempt + 1} failed: ${e.message}`);
-
-            // Set appropriate error field
-            if (judgingType === 'intra-strategy' && 'judgingError' in targetStatusField) {
-                targetStatusField.judgingError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
-            } else if (judgingType === 'final' && 'finalJudgingError' in targetStatusField) {
-                targetStatusField.finalJudgingError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
-            }
-
-            renderActiveMathPipeline();
-            if (attempt === MAX_RETRIES) {
-                if (judgingType === 'intra-strategy' && 'judgingError' in targetStatusField) {
-                    targetStatusField.judgingError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
-                } else if (judgingType === 'final' && 'finalJudgingError' in targetStatusField) {
-                    targetStatusField.finalJudgingError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
-                }
-                throw e;
-            }
-        }
-    }
-    throw new Error(`API call for ${stepDescription} failed all retries.`);
-}
-
-// Helper function for deepthink judging API calls (similar to makeMathJudgingApiCall but specialized for deepthink judging)
-async function makeDeepthinkJudgingApiCall(
-    currentProcess: DeepthinkPipelineState,
-    parts: Part[],
-    systemInstruction: string,
-    isJson: boolean,
-    stepDescription: string,
-    targetStatusField: DeepthinkMainStrategyData | DeepthinkPipelineState,
-    judgingType: 'intra-strategy' | 'final'
-): Promise<string> {
-    if (!currentProcess || currentProcess.isStopRequested) throw new PipelineStopRequestedError(`Stop requested before API call: ${stepDescription}`);
-    let responseText = "";
-
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        if (currentProcess.isStopRequested) throw new PipelineStopRequestedError(`Stop requested during retry for: ${stepDescription}`);
-
-        // Set retry attempt and status based on judging type
-        if (judgingType === 'intra-strategy' && 'judgingRetryAttempt' in targetStatusField) {
-            targetStatusField.judgingRetryAttempt = attempt;
-            targetStatusField.judgingStatus = attempt > 0 ? 'retrying' : 'processing';
-        } else if (judgingType === 'final' && 'finalJudgingRetryAttempt' in targetStatusField) {
-            targetStatusField.finalJudgingRetryAttempt = attempt;
-            targetStatusField.finalJudgingStatus = attempt > 0 ? 'retrying' : 'processing';
-        }
-
-        renderActiveDeepthinkPipeline();
-
-        if (attempt > 0) await new Promise(resolve => setTimeout(resolve, INITIAL_DELAY_MS * Math.pow(BACKOFF_FACTOR, attempt)));
-
-        try {
-            const apiResponse = await callGemini(parts, getSelectedTemperature(), getSelectedModel(), systemInstruction, isJson, getSelectedTopP());
-            responseText = apiResponse.text;
-
-            // Reset status to processing after successful call
-            if (judgingType === 'intra-strategy' && 'judgingStatus' in targetStatusField) {
-                targetStatusField.judgingStatus = 'processing';
-            } else if (judgingType === 'final' && 'finalJudgingStatus' in targetStatusField) {
-                targetStatusField.finalJudgingStatus = 'processing';
-            }
-
-            renderActiveDeepthinkPipeline();
-            return responseText;
-        } catch (e: any) {
-            console.warn(`Deepthink Solver (${stepDescription}), Attempt ${attempt + 1} failed: ${e.message}`);
-
-            // Set appropriate error field
-            if (judgingType === 'intra-strategy' && 'judgingError' in targetStatusField) {
-                targetStatusField.judgingError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
-            } else if (judgingType === 'final' && 'finalJudgingError' in targetStatusField) {
-                targetStatusField.finalJudgingError = `Attempt ${attempt + 1} for ${stepDescription} failed: ${e.message || 'Unknown API error'}`;
-            }
-
-            renderActiveDeepthinkPipeline();
-            if (attempt === MAX_RETRIES) {
-                if (judgingType === 'intra-strategy' && 'judgingError' in targetStatusField) {
-                    targetStatusField.judgingError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
-                } else if (judgingType === 'final' && 'finalJudgingError' in targetStatusField) {
-                    targetStatusField.finalJudgingError = `Failed ${stepDescription} after ${MAX_RETRIES + 1} attempts: ${e.message || 'Unknown API error'}`;
-                }
-                throw e;
-            }
-        }
-    }
-    throw new Error(`API call for ${stepDescription} failed all retries.`);
-}
-
-function openSolutionModal(subStrategyId: string) {
-    const subStrategy = activeMathPipeline?.initialStrategies.flatMap(ms => ms.subStrategies).find(ss => ss.id === subStrategyId);
-    if (!subStrategy) return;
-
-    const modalOverlay = document.createElement('div');
-    modalOverlay.id = 'solution-modal-overlay';
-    modalOverlay.className = 'modal-overlay';
-    modalOverlay.style.display = 'flex';
-
-    const modalContent = document.createElement('div');
-    modalContent.className = 'modal-content';
-    modalContent.setAttribute('role', 'dialog');
-    modalContent.setAttribute('aria-modal', 'true');
-    modalContent.setAttribute('aria-labelledby', 'solution-modal-title');
-
-    const modalHeader = document.createElement('header');
-    modalHeader.className = 'modal-header';
-
-    const modalTitle = document.createElement('h2');
-    modalTitle.id = 'solution-modal-title';
-    modalTitle.className = 'modal-title';
-    modalTitle.textContent = 'Solution Details';
-    modalHeader.appendChild(modalTitle);
-
-    const closeModalButton = document.createElement('button');
-    closeModalButton.className = 'modal-close-button';
-    closeModalButton.setAttribute('aria-label', 'Close Solution Modal');
-    closeModalButton.innerHTML = '<span class="material-symbols-outlined">close</span>';
-    closeModalButton.addEventListener('click', closeSolutionModal);
-    modalHeader.appendChild(closeModalButton);
-
-    modalContent.appendChild(modalHeader);
-
-    const modalBody = document.createElement('div');
-    modalBody.className = 'modal-body';
-
-    // Direct content without sidebar
-    const solutionContent = document.createElement('div');
-    solutionContent.className = 'modal-direct-content';
-    solutionContent.style.height = 'calc(100vh - 120px)';
-    solutionContent.style.padding = '20px';
-
-    // Direct solution content
-    const solutionDirectContent = document.createElement('div');
-    solutionDirectContent.className = 'solution-direct-content';
-    solutionDirectContent.style.height = '100%';
-    solutionDirectContent.style.display = 'flex';
-    solutionDirectContent.style.flexDirection = 'column';
-    
-    const solutionComparison = document.createElement('div');
-    solutionComparison.className = 'solution-comparison-grid';
-    solutionComparison.style.display = 'grid';
-    solutionComparison.style.gridTemplateColumns = '1fr 1fr';
-    solutionComparison.style.gap = '20px';
-    solutionComparison.style.height = '100%';
-    solutionComparison.style.minHeight = '0';
-    
-    const leftPanel = document.createElement('div');
-    leftPanel.className = 'comparison-panel';
-    leftPanel.style.display = 'flex';
-    leftPanel.style.flexDirection = 'column';
-    leftPanel.style.border = '1px solid #333';
-    leftPanel.style.borderRadius = '8px';
-    leftPanel.style.overflow = 'hidden';
-    const leftHeader = document.createElement('div');
-    leftHeader.className = 'comparison-panel-header';
-    leftHeader.style.display = 'flex';
-    leftHeader.style.justifyContent = 'space-between';
-    leftHeader.style.alignItems = 'center';
-    leftHeader.style.padding = '12px 16px';
-    leftHeader.style.background = 'rgba(15, 17, 32, 0.4)';
-    leftHeader.style.backdropFilter = 'blur(10px)';
-    leftHeader.style.borderBottom = '1px solid #333';
-    
-    const leftTitle = document.createElement('h4');
-    leftTitle.className = 'comparison-panel-title';
-    leftTitle.innerHTML = '<span class="material-symbols-outlined">psychology</span>Attempted Solution';
-    leftTitle.style.margin = '0';
-    leftHeader.appendChild(leftTitle);
-    
-    const leftActions = document.createElement('div');
-    leftActions.className = 'panel-actions';
-    leftActions.style.display = 'flex';
-    leftActions.style.gap = '0.5rem';
-    
-    const leftCopyBtn = document.createElement('button');
-    leftCopyBtn.className = 'button';
-    leftCopyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span><span class="button-text">Copy</span>';
-    leftCopyBtn.addEventListener('click', () => {
-        const buttonTextElement = leftCopyBtn.querySelector('.button-text');
-        const originalText = buttonTextElement?.textContent;
-        navigator.clipboard.writeText(subStrategy.solutionAttempt || '').then(() => {
-            if (buttonTextElement) {
-                buttonTextElement.textContent = 'Copied!';
-                leftCopyBtn.classList.add('copy-success');
-                setTimeout(() => {
-                    buttonTextElement.textContent = originalText;
-                    leftCopyBtn.classList.remove('copy-success');
-                }, 2000);
-            }
-        }).catch(() => {
-            if (buttonTextElement) {
-                buttonTextElement.textContent = 'Copy Failed';
-                leftCopyBtn.classList.add('copy-failed');
-                setTimeout(() => {
-                    buttonTextElement.textContent = originalText;
-                    leftCopyBtn.classList.remove('copy-failed');
-                }, 2000);
-            }
-        });
-    });
-    
-    const leftDownloadBtn = document.createElement('button');
-    leftDownloadBtn.className = 'button';
-    leftDownloadBtn.innerHTML = '<span class="material-symbols-outlined">download</span><span class="button-text">Download</span>';
-    leftDownloadBtn.addEventListener('click', () => {
-        const blob = new Blob([subStrategy.solutionAttempt || ''], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `attempted-solution-${subStrategy.id}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    });
-    
-    leftActions.appendChild(leftCopyBtn);
-    leftActions.appendChild(leftDownloadBtn);
-    leftHeader.appendChild(leftActions);
-    leftHeader.style.padding = '12px 16px';
-    leftHeader.style.margin = '0';
-    leftHeader.style.background = 'rgba(15, 17, 32, 0.4)';
-    leftHeader.style.backdropFilter = 'blur(10px)';
-    leftHeader.style.borderBottom = '1px solid #333';
-    leftPanel.appendChild(leftHeader);
-    const leftContent = document.createElement('div');
-    leftContent.className = 'comparison-content custom-scrollbar';
-    leftContent.style.flex = '1';
-    leftContent.style.overflow = 'auto';
-    leftContent.style.padding = '0';
-    leftContent.style.minHeight = '0';
-    leftContent.innerHTML = renderMathContent(subStrategy.solutionAttempt || 'Solution attempt not available');
-    leftPanel.appendChild(leftContent);
-    
-    const rightPanel = document.createElement('div');
-    rightPanel.className = 'comparison-panel';
-    rightPanel.style.display = 'flex';
-    rightPanel.style.flexDirection = 'column';
-    rightPanel.style.border = '1px solid #333';
-    rightPanel.style.borderRadius = '8px';
-    rightPanel.style.overflow = 'hidden';
-    const rightHeader = document.createElement('div');
-    rightHeader.className = 'comparison-panel-header';
-    rightHeader.style.display = 'flex';
-    rightHeader.style.justifyContent = 'space-between';
-    rightHeader.style.alignItems = 'center';
-    rightHeader.style.padding = '12px 16px';
-    rightHeader.style.background = 'rgba(15, 17, 32, 0.4)';
-    rightHeader.style.backdropFilter = 'blur(10px)';
-    rightHeader.style.borderBottom = '1px solid #333';
-    
-    const rightTitle = document.createElement('h4');
-    rightTitle.className = 'comparison-panel-title';
-    rightTitle.innerHTML = '<span class="material-symbols-outlined">auto_fix_high</span>Refined Solution';
-    rightTitle.style.margin = '0';
-    rightHeader.appendChild(rightTitle);
-    
-    const rightActions = document.createElement('div');
-    rightActions.className = 'panel-actions';
-    rightActions.style.display = 'flex';
-    rightActions.style.gap = '0.5rem';
-    
-    const rightCopyBtn = document.createElement('button');
-    rightCopyBtn.className = 'button';
-    rightCopyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span><span class="button-text">Copy</span>';
-    rightCopyBtn.addEventListener('click', () => {
-        const buttonTextElement = rightCopyBtn.querySelector('.button-text');
-        const originalText = buttonTextElement?.textContent;
-        navigator.clipboard.writeText(subStrategy.refinedSolution || '').then(() => {
-            if (buttonTextElement) {
-                buttonTextElement.textContent = 'Copied!';
-                rightCopyBtn.classList.add('copy-success');
-                setTimeout(() => {
-                    buttonTextElement.textContent = originalText;
-                    rightCopyBtn.classList.remove('copy-success');
-                }, 2000);
-            }
-        }).catch(() => {
-            if (buttonTextElement) {
-                buttonTextElement.textContent = 'Copy Failed';
-                rightCopyBtn.classList.add('copy-failed');
-                setTimeout(() => {
-                    buttonTextElement.textContent = originalText;
-                    rightCopyBtn.classList.remove('copy-failed');
-                }, 2000);
-            }
-        });
-    });
-    
-    const rightDownloadBtn = document.createElement('button');
-    rightDownloadBtn.className = 'button';
-    rightDownloadBtn.innerHTML = '<span class="material-symbols-outlined">download</span><span class="button-text">Download</span>';
-    rightDownloadBtn.addEventListener('click', () => {
-        const blob = new Blob([subStrategy.refinedSolution || ''], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `refined-solution-${subStrategy.id}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    });
-    
-    rightActions.appendChild(rightCopyBtn);
-    rightActions.appendChild(rightDownloadBtn);
-    rightHeader.appendChild(rightActions);
-    rightPanel.appendChild(rightHeader);
-    const rightContent = document.createElement('div');
-    rightContent.className = 'comparison-content custom-scrollbar';
-    rightContent.style.flex = '1';
-    rightContent.style.overflow = 'auto';
-    rightContent.style.padding = '0';
-    rightContent.style.minHeight = '0';
-    rightContent.innerHTML = renderMathContent(subStrategy.refinedSolution || 'Refined solution not available');
-    rightPanel.appendChild(rightContent);
-    
-    solutionComparison.appendChild(leftPanel);
-    solutionComparison.appendChild(rightPanel);
-    solutionDirectContent.appendChild(solutionComparison);
-
-    solutionContent.appendChild(solutionDirectContent);
-    modalBody.appendChild(solutionContent);
-    modalContent.appendChild(modalBody);
-    modalOverlay.appendChild(modalContent);
-    document.body.appendChild(modalOverlay);
-
-    // Add keyboard and click-outside support
-    const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-            closeSolutionModal();
-        }
-    };
-    
-    const handleOverlayClick = (e: MouseEvent) => {
-        if (e.target === modalOverlay) {
-            closeSolutionModal();
-        }
-    };
-    
-    document.addEventListener('keydown', handleKeyDown);
-    modalOverlay.addEventListener('click', handleOverlayClick);
-    
-    // Store cleanup function on modal for proper removal
-    (modalOverlay as any).cleanup = () => {
-        document.removeEventListener('keydown', handleKeyDown);
-        modalOverlay.removeEventListener('click', handleOverlayClick);
-    };
-
-    // Trigger the modal animation and re-render KaTeX for math mode
-    setTimeout(() => {
-        modalOverlay.classList.add('is-visible');
-        // Re-render KaTeX after DOM insertion for proper display
-        requestAnimationFrame(() => {
-            const leftContentEl = leftContent;
-            const rightContentEl = rightContent;
-            if (leftContentEl) {
-                leftContentEl.innerHTML = renderMathContent(subStrategy.solutionAttempt || 'Solution attempt not available');
-            }
-            if (rightContentEl) {
-                rightContentEl.innerHTML = renderMathContent(subStrategy.refinedSolution || 'Refined solution not available');
-            }
-        });
-    }, 10);
-}
-
-function activateSolutionTab(targetId: string) {
-    // This function is no longer needed since we removed the sidebar
-    // Keeping it to avoid breaking existing references
-
-    // Update content panels
-    const contentPanes = document.querySelectorAll('.solution-content-pane');
-    contentPanes.forEach(pane => {
-        pane.classList.toggle('active', pane.id === targetId);
-    });
-}
-
-function closeSolutionModal() {
-    const modalOverlay = document.getElementById('solution-modal-overlay');
-    if (modalOverlay) {
-        // Clean up event listeners
-        if ((modalOverlay as any).cleanup) {
-            (modalOverlay as any).cleanup();
-        }
-        // Add fade-out animation
-        modalOverlay.classList.remove('is-visible');
-        // Remove modal after animation completes
-        setTimeout(() => {
-            modalOverlay.remove();
-        }, 200);
-    }
-}
-function openDeepthinkSolutionModal(subStrategyId: string) {
-    const subStrategy = activeDeepthinkPipeline?.initialStrategies.flatMap(ms => ms.subStrategies).find(ss => ss.id === subStrategyId);
-    if (!subStrategy) return;
-
-    const modalOverlay = document.createElement('div');
-    modalOverlay.id = 'solution-modal-overlay';
-    modalOverlay.className = 'modal-overlay';
-    modalOverlay.style.display = 'flex';
-
-    const modalContent = document.createElement('div');
-    modalContent.className = 'modal-content';
-    modalContent.setAttribute('role', 'dialog');
-    modalContent.setAttribute('aria-modal', 'true');
-    modalContent.setAttribute('aria-labelledby', 'solution-modal-title');
-
-    const modalHeader = document.createElement('header');
-    modalHeader.className = 'modal-header';
-
-    const modalTitle = document.createElement('h2');
-    modalTitle.id = 'solution-modal-title';
-    modalTitle.className = 'modal-title';
-    modalTitle.textContent = 'Solution Details';
-    modalHeader.appendChild(modalTitle);
-
-    const closeModalButton = document.createElement('button');
-    closeModalButton.className = 'modal-close-button';
-    closeModalButton.setAttribute('aria-label', 'Close Solution Modal');
-    closeModalButton.innerHTML = '<span class="material-symbols-outlined">close</span>';
-    closeModalButton.addEventListener('click', closeSolutionModal);
-    modalHeader.appendChild(closeModalButton);
-
-    modalContent.appendChild(modalHeader);
-
-    const modalBody = document.createElement('div');
-    modalBody.className = 'modal-body';
-
-    const solutionContent = document.createElement('div');
-    solutionContent.className = 'solution-content';
-    solutionContent.style.height = '100%';
-    solutionContent.style.display = 'flex';
-    solutionContent.style.flexDirection = 'column';
-    solutionContent.style.padding = '20px';
-
-    const solutionDirectContent = document.createElement('div');
-    solutionDirectContent.className = 'solution-direct-content';
-    solutionDirectContent.style.height = '100%';
-    solutionDirectContent.style.display = 'flex';
-    solutionDirectContent.style.flexDirection = 'column';
-    
-    const solutionComparison = document.createElement('div');
-    solutionComparison.className = 'solution-comparison-grid';
-    solutionComparison.style.display = 'grid';
-    solutionComparison.style.gridTemplateColumns = '1fr 1fr';
-    solutionComparison.style.gap = '20px';
-    solutionComparison.style.height = '100%';
-    solutionComparison.style.minHeight = '0';
-    
-    const leftPanel = document.createElement('div');
-    leftPanel.className = 'comparison-panel';
-    leftPanel.style.display = 'flex';
-    leftPanel.style.flexDirection = 'column';
-    leftPanel.style.border = '1px solid #333';
-    leftPanel.style.borderRadius = '8px';
-    leftPanel.style.overflow = 'hidden';
-    const leftHeader = document.createElement('div');
-    leftHeader.className = 'comparison-panel-header';
-    leftHeader.style.display = 'flex';
-    leftHeader.style.justifyContent = 'space-between';
-    leftHeader.style.alignItems = 'center';
-    leftHeader.style.padding = '12px 16px';
-    leftHeader.style.background = 'rgba(15, 17, 32, 0.4)';
-    leftHeader.style.backdropFilter = 'blur(10px)';
-    leftHeader.style.borderBottom = '1px solid #333';
-    
-    const leftTitle = document.createElement('h4');
-    leftTitle.className = 'comparison-panel-title';
-    leftTitle.innerHTML = '<span class="material-symbols-outlined">psychology</span>Attempted Solution';
-    leftTitle.style.margin = '0';
-    leftHeader.appendChild(leftTitle);
-    
-    const leftActions = document.createElement('div');
-    leftActions.className = 'panel-actions';
-    leftActions.style.display = 'flex';
-    leftActions.style.gap = '0.5rem';
-    
-    const leftCopyBtn = document.createElement('button');
-    leftCopyBtn.className = 'button';
-    leftCopyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span><span class="button-text">Copy</span>';
-    leftCopyBtn.addEventListener('click', () => {
-        const buttonTextElement = leftCopyBtn.querySelector('.button-text');
-        const originalText = buttonTextElement?.textContent;
-        navigator.clipboard.writeText(subStrategy.solutionAttempt || '').then(() => {
-            if (buttonTextElement) {
-                buttonTextElement.textContent = 'Copied!';
-                leftCopyBtn.classList.add('copy-success');
-                setTimeout(() => {
-                    buttonTextElement.textContent = originalText;
-                    leftCopyBtn.classList.remove('copy-success');
-                }, 2000);
-            }
-        }).catch(() => {
-            if (buttonTextElement) {
-                buttonTextElement.textContent = 'Copy Failed';
-                leftCopyBtn.classList.add('copy-failed');
-                setTimeout(() => {
-                    buttonTextElement.textContent = originalText;
-                    leftCopyBtn.classList.remove('copy-failed');
-                }, 2000);
-            }
-        });
-    });
-    
-    const leftDownloadBtn = document.createElement('button');
-    leftDownloadBtn.className = 'button';
-    leftDownloadBtn.innerHTML = '<span class="material-symbols-outlined">download</span><span class="button-text">Download</span>';
-    leftDownloadBtn.addEventListener('click', () => {
-        const blob = new Blob([subStrategy.solutionAttempt || ''], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `attempted-solution-${subStrategy.id}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    });
-    
-    leftActions.appendChild(leftCopyBtn);
-    leftActions.appendChild(leftDownloadBtn);
-    leftHeader.appendChild(leftActions);
-    leftHeader.style.padding = '12px 16px';
-    leftHeader.style.margin = '0';
-    leftHeader.style.background = 'rgba(15, 17, 32, 0.4)';
-    leftHeader.style.backdropFilter = 'blur(10px)';
-    leftHeader.style.borderBottom = '1px solid #333';
-    leftPanel.appendChild(leftHeader);
-    const leftContent = document.createElement('div');
-    leftContent.className = 'comparison-content custom-scrollbar';
-    leftContent.style.flex = '1';
-    leftContent.style.overflow = 'auto';
-    leftContent.style.padding = '16px';
-    leftContent.innerHTML = renderMathContent(subStrategy.solutionAttempt || 'Solution attempt not available');
-    leftPanel.appendChild(leftContent);
-    
-    const rightPanel = document.createElement('div');
-    rightPanel.className = 'comparison-panel';
-    rightPanel.style.display = 'flex';
-    rightPanel.style.flexDirection = 'column';
-    rightPanel.style.border = '1px solid #333';
-    rightPanel.style.borderRadius = '8px';
-    rightPanel.style.overflow = 'hidden';
-    const rightHeader = document.createElement('div');
-    rightHeader.className = 'comparison-panel-header';
-    rightHeader.style.display = 'flex';
-    rightHeader.style.justifyContent = 'space-between';
-    rightHeader.style.alignItems = 'center';
-    rightHeader.style.padding = '12px 16px';
-    rightHeader.style.background = 'rgba(15, 17, 32, 0.4)';
-    rightHeader.style.backdropFilter = 'blur(10px)';
-    rightHeader.style.borderBottom = '1px solid #333';
-    
-    const rightTitle = document.createElement('h4');
-    rightTitle.className = 'comparison-panel-title';
-    rightTitle.innerHTML = '<span class="material-symbols-outlined">verified</span>Final Solution';
-    rightTitle.style.margin = '0';
-    rightHeader.appendChild(rightTitle);
-    
-    const rightActions = document.createElement('div');
-    rightActions.className = 'panel-actions';
-    rightActions.style.display = 'flex';
-    rightActions.style.gap = '0.5rem';
-    
-    const rightCopyBtn = document.createElement('button');
-    rightCopyBtn.className = 'button';
-    rightCopyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span><span class="button-text">Copy</span>';
-    rightCopyBtn.addEventListener('click', () => {
-        const buttonTextElement = rightCopyBtn.querySelector('.button-text');
-        const originalText = buttonTextElement?.textContent;
-        navigator.clipboard.writeText(subStrategy.refinedSolution || '').then(() => {
-            if (buttonTextElement) {
-                buttonTextElement.textContent = 'Copied!';
-                rightCopyBtn.classList.add('copy-success');
-                setTimeout(() => {
-                    buttonTextElement.textContent = originalText;
-                    rightCopyBtn.classList.remove('copy-success');
-                }, 2000);
-            }
-        }).catch(() => {
-            if (buttonTextElement) {
-                buttonTextElement.textContent = 'Copy Failed';
-                rightCopyBtn.classList.add('copy-failed');
-                setTimeout(() => {
-                    buttonTextElement.textContent = originalText;
-                    rightCopyBtn.classList.remove('copy-failed');
-                }, 2000);
-            }
-        });
-    });
-    
-    const rightDownloadBtn = document.createElement('button');
-    rightDownloadBtn.className = 'button';
-    rightDownloadBtn.innerHTML = '<span class="material-symbols-outlined">download</span><span class="button-text">Download</span>';
-    rightDownloadBtn.addEventListener('click', () => {
-        const blob = new Blob([subStrategy.refinedSolution || ''], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `final-solution-${subStrategy.id}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    });
-    
-    rightActions.appendChild(rightCopyBtn);
-    rightActions.appendChild(rightDownloadBtn);
-    rightHeader.appendChild(rightActions);
-    rightPanel.appendChild(rightHeader);
-    const rightContent = document.createElement('div');
-    rightContent.className = 'comparison-content custom-scrollbar';
-    rightContent.style.flex = '1';
-    rightContent.style.overflow = 'auto';
-    rightContent.style.padding = '16px';
-    rightContent.innerHTML = renderMathContent(subStrategy.refinedSolution || 'Final solution not available');
-    rightPanel.appendChild(rightContent);
-    
-    solutionComparison.appendChild(leftPanel);
-    solutionComparison.appendChild(rightPanel);
-    solutionDirectContent.appendChild(solutionComparison);
-    solutionContent.appendChild(solutionDirectContent);
-
-    modalBody.appendChild(solutionContent);
-    modalContent.appendChild(modalBody);
-    modalOverlay.appendChild(modalContent);
-    document.body.appendChild(modalOverlay);
-
-    // Add keyboard and click-outside support
-    const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-            closeSolutionModal();
-        }
-    };
-    
-    const handleOverlayClick = (e: MouseEvent) => {
-        if (e.target === modalOverlay) {
-            closeSolutionModal();
-        }
-    };
-    
-    document.addEventListener('keydown', handleKeyDown);
-    modalOverlay.addEventListener('click', handleOverlayClick);
-    
-    // Store cleanup function on modal for proper removal
-    (modalOverlay as any).cleanup = () => {
-        document.removeEventListener('keydown', handleKeyDown);
-        modalOverlay.removeEventListener('click', handleOverlayClick);
-    };
-
-    // Trigger the modal animation and re-render KaTeX for deepthink mode
-    setTimeout(() => {
-        modalOverlay.classList.add('is-visible');
-        // Re-render KaTeX after DOM insertion for proper display
-        requestAnimationFrame(() => {
-            const leftContentEl = leftContent;
-            const rightContentEl = rightContent;
-            if (leftContentEl) {
-                leftContentEl.innerHTML = renderMathContent(subStrategy.solutionAttempt || 'Solution attempt not available');
-            }
-            if (rightContentEl) {
-                rightContentEl.innerHTML = renderMathContent(subStrategy.refinedSolution || 'Final solution not available');
-            }
-        });
-    }, 10);
-}
-
-function openArgumentModal(hypothesisId: string) {
-    // Try Math first, then Deepthink
-    let hypothesis: { id: string; hypothesisText: string; testerAttempt?: string; finalStatus: string } | undefined =
-        activeMathPipeline?.hypotheses.find(h => h.id === hypothesisId);
-    let mode: 'math' | 'deepthink' = 'math';
-    if (!hypothesis && activeDeepthinkPipeline) {
-        const dh = activeDeepthinkPipeline.hypotheses.find(h => h.id === hypothesisId);
-        if (dh) {
-            hypothesis = { id: dh.id, hypothesisText: dh.hypothesisText, testerAttempt: dh.testerAttempt, finalStatus: dh.finalStatus };
-            mode = 'deepthink';
-        }
-    }
-    if (!hypothesis) return;
-
-    const modalOverlay = document.createElement('div');
-    modalOverlay.id = 'argument-modal-overlay';
-    modalOverlay.className = 'modal-overlay';
-    modalOverlay.style.display = 'flex';
-
-    const modalContent = document.createElement('div');
-    modalContent.className = 'modal-content';
-    modalContent.setAttribute('role', 'dialog');
-    modalContent.setAttribute('aria-modal', 'true');
-    modalContent.setAttribute('aria-labelledby', 'argument-modal-title');
-
-    const modalHeader = document.createElement('header');
-    modalHeader.className = 'modal-header';
-
-    const modalTitle = document.createElement('h2');
-    modalTitle.id = 'argument-modal-title';
-    modalTitle.className = 'modal-title';
-    modalTitle.textContent = 'Hypothesis Argument Analysis';
-    modalHeader.appendChild(modalTitle);
-
-    const closeModalButton = document.createElement('button');
-    closeModalButton.className = 'modal-close-button';
-    closeModalButton.setAttribute('aria-label', 'Close Argument Modal');
-    closeModalButton.innerHTML = '<span class="material-symbols-outlined">close</span>';
-    closeModalButton.addEventListener('click', closeArgumentModal);
-    modalHeader.appendChild(closeModalButton);
-
-    modalContent.appendChild(modalHeader);
-
-    const modalBody = document.createElement('div');
-    modalBody.className = 'modal-body';
-
-    // Direct content without sidebar
-    const argumentContent = document.createElement('div');
-    argumentContent.className = 'modal-direct-content';
-    argumentContent.style.height = 'calc(100vh - 120px)';
-    argumentContent.style.display = 'flex';
-    argumentContent.style.flexDirection = 'column';
-
-    // Direct hypothesis investigation content
-    const hypothesisContent = document.createElement('div');
-    hypothesisContent.className = 'hypothesis-direct-content';
-    hypothesisContent.style.flex = '1';
-    hypothesisContent.style.display = 'flex';
-    hypothesisContent.style.flexDirection = 'column';
-    hypothesisContent.style.minHeight = '0';
-    
-    const argumentComparison = document.createElement('div');
-    argumentComparison.className = 'solution-single-panel';
-    argumentComparison.style.flex = '1';
-    argumentComparison.style.display = 'flex';
-    argumentComparison.style.flexDirection = 'column';
-    argumentComparison.style.minHeight = '0';
-    
-    const singlePanel = document.createElement('div');
-    singlePanel.className = 'hypothesis-content-panel';
-    singlePanel.style.flex = '1';
-    singlePanel.style.display = 'flex';
-    singlePanel.style.flexDirection = 'column';
-    singlePanel.style.minHeight = '0';
-    const singleContent = document.createElement('div');
-    singleContent.className = 'hypothesis-content custom-scrollbar';
-    singleContent.style.flex = '1';
-    singleContent.style.overflow = 'auto';
-    singleContent.style.padding = '20px';
-    
-    // Create a container for both the hypothesis content and knowledge packet
-    const contentContainer = document.createElement('div');
-    contentContainer.innerHTML = renderMarkdown(hypothesis.testerAttempt || 'Hypothesis investigation not available');
-    
-    // Knowledge Packet Section - now inside the scrollable content
-    const knowledgePacketSection = document.createElement('div');
-    knowledgePacketSection.className = 'knowledge-packet-section';
-    
-    const knowledgePacketTitle = document.createElement('h4');
-    knowledgePacketTitle.className = 'knowledge-packet-title';
-    knowledgePacketTitle.innerHTML = '<span class="material-symbols-outlined">psychology</span>Synthesized Knowledge Packet';
-    knowledgePacketSection.appendChild(knowledgePacketTitle);
-    
-    const knowledgePacketContent = document.createElement('div');
-    knowledgePacketContent.className = 'knowledge-packet-content';
-    
-    // Get the status-based styling (treat Deepthink 'validated' as 'proven')
-    let statusClass = 'knowledge-status-pending';
-    let statusIcon = 'help';
-    let statusText = 'Pending Analysis';
-    
-    const normalizedStatus = (hypothesis.finalStatus === 'validated') ? 'proven' : hypothesis.finalStatus;
-    switch (normalizedStatus) {
-        case 'proven':
-            statusClass = 'knowledge-status-proven';
-            statusIcon = 'verified';
-            statusText = 'Hypothesis Proven';
-            break;
-        case 'refuted':
-            statusClass = 'knowledge-status-refuted';
-            statusIcon = 'dangerous';
-            statusText = 'Hypothesis Refuted';
-            break;
-        case 'unresolved':
-            statusClass = 'knowledge-status-unresolved';
-            statusIcon = 'help';
-            statusText = 'Unresolved';
-            break;
-        case 'contradiction':
-            statusClass = 'knowledge-status-contradiction';
-            statusIcon = 'warning';
-            statusText = 'Contradiction Detected';
-            break;
-    }
-    
-    knowledgePacketContent.innerHTML = `
-        <div class="knowledge-packet-card ${statusClass}">
-            <div class="knowledge-packet-header">
-                <span class="material-symbols-outlined">${statusIcon}</span>
-                <span class="knowledge-packet-status">${statusText}</span>
-            </div>
-            <div class="knowledge-packet-hypothesis">
-                <strong>Hypothesis:</strong> ${escapeHtml(hypothesis.hypothesisText)}
-            </div>
-            <div class="knowledge-packet-guidance">
-                ${getHypothesisGuidance(hypothesis.finalStatus)}
-            </div>
-        </div>
-    `;
-    
-    knowledgePacketSection.appendChild(knowledgePacketContent);
-    contentContainer.appendChild(knowledgePacketSection);
-    
-    singleContent.appendChild(contentContainer);
-    singlePanel.appendChild(singleContent);
-    
-    argumentComparison.appendChild(singlePanel);
-    hypothesisContent.appendChild(argumentComparison);
-
-    argumentContent.appendChild(hypothesisContent);
-    modalBody.appendChild(argumentContent);
-    modalContent.appendChild(modalBody);
-    modalOverlay.appendChild(modalContent);
-    document.body.appendChild(modalOverlay);
-
-    // Trigger the modal animation
-    setTimeout(() => {
-        modalOverlay.classList.add('is-visible');
-    }, 10);
-}
-
-function activateArgumentTab(targetId: string) {
-    // Update navigation
-    const navItems = document.querySelectorAll('.solution-nav-item');
-    navItems.forEach(item => {
-        item.classList.toggle('active', item.dataset.target === targetId);
-    });
-
-    // Update content panels
-    const contentPanes = document.querySelectorAll('.solution-content-pane');
-    contentPanes.forEach(pane => {
-        pane.classList.toggle('active', pane.id === targetId);
-    });
-}
-
-function closeArgumentModal() {
-    const modalOverlay = document.getElementById('argument-modal-overlay');
-    if (modalOverlay) {
-        modalOverlay.remove();
-    }
-}
-
-function getHypothesisGuidance(finalStatus: string): string {
-    const normalized = finalStatus === 'validated' ? 'proven' : finalStatus;
-    switch (normalized) {
-        case 'proven':
-            return '<div class="guidance-text guidance-proven"><strong>Guidance:</strong> You may use this as an established fact without proof.</div>';
-        case 'refuted':
-            return '<div class="guidance-text guidance-refuted"><strong>Guidance:</strong> A counterexample was found. Do NOT assume this statement is true. Avoid reasoning paths that require it.</div>';
-        case 'unresolved':
-            return '<div class="guidance-text guidance-unresolved"><strong>Guidance:</strong> This remains an open question. If your solution relies on this, you must explicitly state it as a conditional assumption.</div>';
-        case 'contradiction':
-            return '<div class="guidance-text guidance-contradiction"><strong>Guidance:</strong> Both proof and counterexample attempts were made, indicating potential logical inconsistency. Treat with extreme caution.</div>';
-        default:
-            return '<div class="guidance-text guidance-pending"><strong>Guidance:</strong> Status unclear. Proceed with caution.</div>';
-    }
-}
-
-function parseKnowledgePacketForStyling(knowledgePacket: string, hypotheses: Array<{ finalStatus: string; hypothesisText: string }>): string {
-    if (!hypotheses || hypotheses.length === 0) {
-        return '<div class="knowledge-packet-empty">No hypothesis exploration results available.</div>';
-    }
-
-    let styledPacketHtml = '';
-    
-    hypotheses.forEach((hypothesis, index) => {
-        // Get the status-based styling
-        let statusClass = 'knowledge-status-pending';
-        let statusIcon = 'help';
-        let statusText = 'Pending Analysis';
-        
-        const normalized = (hypothesis.finalStatus as any) === 'validated' ? 'proven' : hypothesis.finalStatus;
-        switch (normalized) {
-            case 'proven':
-                statusClass = 'knowledge-status-proven';
-                statusIcon = 'verified';
-                statusText = 'Hypothesis Proven';
-                break;
-            case 'refuted':
-                statusClass = 'knowledge-status-refuted';
-                statusIcon = 'dangerous';
-                statusText = 'Hypothesis Refuted';
-                break;
-            case 'unresolved':
-                statusClass = 'knowledge-status-unresolved';
-                statusIcon = 'help';
-                statusText = 'Unresolved';
-                break;
-            case 'contradiction':
-                statusClass = 'knowledge-status-contradiction';
-                statusIcon = 'warning';
-                statusText = 'Contradiction Detected';
-                break;
-        }
-        
-        styledPacketHtml += `
-            <div class="knowledge-packet-card ${statusClass}">
-                <div class="knowledge-packet-header">
-                    <span class="material-symbols-outlined">${statusIcon}</span>
-                    <span class="knowledge-packet-status">${statusText}</span>
-                </div>
-                <div class="knowledge-packet-hypothesis">
-                    <strong>Hypothesis ${index + 1}:</strong> ${escapeHtml(hypothesis.hypothesisText)}
-                </div>
-                <div class="knowledge-packet-guidance">
-                    ${getHypothesisGuidance(hypothesis.finalStatus)}
-                </div>
-            </div>
-        `;
-    });
-    
-    return styledPacketHtml;
-}
-
-function activateStrategyTab(strategyIndex: number) {
-    if (!activeMathPipeline) return;
-    activeMathPipeline.activeStrategyTab = strategyIndex;
-
-    const subTabButtons = document.querySelectorAll('.sub-tab-button');
-    subTabButtons.forEach((button, index) => {
-        button.classList.toggle('active', index === strategyIndex);
-    });
-
-    const subTabContents = document.querySelectorAll('.sub-tab-content');
-    subTabContents.forEach((content, index) => {
-        content.classList.toggle('active', index === strategyIndex);
-    });
-}
-
-function activateDeepthinkStrategyTab(strategyIndex: number) {
-    if (!activeDeepthinkPipeline) return;
-    activeDeepthinkPipeline.activeStrategyTab = strategyIndex;
-
-    const subTabButtons = document.querySelectorAll('.sub-tab-button');
-    subTabButtons.forEach((button, index) => {
-        button.classList.toggle('active', index === strategyIndex);
-    });
-
-    const subTabContents = document.querySelectorAll('.sub-tab-content');
-    subTabContents.forEach((content, index) => {
-        content.classList.toggle('active', index === strategyIndex);
-    });
-}
-function renderActiveMathPipeline() {
-    if (currentMode !== 'math' || !pipelinesContentContainer || !tabsNavContainer) {
-        if (currentMode !== 'math' && tabsNavContainer && pipelinesContentContainer) {
-            tabsNavContainer.innerHTML = '';
-            pipelinesContentContainer.innerHTML = '';
-        }
-        return;
-    }
-    if (!activeMathPipeline) {
-        tabsNavContainer.innerHTML = '<p class="no-pipelines-message">Enter a math problem and click "Solve Problem".</p>';
-        pipelinesContentContainer.innerHTML = '';
-        return;
-    }
-
-    const mathProcess = activeMathPipeline;
-    tabsNavContainer.innerHTML = '';
-    pipelinesContentContainer.innerHTML = '';
-
-    // Main Tabs - Final Result moved to the right
-    const mainTabs = [
-        { id: 'strategic-solver', text: 'Strategic Leap' },
-        { id: 'hypothesis-explorer', text: 'Hypothesis Testing' },
-        { id: 'red-team-evaluator', text: 'Red Team' }
-    ];
-    
-    const rightAlignedTabs = [
-        { id: 'final-result', text: 'Final Result' }
-    ];
-
-    // Create left-aligned tabs container
-    const leftTabsContainer = document.createElement('div');
-    leftTabsContainer.style.display = 'flex';
-    leftTabsContainer.style.gap = '0.5rem';
-    leftTabsContainer.style.alignItems = 'center';
-    
-    // Create right-aligned tabs container
-    const rightTabsContainer = document.createElement('div');
-    rightTabsContainer.style.display = 'flex';
-    rightTabsContainer.style.gap = '0.5rem';
-    rightTabsContainer.style.alignItems = 'center';
-    rightTabsContainer.style.marginLeft = 'auto';
-    
-    mainTabs.forEach(tabInfo => {
-        const tabButton = document.createElement('button');
-        tabButton.className = 'tab-button math-mode-tab';
-        tabButton.id = `math-tab-${tabInfo.id}`;
-        tabButton.textContent = tabInfo.text;
-        tabButton.setAttribute('role', 'tab');
-        tabButton.setAttribute('aria-controls', `pipeline-content-${tabInfo.id}`);
-        tabButton.addEventListener('click', () => activateTab(tabInfo.id));
-        
-        // Add pink glow to Red Team tab always
-        if (tabInfo.id === 'red-team-evaluator') {
-            tabButton.classList.add('red-team-pink-glow');
-        }
-        
-        leftTabsContainer.appendChild(tabButton);
-
-        if (tabInfo.id === 'strategic-solver') {
-            if (mathProcess.strategicSolverComplete) {
-                tabButton.classList.add('status-math-completed');
-            } else if (mathProcess.status === 'processing') {
-                tabButton.classList.add('status-math-processing');
-            } else if (mathProcess.status === 'error') {
-                tabButton.classList.add('status-math-error');
-            }
-        } else if (tabInfo.id === 'hypothesis-explorer') {
-            if (mathProcess.hypothesisExplorerComplete) {
-                tabButton.classList.add('status-math-completed');
-            } else if (mathProcess.status === 'processing') {
-                tabButton.classList.add('status-math-processing');
-            }
-        } else if (tabInfo.id === 'red-team-evaluator') {
-            if (mathProcess.redTeamComplete) {
-                tabButton.classList.add('status-math-completed');
-            } else if (mathProcess.redTeamStatus === 'processing') {
-                tabButton.classList.add('status-math-processing');
-            } else if (mathProcess.redTeamStatus === 'error') {
-                tabButton.classList.add('status-math-error');
-            }
-        } else if (tabInfo.id === 'final-result') {
-            if (mathProcess.finalJudgingStatus === 'completed') {
-                tabButton.classList.add('status-math-completed');
-            } else if (mathProcess.finalJudgingStatus === 'processing' || mathProcess.finalJudgingStatus === 'retrying') {
-                tabButton.classList.add('status-math-processing');
-            } else if (mathProcess.finalJudgingStatus === 'error') {
-                tabButton.classList.add('status-math-error');
-            }
-        }
-    });
-    
-    // Add right-aligned tabs
-    rightAlignedTabs.forEach(tabInfo => {
-        const tabButton = document.createElement('button');
-        tabButton.className = 'tab-button math-mode-tab';
-        tabButton.id = `math-tab-${tabInfo.id}`;
-        tabButton.textContent = tabInfo.text;
-        tabButton.setAttribute('role', 'tab');
-        tabButton.setAttribute('aria-controls', `pipeline-content-${tabInfo.id}`);
-        tabButton.addEventListener('click', () => activateTab(tabInfo.id));
-        rightTabsContainer.appendChild(tabButton);
-        
-        if (tabInfo.id === 'final-result') {
-            if (mathProcess.finalJudgingStatus === 'completed') {
-                tabButton.classList.add('status-math-completed');
-            } else if (mathProcess.finalJudgingStatus === 'processing' || mathProcess.finalJudgingStatus === 'retrying') {
-                tabButton.classList.add('status-math-processing');
-            } else if (mathProcess.finalJudgingStatus === 'error') {
-                tabButton.classList.add('status-math-error');
-            }
-        }
-    });
-    
-    // Append both containers to the tabs nav
-    tabsNavContainer.appendChild(leftTabsContainer);
-    tabsNavContainer.appendChild(rightTabsContainer);
-
-    // Problem Details Pane
-    let problemContentPane = document.createElement('div');
-    problemContentPane.id = `pipeline-content-problem-details`;
-    problemContentPane.className = 'pipeline-content';
-    problemContentPane.setAttribute('role', 'tabpanel');
-    problemContentPane.setAttribute('aria-labelledby', `math-tab-problem-details`);
-    let problemDetailsHtml = `
-        <div class="math-problem-display model-detail-card">
-            <h4 class="model-title">Original Problem</h4>
-            <p class="problem-text">${escapeHtml(mathProcess.problemText)}</p>`;
-    if (mathProcess.problemImageBase64 && mathProcess.problemImageMimeType) {
-        problemDetailsHtml += `<img src="data:${mathProcess.problemImageMimeType};base64,${mathProcess.problemImageBase64}" alt="Uploaded Math Problem Image" class="problem-image-display">`;
-    }
-    if (mathProcess.requestPromptInitialStrategyGen) {
-        problemDetailsHtml += `
-            <details class="model-detail-section collapsible-section">
-                <summary class="model-section-title">Initial Strategy Generation Prompt</summary>
-                <div class="scrollable-content-area custom-scrollbar"><pre>${escapeHtml(mathProcess.requestPromptInitialStrategyGen)}</pre></div>
-            </details>`;
-    }
-    if (mathProcess.status === 'retrying' && mathProcess.retryAttempt !== undefined && mathProcess.initialStrategies.length === 0) {
-        problemDetailsHtml += `<p class="status-badge status-retrying">Retrying initial strategy generation (${mathProcess.retryAttempt}/${MAX_RETRIES})...</p>`;
-    } else if (mathProcess.error && mathProcess.initialStrategies.length === 0) {
-        problemDetailsHtml += `<div class="status-message error"><pre>${escapeHtml(mathProcess.error)}</pre></div>`;
-    }
-    problemDetailsHtml += `</div>`;
-    problemContentPane.innerHTML = problemDetailsHtml;
-    pipelinesContentContainer.appendChild(problemContentPane);
-
-    // Strategic Solver Pane
-    const strategicSolverContentPane = document.createElement('div');
-    strategicSolverContentPane.id = `pipeline-content-strategic-solver`;
-    strategicSolverContentPane.className = 'pipeline-content';
-    strategicSolverContentPane.setAttribute('role', 'tabpanel');
-    strategicSolverContentPane.setAttribute('aria-labelledby', `math-tab-strategic-solver`);
-    
-    const strategicSolverCard = document.createElement('div');
-    strategicSolverCard.className = 'math-strategic-solver model-detail-card';
-
-    const subTabsNav = document.createElement('div');
-    subTabsNav.className = 'sub-tabs-nav';
-
-    mathProcess.initialStrategies.forEach((_, index) => {
-        const subTabButton = document.createElement('button');
-        subTabButton.className = 'sub-tab-button';
-        subTabButton.id = `sub-tab-strategy-${index}`;
-        subTabButton.textContent = `Strategy ${index + 1}`;
-        if (index === mathProcess.activeStrategyTab) {
-            subTabButton.classList.add('active');
-        }
-        subTabButton.addEventListener('click', () => activateStrategyTab(index));
-        subTabsNav.appendChild(subTabButton);
-    });
-
-    strategicSolverCard.appendChild(subTabsNav);
-
-    mathProcess.initialStrategies.forEach((mainStrategy, index) => {
-        const subTabContent = document.createElement('div');
-        subTabContent.className = 'sub-tab-content';
-        subTabContent.id = `sub-tab-content-strategy-${index}`;
-        if (index === mathProcess.activeStrategyTab) {
-            subTabContent.classList.add('active');
-        }
-
-        // Create strategy content wrapper with collapsible functionality
-        const strategyContentWrapper = document.createElement('div');
-        strategyContentWrapper.className = 'strategy-content collapsible';
-        
-        const strategyContent = document.createElement('div');
-        strategyContent.className = 'markdown-content';
-        let strategyContentHtml = renderMarkdown(mainStrategy.strategyText);
-        if (mainStrategy.isKilledByRedTeam) {
-            strategyContentHtml = `<span class="killed-strategy"> ELIMINATED: ${strategyContentHtml}</span>`;
-            strategyContent.innerHTML = `${strategyContentHtml}<div class="elimination-reason">${escapeHtml(mainStrategy.redTeamReason || 'Eliminated by Red Team')}</div>`;
-        } else {
-            strategyContent.innerHTML = strategyContentHtml;
-        }
-        strategyContentWrapper.appendChild(strategyContent);
-        
-        // Create actions container for strategy-level buttons
-        const strategyActionsContainer = document.createElement('div');
-        strategyActionsContainer.className = 'strategy-actions';
-        
-        // Add expand/collapse button for main strategy if content is long enough
-        if (mainStrategy.strategyText.length > 500) {
-            const strategyExpandButton = document.createElement('button');
-            strategyExpandButton.className = 'sub-strategy-expand-toggle';
-            strategyExpandButton.innerHTML = `
-                <span>Show More</span>
-                <span class="material-symbols-outlined">expand_more</span>
-            `;
-            strategyExpandButton.addEventListener('click', () => {
-                const isExpanded = strategyContentWrapper.classList.contains('expanded');
-                if (isExpanded) {
-                    strategyContentWrapper.classList.remove('expanded');
-                    strategyExpandButton.classList.remove('expanded');
-                    strategyExpandButton.innerHTML = `
-                        <span>Show More</span>
-                        <span class="material-symbols-outlined">expand_more</span>
-                    `;
-                } else {
-                    strategyContentWrapper.classList.add('expanded');
-                    strategyExpandButton.classList.add('expanded');
-                    strategyExpandButton.innerHTML = `
-                        <span>Show Less</span>
-                        <span class="material-symbols-outlined">expand_more</span>
-                    `;
-                }
-            });
-            strategyActionsContainer.appendChild(strategyExpandButton);
-        }
-        
-        subTabContent.appendChild(strategyContentWrapper);
-        if (strategyActionsContainer.children.length > 0) {
-            subTabContent.appendChild(strategyActionsContainer);
-        }
-
-        const subStrategiesGrid = document.createElement('div');
-        subStrategiesGrid.className = 'sub-strategies-grid';
-        subStrategiesGrid.style.gridTemplateColumns = 'repeat(2, 1fr)'; // Consistent with deepthink mode
-
-        mainStrategy.subStrategies.forEach((subStrategy, subIndex) => {
-            const subStrategyCard = document.createElement('div');
-            subStrategyCard.className = 'sub-strategy-card';
-            
-            // Add visual indicator for killed sub-strategies
-            if (subStrategy.isKilledByRedTeam) {
-                subStrategyCard.classList.add('killed-sub-strategy');
-            }
-
-            const subStrategyTitle = document.createElement('h6');
-            let titleText = `Sub-Strategy ${index + 1}.${subIndex + 1}`;
-            if (subStrategy.isKilledByRedTeam) {
-                titleText = ` ${titleText} - ELIMINATED`;
-            }
-            subStrategyTitle.textContent = titleText;
-            subStrategyCard.appendChild(subStrategyTitle);
-
-            if (subStrategy.isKilledByRedTeam && subStrategy.redTeamReason) {
-                const eliminationReason = document.createElement('div');
-                eliminationReason.className = 'elimination-reason';
-                eliminationReason.textContent = subStrategy.redTeamReason;
-                subStrategyCard.appendChild(eliminationReason);
-            }
-
-            // Create content wrapper with size limiting
-            const subStrategyContentWrapper = document.createElement('div');
-            subStrategyContentWrapper.className = 'sub-strategy-content collapsible';
-            
-            const subStrategyText = document.createElement('div');
-            subStrategyText.className = 'markdown-content';
-            subStrategyText.innerHTML = renderMarkdown(subStrategy.subStrategyText);
-            subStrategyContentWrapper.appendChild(subStrategyText);
-            subStrategyCard.appendChild(subStrategyContentWrapper);
-            
-            // Create actions container for buttons
-            const actionsContainer = document.createElement('div');
-            actionsContainer.className = 'sub-strategy-actions';
-
-            const solutionButton = document.createElement('button');
-            solutionButton.className = 'button';
-            if (subStrategy.isKilledByRedTeam) {
-                solutionButton.textContent = 'Eliminated - No Solution';
-                solutionButton.disabled = true;
-                solutionButton.classList.add('disabled');
-            } else {
-                solutionButton.textContent = 'Solution';
-                solutionButton.addEventListener('click', () => openSolutionModal(subStrategy.id));
-            }
-            actionsContainer.appendChild(solutionButton);
-            
-            // Add expand/collapse button if content is long enough
-            if (subStrategy.subStrategyText.length > 500) {
-                const expandButton = document.createElement('button');
-                expandButton.className = 'sub-strategy-expand-toggle';
-                expandButton.innerHTML = `
-                    <span>Show More</span>
-                    <span class="material-symbols-outlined">expand_more</span>
-                `;
-                expandButton.addEventListener('click', () => {
-                    const isExpanded = subStrategyContentWrapper.classList.contains('expanded');
-                    if (isExpanded) {
-                        subStrategyContentWrapper.classList.remove('expanded');
-                        expandButton.classList.remove('expanded');
-                        expandButton.innerHTML = `
-                            <span>Show More</span>
-                            <span class="material-symbols-outlined">expand_more</span>
-                        `;
-                    } else {
-                        subStrategyContentWrapper.classList.add('expanded');
-                        expandButton.classList.add('expanded');
-                        expandButton.innerHTML = `
-                            <span>Show Less</span>
-                            <span class="material-symbols-outlined">expand_more</span>
-                        `;
-                    }
-                });
-                actionsContainer.appendChild(expandButton);
-            }
-
-            subStrategyCard.appendChild(actionsContainer);
-
-            subStrategiesGrid.appendChild(subStrategyCard);
-        });
-
-        subTabContent.appendChild(subStrategiesGrid);
-
-        const bestJudgedSolution = document.createElement('div');
-        bestJudgedSolution.className = 'best-judged-solution';
-
-        const bestJudgedSolutionTitle = document.createElement('h6');
-        bestJudgedSolutionTitle.textContent = `Best Judged Solution for Strategy ${index + 1}`;
-        bestJudgedSolution.appendChild(bestJudgedSolutionTitle);
-
-        const bestJudgedSolutionText = document.createElement('div');
-        bestJudgedSolutionText.className = 'markdown-content';
-        bestJudgedSolutionText.innerHTML = renderMarkdown(mainStrategy.judgedBestSolution || 'Not available');
-        bestJudgedSolution.appendChild(bestJudgedSolutionText);
-
-        subTabContent.appendChild(bestJudgedSolution);
-
-        strategicSolverCard.appendChild(subTabContent);
-    });
-
-    strategicSolverContentPane.appendChild(strategicSolverCard);
-    pipelinesContentContainer.appendChild(strategicSolverContentPane);
-
-    // Hypothesis Explorer Pane
-    const hypothesisExplorerContentPane = document.createElement('div');
-    hypothesisExplorerContentPane.id = `pipeline-content-hypothesis-explorer`;
-    hypothesisExplorerContentPane.className = 'pipeline-content';
-    hypothesisExplorerContentPane.setAttribute('role', 'tabpanel');
-    hypothesisExplorerContentPane.setAttribute('aria-labelledby', `math-tab-hypothesis-explorer`);
-    let hypothesisExplorerHtml = `<div class="math-hypothesis-explorer model-detail-card">`;
-    if (mathProcess.hypotheses.length > 0) {
-        hypothesisExplorerHtml += `<div class="hypotheses-grid">`;
-        mathProcess.hypotheses.forEach((hypothesis, index) => {
-            let statusClass = 'status-pending';
-            let statusText = 'Pending';
-            let glowClass = '';
-
-            switch (hypothesis.finalStatus) {
-                case 'proven':
-                    statusClass = 'status-completed';
-                    statusText = 'Proven';
-                    glowClass = 'hypothesis-proven';
-                    break;
-                case 'refuted':
-                    statusClass = 'status-error';
-                    statusText = 'Refuted';
-                    glowClass = 'hypothesis-refuted';
-                    break;
-                case 'unresolved':
-                    statusClass = 'status-pending';
-                    statusText = 'Unresolved';
-                    break;
-                case 'contradiction':
-                    statusClass = 'status-error';
-                    statusText = 'Contradiction';
-                    glowClass = 'hypothesis-contradiction';
-                    break;
-                default:
-                    if (hypothesis.testerStatus === 'processing') {
-                        statusClass = 'status-processing';
-                        statusText = 'Processing';
-                    }
-            }
-
-            hypothesisExplorerHtml += `<div class="hypothesis-card ${glowClass}">
-                <h5>Hypothesis ${index + 1}</h5>
-                <p class="hypothesis-text">${escapeHtml(hypothesis.hypothesisText)}</p>
-                <div class="hypothesis-status">
-                    <span class="status-badge ${statusClass}">${statusText}</span>
-                </div>
-                <div class="hypothesis-tester-status">
-                    <div class="tester-status">
-                        <span class="agent-label">Hypothesis Tester:</span>
-                        <span class="status-badge ${hypothesis.testerStatus === 'completed' ? 'status-completed' : hypothesis.testerStatus === 'processing' ? 'status-processing' : hypothesis.testerStatus === 'error' ? 'status-error' : 'status-pending'}">${hypothesis.testerStatus}</span>
-                    </div>
-                </div>
-                <button class="button view-argument-button" data-hypothesis-id="${hypothesis.id}">View The Argument</button>
-            </div>`;
-        });
-        hypothesisExplorerHtml += `</div>`;
-    }
-    if (mathProcess.knowledgePacket) {
-        // Parse the knowledge packet to create styled individual hypothesis cards
-        const hypothesesFromPacket = parseKnowledgePacketForStyling(mathProcess.knowledgePacket, mathProcess.hypotheses);
-        
-        hypothesisExplorerHtml += `
-            <div class="model-detail-section">
-                <h5 class="model-section-title">Synthesized Knowledge Packet</h5>
-                <div class="knowledge-packet-grid">
-                    ${hypothesesFromPacket}
-                </div>
-            </div>`;
-    }
-    hypothesisExplorerHtml += `</div>`;
-    hypothesisExplorerContentPane.innerHTML = hypothesisExplorerHtml;
-    pipelinesContentContainer.appendChild(hypothesisExplorerContentPane);
-
-    // Red Team Evaluator Pane
-    const redTeamContentPane = document.createElement('div');
-    redTeamContentPane.id = `pipeline-content-red-team-evaluator`;
-    redTeamContentPane.className = 'pipeline-content';
-    redTeamContentPane.setAttribute('role', 'tabpanel');
-    redTeamContentPane.setAttribute('aria-labelledby', `math-tab-red-team-evaluator`);
-    
-let redTeamHtml = `<div class="math-red-team model-detail-card">`;
-
-    if (mathProcess.redTeamAgents && mathProcess.redTeamAgents.length > 0) {
-        redTeamHtml += `<div class="red-team-agents-grid">`;
-        mathProcess.redTeamAgents.forEach((redTeamAgent, index) => {
-            let statusClass = 'status-pending';
-            let statusText = 'Pending';
-            if (redTeamAgent.status === 'processing') {
-                statusClass = 'status-processing';
-                statusText = 'Processing';
-            } else if (redTeamAgent.status === 'completed') {
-                statusClass = 'status-completed';
-                statusText = 'Completed';
-            } else if (redTeamAgent.status === 'error') {
-                statusClass = 'status-error';
-                statusText = 'Error';
-            } else if (redTeamAgent.status === 'cancelled') {
-                statusClass = 'status-cancelled';
-                statusText = 'Cancelled';
-            }
-
-            const assignedStrategy = mathProcess.initialStrategies.find(s => s.id === redTeamAgent.assignedStrategyId);
-            const strategyTitle = assignedStrategy ? assignedStrategy.strategyText.substring(0, 80) + '...' : 'Unknown Strategy';
-
-            redTeamHtml += `
-                <div class="red-team-agent-card">
-                    <div class="red-team-agent-header">
-                        <h5 class="red-team-agent-title">Red Team Agent ${index + 1}</h5>
-                        <span class="status-badge ${statusClass}">${statusText}</span>
-                    </div>
-                    <div class="red-team-agent-content">
-                        <p><strong>Assigned Strategy:</strong> ${escapeHtml(strategyTitle)}</p>`;
-
-            if (redTeamAgent.status === 'completed') {
-                const killedStrategiesCount = redTeamAgent.killedStrategyIds.length;
-                const killedSubStrategiesCount = redTeamAgent.killedSubStrategyIds.length;
-                
-                redTeamHtml += `
-                    <div class="red-team-results">
-                        <div class="red-team-evaluation-summary">
-                            <div class="evaluation-metric">
-                                <span class="metric-value">${killedStrategiesCount}</span>
-                                <span class="metric-label">Killed Strategies</span>
-                            </div>
-                            <div class="evaluation-metric">
-                                <span class="metric-value">${killedSubStrategiesCount}</span>
-                                <span class="metric-label">Killed Sub-Strategies</span>
-                            </div>
-                        </div>`;
-
-                if (killedStrategiesCount > 0 || killedSubStrategiesCount > 0) {
-                    redTeamHtml += `<div class="killed-items">`;
-                    if (killedStrategiesCount > 0) {
-                        redTeamHtml += `<p><strong>Eliminated Strategies:</strong> ${redTeamAgent.killedStrategyIds.join(', ')}</p>`;
-                    }
-                    if (killedSubStrategiesCount > 0) {
-                        redTeamHtml += `<p><strong>Eliminated Sub-Strategies:</strong> ${redTeamAgent.killedSubStrategyIds.join(', ')}</p>`;
-                    }
-                    redTeamHtml += `</div>`;
-                }
-
-                redTeamHtml += `</div>`;
-            }
-
-            if (redTeamAgent.error) {
-                redTeamHtml += `<div class="status-message error"><pre>${escapeHtml(redTeamAgent.error)}</pre></div>`;
-            }
-
-            if (redTeamAgent.reasoning) {
-                redTeamHtml += `
-                    <div class="red-team-reasoning-section">
-                        <div class="red-team-reasoning-header">
-                            <div class="red-team-reasoning-toggle">
-                                <span class="code-icon">&lt;&gt;</span>
-                                <span>Reasoning</span>
-                            </div>
-                            <div class="red-team-reasoning-buttons">
-                                <button class="red-team-reasoning-btn" onclick="toggleRedTeamReasoning('${redTeamAgent.id}')">
-                                    <span class="material-symbols-outlined">visibility</span>
-                                </button>
-                                <button class="red-team-reasoning-btn" onclick="showFullRedTeamReasoning('${redTeamAgent.id}', \`${escapeHtml(redTeamAgent.evaluationResponse || redTeamAgent.reasoning || '').replace(/`/g, '\\`')}\`)">
-                                    <span class="material-symbols-outlined">fullscreen</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div id="red-team-reasoning-${redTeamAgent.id}" class="red-team-reasoning-content">${escapeHtml(redTeamAgent.reasoning || '')}</div>
-                    </div>`;
-            }
-
-            redTeamHtml += `
-                    </div>
-                </div>`;
-        });
-        redTeamHtml += `</div>`;
-    } else {
-        redTeamHtml += `<div class="no-data-message">
-            <h4>Red Team Evaluator</h4>
-            <p>No Red Team agents have been generated yet. Red Team agents will appear here once the evaluation process begins.</p>
-        </div>`;
-    }
-
-    if (mathProcess.redTeamError) {
-        redTeamHtml += `<div class="status-message error"><pre>${escapeHtml(mathProcess.redTeamError)}</pre></div>`;
-    }
-
-    redTeamHtml += `</div>`;
-    redTeamContentPane.innerHTML = redTeamHtml;
-    pipelinesContentContainer.appendChild(redTeamContentPane);
-
-    // Add Red Team full screen modal to body if it doesn't exist
-    if (!document.getElementById('red-team-full-modal')) {
-        const modalHtml = `
-            <div id="red-team-full-modal" class="red-team-full-modal">
-                <div class="red-team-modal-header">
-                    <h3 class="red-team-modal-title">Full Red Team Reasoning</h3>
-                    <button class="red-team-modal-close" onclick="closeRedTeamModal()">
-                        <span class="material-symbols-outlined">close</span>
-                    </button>
-                </div>
-                <div id="red-team-modal-content" class="red-team-modal-content"></div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-    }
-
-    // Final Result Pane
-    const finalResultContentPane = document.createElement('div');
-    finalResultContentPane.id = `pipeline-content-final-result`;
-    finalResultContentPane.className = 'pipeline-content';
-    finalResultContentPane.setAttribute('role', 'tabpanel');
-    finalResultContentPane.setAttribute('aria-labelledby', `math-tab-final-result`);
-    let finalResultHtml = `<div class="math-final-result model-detail-card">`;
-    if (mathProcess.finalJudgingStatus === 'completed' && mathProcess.finalJudgedBestSolution) {
-        finalResultHtml += `<div class="final-solution-display">
-            <div class="markdown-content">
-                ${renderMarkdown(mathProcess.finalJudgedBestSolution)}
-            </div>
-        </div>`;
-    } else if (mathProcess.finalJudgingStatus === 'processing' || mathProcess.finalJudgingStatus === 'retrying') {
-        finalResultHtml += `<p class="status-badge status-processing">Final judging in progress...</p>`;
-    } else if (mathProcess.finalJudgingStatus === 'error') {
-        finalResultHtml += `<div class="status-message error">
-            <p>Error during final judging:</p>
-            <pre>${escapeHtml(mathProcess.finalJudgingError || 'Unknown error')}</pre>
-        </div>`;
-    } else if (mathProcess.status === 'completed') {
-        finalResultHtml += `<p class="status-badge status-pending">Final result not available</p>`;
-    } else {
-        finalResultHtml += `<p class="status-badge status-pending">Waiting for solution completion...</p>`;
-    }
-    finalResultHtml += `</div>`;
-    finalResultContentPane.innerHTML = finalResultHtml;
-    pipelinesContentContainer.appendChild(finalResultContentPane);
-
-    if (mathProcess.activeTabId) {
-        activateTab(mathProcess.activeTabId);
-    } else {
-        activateTab('problem-details');
-    }
-    updateControlsState();
-}
-// ----- END MATH MODE SPECIFIC FUNCTIONS -----
-
-// ---------- DEEPTHINK MODE SPECIFIC FUNCTIONS ----------
-
-async function startDeepthinkAnalysisProcess(challengeText: string, imageBase64?: string | null, imageMimeType?: string | null) {
-    if (!ai) {
-        return;
-    }
-    activeDeepthinkPipeline = {
-        id: `deepthink-process-${Date.now()}`,
-        challengeText: challengeText,
-        challengeImageBase64: imageBase64,
-        challengeImageMimeType: imageMimeType,
-        initialStrategies: [],
-        hypotheses: [],
-        redTeamAgents: [],
-        status: 'processing',
-        isStopRequested: false,
-        activeTabId: 'challenge-details',
-        activeStrategyTab: 0,
-        strategicSolverComplete: false,
-        hypothesisExplorerComplete: false,
-        redTeamComplete: false,
-        knowledgePacket: '',
-        finalJudgingStatus: 'pending'
-    };
-    
-    isGenerating = true;
-    updateControlsState();
-    renderActiveDeepthinkPipeline();
-
-    // activeDeepthinkPipeline is initialized immediately above; assert non-null for this scope
-    const currentProcess = activeDeepthinkPipeline as DeepthinkPipelineState;
-
-    const makeDeepthinkApiCall = async (
-        parts: Part[],
-        systemInstruction: string,
-        isJson: boolean,
-        stepDescription: string,
-        targetStatusField: DeepthinkMainStrategyData | DeepthinkSubStrategyData | DeepthinkPipelineState | DeepthinkHypothesisData,
-        retryAttemptField: 'retryAttempt' | 'selfImprovementRetryAttempt' | 'testerRetryAttempt' | 'hypothesisGenRetryAttempt'
-    ): Promise<string> => {
-        if (!currentProcess || currentProcess.isStopRequested) throw new PipelineStopRequestedError(`Stop requested before API call: ${stepDescription}`);
-        let responseText = "";
-
-        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-            if (currentProcess.isStopRequested) throw new PipelineStopRequestedError(`Stop requested during retry for: ${stepDescription}`);
-
-            try {
-                (targetStatusField as any)[retryAttemptField] = attempt;
-                renderActiveDeepthinkPipeline();
-
-                const strategyResponse = await callGemini(parts, getSelectedTemperature(), getSelectedModel(), systemInstruction, isJson, getSelectedTopP());
-                responseText = strategyResponse.text || "";
-
-                if (responseText && responseText.trim() !== "") {
-                    break;
-                } else {
-                    throw new Error("Empty response from API");
-                }
-            } catch (error: any) {
-                console.error(`API call failed (attempt ${attempt + 1}):`, error);
-
-                if (attempt === MAX_RETRIES) {
-                    throw error;
-                } else {
-                    const delay = INITIAL_DELAY_MS * Math.pow(BACKOFF_FACTOR, attempt);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
-            }
-        }
-
-        return responseText;
-    };
-
-    try {
-        // Track A: Strategic Solver (Main strategies → Sub-strategies → Solution attempts → Self-improvement → Judging)
-        const trackAPromise = (async () => {
-            try {
-                // Step 1: Generate initial strategies
-                currentProcess.status = 'processing';
-                renderActiveDeepthinkPipeline();
-
-                const parts: Part[] = [{ text: challengeText }];
-                if (imageBase64 && imageMimeType) {
-                    parts.push({
-                        inlineData: {
-                            data: imageBase64,
-                            mimeType: imageMimeType
-                        }
-                    });
-                }
-
-                const strategiesPrompt = customPromptsDeepthinkState.user_deepthink_initialStrategy.replace('{{originalProblemText}}', challengeText);
-                currentProcess.requestPromptInitialStrategyGen = strategiesPrompt;
-
-                const strategiesResponse = await makeDeepthinkApiCall(
-                    parts.concat([{ text: strategiesPrompt }]),
-                    customPromptsDeepthinkState.sys_deepthink_initialStrategy,
-                    true,
-                    "Initial Strategy Generation",
-                    currentProcess,
-                    'retryAttempt'
-                );
-
-                const strategies = parseJsonSuggestions(strategiesResponse, 'strategies', NUM_INITIAL_STRATEGIES_DEEPTHINK);
-
-                for (let i = 0; i < strategies.length; i++) {
-                    const strategy: DeepthinkMainStrategyData = {
-                        id: `main${i + 1}`,
-                        strategyText: strategies[i],
-                        subStrategies: [],
-                        status: 'pending',
-                        isDetailsOpen: false,
-                        strategyFormat: 'markdown'
-                    };
-                    currentProcess.initialStrategies.push(strategy);
-                }
-
-                renderActiveDeepthinkPipeline();
-
-                // Step 2: Generate sub-strategies for each main strategy IN PARALLEL
-                await Promise.allSettled(currentProcess.initialStrategies.map(async (mainStrategy) => {
-                    if (currentProcess.isStopRequested) {
-                        mainStrategy.status = 'cancelled';
-                        mainStrategy.error = "Process stopped by user.";
-                        return;
-                    }
-
-                    try {
-                        mainStrategy.status = 'processing';
-                        renderActiveDeepthinkPipeline();
-
-                        const otherStrategies = currentProcess.initialStrategies
-                            .filter(s => s.id !== mainStrategy.id)
-                            .map(s => s.strategyText);
-                        const otherMainStrategiesStr = otherStrategies.length > 0 
-                            ? otherStrategies.map((s, idx) => `Strategy ${idx + 1}: ${s}`).join('\n\n')
-                            : "No other strategies.";
-
-                        const subStrategyPrompt = customPromptsDeepthinkState.user_deepthink_subStrategy
-                            .replace('{{originalProblemText}}', challengeText)
-                            .replace('{{currentMainStrategy}}', mainStrategy.strategyText)
-                            .replace('{{otherMainStrategiesStr}}', otherMainStrategiesStr);
-
-                        mainStrategy.requestPromptSubStrategyGen = subStrategyPrompt;
-
-                        const subStrategyResponse = await makeDeepthinkApiCall(
-                            parts.concat([{ text: subStrategyPrompt }]),
-                            customPromptsDeepthinkState.sys_deepthink_subStrategy,
-                            true,
-                            `Sub-Strategy Generation for ${mainStrategy.id}`,
-                            mainStrategy,
-                            'retryAttempt'
-                        );
-
-                        const subStrategies = parseJsonSuggestions(subStrategyResponse, 'sub_strategies', NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK);
-
-                        for (let j = 0; j < subStrategies.length; j++) {
-                            const subStrategy: DeepthinkSubStrategyData = {
-                                id: `${mainStrategy.id}-sub${j + 1}`,
-                                subStrategyText: subStrategies[j],
-                                status: 'pending',
-                                isDetailsOpen: false,
-                                subStrategyFormat: 'markdown'
-                            };
-                            mainStrategy.subStrategies.push(subStrategy);
-                        }
-
-                        mainStrategy.status = 'completed';
-                        renderActiveDeepthinkPipeline();
-                    } catch (error: any) {
-                        console.error(`Sub-strategy generation failed for ${mainStrategy.id}:`, error);
-                        mainStrategy.status = 'error';
-                        mainStrategy.error = error.message || "Sub-strategy generation failed";
-                        renderActiveDeepthinkPipeline();
-                    }
-                }));
-
-                if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped after sub-strategy generation.");
-                // Step 2.5: Run Red Team evaluation BEFORE any solution attempts (mirror Math mode)
-                try {
-                    await runDeepthinkRedTeamEvaluation(currentProcess, challengeText, imageBase64, imageMimeType, makeDeepthinkApiCall);
-                } catch (e: any) {
-                    console.error("Red Team evaluation failed:", e);
-                    currentProcess.redTeamStatus = 'error';
-                    currentProcess.redTeamError = e.message || "Red Team evaluation failed";
-                    currentProcess.redTeamComplete = true;
-                    renderActiveDeepthinkPipeline();
-                }
-
-                // Early exit if Red Team eliminated everything
-                const remainingStrategies = currentProcess.initialStrategies.filter(s => !s.isKilledByRedTeam);
-                const remainingSubStrategies = currentProcess.initialStrategies.flatMap(s => s.subStrategies.filter(sub => !sub.isKilledByRedTeam));
-                if (remainingStrategies.length === 0) {
-                    console.warn("All main strategies were eliminated by Red Team evaluation");
-                    currentProcess.status = 'completed';
-                    currentProcess.error = "All strategies were eliminated by Red Team evaluation. No solution attempts can be made.";
-                    renderActiveDeepthinkPipeline();
-                    return;
-                }
-                if (remainingSubStrategies.length === 0) {
-                    console.warn("All sub-strategies were eliminated by Red Team evaluation");
-                    currentProcess.status = 'completed';
-                    currentProcess.error = "All sub-strategies were eliminated by Red Team evaluation. No solution attempts can be made.";
-                    renderActiveDeepthinkPipeline();
-                    return;
-                }
-
-                // Step 3: Execute solution attempts for all sub-strategies IN PARALLEL (skip any killed by Red Team)
-                const solutionPromises: Promise<void>[] = [];
-                currentProcess.initialStrategies.forEach((mainStrategy) => {
-                    mainStrategy.subStrategies.forEach((subStrategy) => {
-                        if (subStrategy.isKilledByRedTeam) return;
-                        
-                        solutionPromises.push((async () => {
-                            if (currentProcess.isStopRequested) {
-                                subStrategy.status = 'cancelled';
-                                subStrategy.error = "Process stopped by user.";
-                                return;
-                            }
-
-                            try {
-                                subStrategy.status = 'processing';
-                                renderActiveDeepthinkPipeline();
-
-                                const solutionPrompt = customPromptsDeepthinkState.user_deepthink_solutionAttempt
-                                    .replace('{{originalProblemText}}', challengeText)
-                                    .replace('{{currentSubStrategy}}', subStrategy.subStrategyText)
-                                    .replace('{{knowledgePacket}}', currentProcess.knowledgePacket || 'No hypothesis exploration results available yet.');
-
-                                subStrategy.requestPromptSolutionAttempt = solutionPrompt;
-
-                                const solutionResponse = await makeDeepthinkApiCall(
-                                    parts.concat([{ text: solutionPrompt }]),
-                                    customPromptsDeepthinkState.sys_deepthink_solutionAttempt,
-                                    false,
-                                    `Solution Attempt for ${subStrategy.id}`,
-                                    subStrategy,
-                                    'retryAttempt'
-                                );
-
-                                subStrategy.solutionAttempt = solutionResponse;
-                                subStrategy.status = 'completed';
-                                renderActiveDeepthinkPipeline();
-                            } catch (error: any) {
-                                console.error(`Solution attempt failed for ${subStrategy.id}:`, error);
-                                subStrategy.status = 'error';
-                                subStrategy.error = error.message || "Solution attempt failed";
-                                renderActiveDeepthinkPipeline();
-                            }
-                        })());
-                    });
-                });
-                await Promise.allSettled(solutionPromises);
-
-                if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped during solution attempts.");
-
-                // Step 4: Self-improvement for all solution attempts IN PARALLEL (skip any killed by Red Team)
-                const improvementPromises: Promise<void>[] = [];
-                currentProcess.initialStrategies.forEach((mainStrategy) => {
-                    mainStrategy.subStrategies.forEach((subStrategy) => {
-                        if (subStrategy.isKilledByRedTeam || !subStrategy.solutionAttempt) return;
-                        
-                        improvementPromises.push((async () => {
-                            if (currentProcess.isStopRequested) {
-                                subStrategy.selfImprovementStatus = 'cancelled';
-                                subStrategy.selfImprovementError = "Process stopped by user.";
-                                return;
-                            }
-
-                            try {
-                                subStrategy.selfImprovementStatus = 'processing';
-                                renderActiveDeepthinkPipeline();
-
-                                const improvementPrompt = customPromptsDeepthinkState.user_deepthink_selfImprovement
-                                    .replace('{{originalProblemText}}', challengeText)
-                                    .replace('{{currentSubStrategy}}', subStrategy.subStrategyText)
-                                    .replace('{{solutionAttempt}}', subStrategy.solutionAttempt || '')
-                                    .replace('{{knowledgePacket}}', currentProcess.knowledgePacket || 'No hypothesis exploration results available yet.');
-
-                                subStrategy.requestPromptSelfImprovement = improvementPrompt;
-
-                                const improvementResponse = await makeDeepthinkApiCall(
-                                    parts.concat([{ text: improvementPrompt }]),
-                                    customPromptsDeepthinkState.sys_deepthink_selfImprovement,
-                                    false,
-                                    `Self-Improvement for ${subStrategy.id}`,
-                                    subStrategy,
-                                    'selfImprovementRetryAttempt'
-                                );
-
-                                subStrategy.refinedSolution = improvementResponse;
-                                subStrategy.selfImprovementStatus = 'completed';
-                                renderActiveDeepthinkPipeline();
-                            } catch (error: any) {
-                                console.error(`Self-improvement failed for ${subStrategy.id}:`, error);
-                                subStrategy.selfImprovementStatus = 'error';
-                                subStrategy.selfImprovementError = error.message || "Self-improvement failed";
-                                renderActiveDeepthinkPipeline();
-                            }
-                        })());
-                    });
-                });
-                await Promise.allSettled(improvementPromises);
-
-                if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped during self-improvement.");
-
-                currentProcess.strategicSolverComplete = true;
-                renderActiveDeepthinkPipeline();
-
-            } catch (error: any) {
-                console.error('Track A (Strategic Solver) error:', error);
-                if (!(error instanceof PipelineStopRequestedError)) {
-                    currentProcess.status = 'error';
-                    currentProcess.error = `Strategic Solver failed: ${error.message}`;
-                    renderActiveDeepthinkPipeline();
-                }
-                throw error;
-            }
-        })();
-
-        // Track B: Hypothesis Explorer (Generate → Test → Synthesize knowledge packet)
-        const trackBPromise = (async () => {
-            try {
-                // Generate hypotheses
-                const hypothesisPrompt = customPromptsDeepthinkState.user_deepthink_hypothesisGeneration.replace('{{originalProblemText}}', challengeText);
-                currentProcess.requestPromptHypothesisGen = hypothesisPrompt;
-                currentProcess.hypothesisGenStatus = 'processing';
-                renderActiveDeepthinkPipeline();
-
-                const parts: Part[] = [{ text: challengeText }];
-                if (imageBase64 && imageMimeType) {
-                    parts.push({
-                        inlineData: {
-                            data: imageBase64,
-                            mimeType: imageMimeType
-                        }
-                    });
-                }
-
-                const hypothesisResponse = await makeDeepthinkApiCall(
-                    parts.concat([{ text: hypothesisPrompt }]),
-                    customPromptsDeepthinkState.sys_deepthink_hypothesisGeneration,
-                    true,
-                    "Hypothesis Generation",
-                    currentProcess,
-                    'hypothesisGenRetryAttempt'
-                );
-
-                const hypothesisData = parseJsonSafe(hypothesisResponse, 'Hypothesis Generation');
-                const hypotheses = hypothesisData.hypotheses || [];
-
-                for (let i = 0; i < hypotheses.length; i++) {
-                    const hypothesis: DeepthinkHypothesisData = {
-                        id: `hyp${i + 1}`,
-                        hypothesisText: hypotheses[i],
-                        testerStatus: 'pending',
-                        finalStatus: 'pending',
-                        isDetailsOpen: false
-                    };
-                    currentProcess.hypotheses.push(hypothesis);
-                }
-
-                currentProcess.hypothesisGenStatus = 'completed';
-                renderActiveDeepthinkPipeline();
-
-                // Test each hypothesis
-                for (const hypothesis of currentProcess.hypotheses) {
-                    if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stop requested during hypothesis testing");
-
-                    hypothesis.testerStatus = 'processing';
-                    renderActiveDeepthinkPipeline();
-
-                    const testerPrompt = customPromptsDeepthinkState.user_deepthink_hypothesisTester
-                        .replace('{{originalProblemText}}', challengeText)
-                        .replace('{{hypothesisText}}', hypothesis.hypothesisText);
-
-                    hypothesis.testerRequestPrompt = testerPrompt;
-
-                    const testerResponse = await makeDeepthinkApiCall(
-                        parts.concat([{ text: testerPrompt }]),
-                        customPromptsDeepthinkState.sys_deepthink_hypothesisTester,
-                        false,
-                        `Hypothesis Testing for ${hypothesis.id}`,
-                        hypothesis,
-                        'testerRetryAttempt'
-                    );
-
-                    hypothesis.testerAttempt = testerResponse;
-                    hypothesis.testerStatus = 'completed';
-
-                    // Determine final status based on the response
-                    const response = testerResponse.toLowerCase();
-                    if (response.includes('validated') || response.includes('proven true')) {
-                        hypothesis.finalStatus = 'validated';
-                    } else if (response.includes('refuted') || response.includes('proven false')) {
-                        hypothesis.finalStatus = 'refuted';
-                    } else if (response.includes('contradiction')) {
-                        hypothesis.finalStatus = 'contradiction';
-                    } else if (response.includes('needs further analysis')) {
-                        hypothesis.finalStatus = 'needs_further_analysis';
-                    } else {
-                        hypothesis.finalStatus = 'unresolved';
-                    }
-
-                    renderActiveDeepthinkPipeline();
-                }
-
-                // Synthesize knowledge packet
-                const validatedHypotheses = currentProcess.hypotheses.filter(h => h.finalStatus === 'validated');
-                const refutedHypotheses = currentProcess.hypotheses.filter(h => h.finalStatus === 'refuted');
-                const unresolvedHypotheses = currentProcess.hypotheses.filter(h => h.finalStatus === 'unresolved' || h.finalStatus === 'needs_further_analysis');
-
-                let knowledgePacket = "HYPOTHESIS EXPLORATION RESULTS:\n\n";
-                
-                if (validatedHypotheses.length > 0) {
-                    knowledgePacket += "VALIDATED HYPOTHESES (use as established facts):\n";
-                    validatedHypotheses.forEach((h, i) => {
-                        knowledgePacket += `${i + 1}. ${h.hypothesisText}\n`;
-                    });
-                    knowledgePacket += "\n";
-                }
-
-                if (refutedHypotheses.length > 0) {
-                    knowledgePacket += "REFUTED HYPOTHESES (avoid approaches that depend on these):\n";
-                    refutedHypotheses.forEach((h, i) => {
-                        knowledgePacket += `${i + 1}. ${h.hypothesisText}\n`;
-                    });
-                    knowledgePacket += "\n";
-                }
-
-                if (unresolvedHypotheses.length > 0) {
-                    knowledgePacket += "UNRESOLVED QUESTIONS (acknowledge limitations):\n";
-                    unresolvedHypotheses.forEach((h, i) => {
-                        knowledgePacket += `${i + 1}. ${h.hypothesisText}\n`;
-                    });
-                    knowledgePacket += "\n";
-                }
-
-                currentProcess.knowledgePacket = knowledgePacket;
-                currentProcess.hypothesisExplorerComplete = true;
-                renderActiveDeepthinkPipeline();
-
-            } catch (error: any) {
-                console.error('Track B (Hypothesis Explorer) error:', error);
-                if (!(error instanceof PipelineStopRequestedError)) {
-                    currentProcess.hypothesisGenStatus = 'error';
-                    currentProcess.hypothesisGenError = `Hypothesis exploration failed: ${error.message}`;
-                    renderActiveDeepthinkPipeline();
-                }
-                throw error;
-            }
-        })();
-
-        // Wait for both tracks to complete
-        await Promise.all([trackAPromise, trackBPromise]);
-
-        // Red Team Evaluation has already been performed earlier; skip legacy block here
-
-        // --- Judging Phase 1: Intra-Strategy (using refined solutions) ---
-        const intraStrategyJudgingPromises = currentProcess.initialStrategies.map(async (mainStrategy, mainIndex) => {
-            if (currentProcess.isStopRequested) {
-                mainStrategy.judgingStatus = 'cancelled';
-                return;
-            }
-            
-            // Skip judge if all sub-strategies are killed by red team
-            const allSubStrategiesKilled = mainStrategy.subStrategies.length > 0 && 
-                mainStrategy.subStrategies.every(sub => sub.isKilledByRedTeam);
-            if (allSubStrategiesKilled) {
-                mainStrategy.judgingStatus = 'completed';
-                mainStrategy.judgingError = 'All sub-strategies eliminated by Red Team - skipping judge.';
-                renderActiveDeepthinkPipeline();
-                return;
-            }
-            
-            mainStrategy.judgingStatus = 'processing';
-            renderActiveDeepthinkPipeline();
-
-            // Use refined solutions instead of original solution attempts
-            const completedSolutions = mainStrategy.subStrategies
-                .filter(ss => ss.selfImprovementStatus === 'completed' && ss.refinedSolution)
-                .map(ss => ({ id: ss.id, solution: ss.refinedSolution! }));
-
-            if (completedSolutions.length === 0) {
-                mainStrategy.judgingStatus = 'completed'; // Completed with no result
-                mainStrategy.judgingError = 'No valid refined solutions from sub-strategies to judge.';
-                renderActiveDeepthinkPipeline();
-                return;
-            }
-
-            const sysPromptJudge = customPromptsDeepthinkState.sys_deepthink_judge;
-            const solutionsText = completedSolutions.map((s, i) => `--- REFINED SOLUTION ${i + 1} (ID: ${s.id}) ---\n${s.solution}`).join('\n\n');
-            const userPromptJudge = `Original Challenge: ${challengeText}\n\nMain Strategy Being Evaluated: "${mainStrategy.strategyText}"\n\nBelow are ${completedSolutions.length} refined and self-improved solutions derived from this main strategy. Your task is:\n1.  Critically analyze each solution for correctness, rigor, clarity, and elegance.\n2.  Identify the single BEST solution that most effectively and correctly solves the challenge according to the main strategy.\n3.  Present your final judgment as a JSON object with the following structure: \`{"best_solution_id": "ID of the winning sub-strategy", "best_solution_text": "The full text of the absolute best solution", "reasoning": "Your detailed reasoning for why this solution is superior"}\`\n\n${solutionsText}`;
-            mainStrategy.judgingRequestPrompt = userPromptJudge;
-
-            try {
-                const judgingResponseText = await makeDeepthinkJudgingApiCall(
-                    currentProcess,
-                    [{ text: userPromptJudge }],
-                    sysPromptJudge,
-                    true,
-                    `Judging for Main Strategy ${mainIndex + 1}`,
-                    mainStrategy,
-                    'intra-strategy'
-                );
-                mainStrategy.judgingResponseText = judgingResponseText;
-                const cleanedJson = cleanOutputByType(judgingResponseText, 'json');
-                const parsed = JSON.parse(cleanedJson);
-
-                if (!parsed.best_solution_id || !parsed.reasoning) {
-                    throw new Error("Judge LLM response is missing critical fields (best_solution_id, reasoning).");
-                }
-
-                mainStrategy.judgedBestSubStrategyId = parsed.best_solution_id;
-                const subStrategyOrigin = mainStrategy.subStrategies.find(s => s.id === parsed.best_solution_id);
-                const subStrategyTitle = subStrategyOrigin ? `from Sub-Strategy originating from "${subStrategyOrigin.subStrategyText.substring(0, 50)}..."` : `from Sub-Strategy ${parsed.best_solution_id}`;
-                
-                // Get the actual solution text from the winning sub-strategy
-                const winningSolution = subStrategyOrigin?.refinedSolution || subStrategyOrigin?.solutionAttempt || 'Solution not found';
-                
-                mainStrategy.judgedBestSolution = `### Judged Best Solution for Strategy ${mainIndex + 1}\n\n**Origin:** ${subStrategyTitle}\n\n**Reasoning for Selection:**\n${parsed.reasoning}\n\n---\n\n**Final Solution Text:**\n${winningSolution}`;
-                mainStrategy.judgingStatus = 'completed';
-
-            } catch (e: any) {
-                mainStrategy.judgingStatus = 'error';
-                mainStrategy.judgingError = e.message || 'Failed to judge solutions.';
-                console.error(`Error judging for MS ${mainIndex + 1}:`, e);
-            } finally {
-                renderActiveDeepthinkPipeline();
-            }
-        });
-
-        await Promise.allSettled(intraStrategyJudgingPromises);
-        if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped during intra-strategy judging.");
-
-        // --- Judging Phase 2: Final Verdict ---
-        currentProcess.finalJudgingStatus = 'processing';
-        renderActiveDeepthinkPipeline();
-
-        const judgedSolutions = currentProcess.initialStrategies
-            .filter(ms => !ms.isKilledByRedTeam && ms.judgingStatus === 'completed' && ms.judgedBestSolution)
-            .map(ms => ({ id: ms.id, solution: ms.judgedBestSolution! }));
-
-        if (judgedSolutions.length === 0) {
-            currentProcess.finalJudgingStatus = 'error';
-            currentProcess.finalJudgingError = "No successfully judged solutions available for final review.";
-        } else {
-            const sysPromptFinalJudge = customPromptsDeepthinkState.sys_deepthink_finalJudge;
-            const finalSolutionsText = judgedSolutions.map((s, i) => `--- CANDIDATE SOLUTION ${i + 1} (from Main Strategy ID: ${s.id}) ---\n${s.solution}`).join('\n\n');
-            const userPromptFinalJudge = `Original Challenge: ${challengeText}\n\nBelow are ${judgedSolutions.length} final candidate solutions, each being the winner from a different overarching strategic approach. Your task is to select the SINGLE OVERALL BEST solution based on correctness, efficiency, elegance, and clarity.\n\nPresent your final verdict as a JSON object with the following structure: \`{"best_strategy_id": "ID of the winning main strategy", "final_solution_text": "The full text of the absolute best solution", "final_reasoning": "Your detailed reasoning for why this solution is the ultimate winner"}\`\n\n${finalSolutionsText}`;
-
-            currentProcess.finalJudgingRequestPrompt = userPromptFinalJudge;
-
-            try {
-                const finalJudgingResponseText = await makeDeepthinkJudgingApiCall(
-                    currentProcess,
-                    [{ text: userPromptFinalJudge }],
-                    sysPromptFinalJudge,
-                    true,
-                    'Final Judging',
-                    currentProcess,
-                    'final'
-                );
-                currentProcess.finalJudgingResponseText = finalJudgingResponseText;
-                const cleanedJson = cleanOutputByType(finalJudgingResponseText, 'json');
-                const parsed = JSON.parse(cleanedJson);
-
-                if (!parsed.best_strategy_id || !parsed.final_reasoning) {
-                    throw new Error("Final Judge LLM response is missing critical fields (best_strategy_id, final_reasoning).");
-                }
-
-                currentProcess.finalJudgedBestStrategyId = parsed.best_strategy_id;
-                const strategyOrigin = currentProcess.initialStrategies.find(s => s.id === parsed.best_strategy_id);
-                const strategyTitle = strategyOrigin ? `from Strategy originating from "${strategyOrigin.strategyText.substring(0, 60)}..."` : `from Strategy ${parsed.best_strategy_id}`;
-
-                // Get the actual solution text from the winning strategy's best solution
-                const winningStrategy = currentProcess.initialStrategies.find(s => s.id === parsed.best_strategy_id);
-                const winningSolution = winningStrategy?.judgedBestSolution || 'Solution not found';
-
-                currentProcess.finalJudgedBestSolution = `### Final Judged Best Solution\n\n**Origin:** ${strategyTitle}\n\n**Final Reasoning:**\n${parsed.final_reasoning}\n\n---\n\n**Definitive Solution:**\n${winningSolution}`;
-                currentProcess.finalJudgingStatus = 'completed';
-
-            } catch (e: any) {
-                currentProcess.finalJudgingStatus = 'error';
-                currentProcess.finalJudgingError = e.message || "Failed to perform final judging.";
-                console.error(`Error in final judging:`, e);
-            }
-        }
-
-        currentProcess.status = 'completed';
-        renderActiveDeepthinkPipeline();
-
-    } catch (error: any) {
-        console.error('Deepthink analysis process error:', error);
-        if (error instanceof PipelineStopRequestedError) {
-            currentProcess.status = 'stopped';
-        } else {
-            currentProcess.status = 'error';
-            currentProcess.error = error.message;
-        }
-        renderActiveDeepthinkPipeline();
-    } finally {
-        isGenerating = false;
-        updateControlsState();
-    }
-}
-function renderActiveDeepthinkPipeline() {
-    if (currentMode !== 'deepthink' || !pipelinesContentContainer || !tabsNavContainer) {
-        if (currentMode !== 'deepthink' && tabsNavContainer && pipelinesContentContainer) {
-            tabsNavContainer.innerHTML = '';
-            pipelinesContentContainer.innerHTML = '';
-        }
-        return;
-    }
-    if (!activeDeepthinkPipeline) {
-        tabsNavContainer.innerHTML = '<p class="no-pipelines-message">Enter a challenge and click "Solve Challenge".</p>';
-        pipelinesContentContainer.innerHTML = '';
-        return;
-    }
-
-    const deepthinkProcess = activeDeepthinkPipeline;
-    tabsNavContainer.innerHTML = '';
-    pipelinesContentContainer.innerHTML = '';
-
-    // Main Tabs - Final Result moved to the right
-    const mainTabs = [
-        { id: 'strategic-solver', text: 'Strategic Leap' },
-        { id: 'hypothesis-explorer', text: 'Hypothesis Testing' },
-        { id: 'red-team-evaluator', text: 'Red Team' }
-    ];
-    
-    const rightAlignedTabs = [
-        { id: 'final-result', text: 'Final Result' }
-    ];
-
-    // Create left-aligned tabs container
-    const leftTabsContainer = document.createElement('div');
-    leftTabsContainer.style.display = 'flex';
-    leftTabsContainer.style.gap = '0.5rem';
-    leftTabsContainer.style.alignItems = 'center';
-    
-    // Create right-aligned tabs container
-    const rightTabsContainer = document.createElement('div');
-    rightTabsContainer.style.display = 'flex';
-    rightTabsContainer.style.gap = '0.5rem';
-    rightTabsContainer.style.alignItems = 'center';
-    rightTabsContainer.style.marginLeft = 'auto';
-    
-    mainTabs.forEach(tabInfo => {
-        const tabButton = document.createElement('button');
-        tabButton.className = 'tab-button deepthink-mode-tab';
-        tabButton.id = `deepthink-tab-${tabInfo.id}`;
-        tabButton.textContent = tabInfo.text;
-        tabButton.setAttribute('role', 'tab');
-        tabButton.setAttribute('aria-controls', `pipeline-content-${tabInfo.id}`);
-        tabButton.addEventListener('click', () => activateTab(tabInfo.id));
-        
-        // Add pink glow to Red Team tab always
-        if (tabInfo.id === 'red-team-evaluator') {
-            tabButton.classList.add('red-team-pink-glow');
-        }
-        
-        leftTabsContainer.appendChild(tabButton);
-
-        if (tabInfo.id === 'strategic-solver') {
-            if (deepthinkProcess.strategicSolverComplete) {
-                tabButton.classList.add('status-deepthink-completed');
-            } else if (deepthinkProcess.status === 'error') { // prioritize error so it's not masked by empty strategies
-                tabButton.classList.add('status-deepthink-error');
-            } else if (deepthinkProcess.status === 'processing' || deepthinkProcess.status === 'retrying' || deepthinkProcess.initialStrategies.length === 0) {
-                tabButton.classList.add('status-deepthink-processing');
-            }
-        } else if (tabInfo.id === 'hypothesis-explorer') {
-            if (deepthinkProcess.hypothesisExplorerComplete) {
-                tabButton.classList.add('status-deepthink-completed');
-            } else if (deepthinkProcess.status === 'processing') {
-                tabButton.classList.add('status-deepthink-processing');
-            }
-        } else if (tabInfo.id === 'red-team-evaluator') {
-            if (deepthinkProcess.redTeamComplete) {
-                tabButton.classList.add('status-deepthink-completed');
-            } else if (deepthinkProcess.redTeamStatus === 'processing') {
-                tabButton.classList.add('status-deepthink-processing');
-            } else if (deepthinkProcess.redTeamStatus === 'error') {
-                tabButton.classList.add('status-deepthink-error');
-            }
-        } else if (tabInfo.id === 'final-result') {
-            if (deepthinkProcess.finalJudgingStatus === 'completed') {
-                tabButton.classList.add('status-deepthink-completed');
-            } else if (deepthinkProcess.finalJudgingStatus === 'processing' || deepthinkProcess.finalJudgingStatus === 'retrying') {
-                tabButton.classList.add('status-deepthink-processing');
-            } else if (deepthinkProcess.finalJudgingStatus === 'error') {
-                tabButton.classList.add('status-deepthink-error');
-            }
-        }
-    });
-    
-    // Add right-aligned tabs
-    rightAlignedTabs.forEach(tabInfo => {
-        const tabButton = document.createElement('button');
-        tabButton.className = 'tab-button deepthink-mode-tab';
-        tabButton.id = `deepthink-tab-${tabInfo.id}`;
-        tabButton.textContent = tabInfo.text;
-        tabButton.setAttribute('role', 'tab');
-        tabButton.setAttribute('aria-controls', `pipeline-content-${tabInfo.id}`);
-        tabButton.addEventListener('click', () => activateTab(tabInfo.id));
-        rightTabsContainer.appendChild(tabButton);
-        
-        if (tabInfo.id === 'final-result') {
-            if (deepthinkProcess.finalJudgingStatus === 'completed') {
-                tabButton.classList.add('status-deepthink-completed');
-            } else if (deepthinkProcess.finalJudgingStatus === 'processing' || deepthinkProcess.finalJudgingStatus === 'retrying') {
-                tabButton.classList.add('status-deepthink-processing');
-            } else if (deepthinkProcess.finalJudgingStatus === 'error') {
-                tabButton.classList.add('status-deepthink-error');
-            }
-        }
-    });
-    
-    // Append both containers to the tabs nav
-    tabsNavContainer.appendChild(leftTabsContainer);
-    tabsNavContainer.appendChild(rightTabsContainer);
-
-    // Challenge Details Pane
-    let challengeContentPane = document.createElement('div');
-    challengeContentPane.id = `pipeline-content-challenge-details`;
-    challengeContentPane.className = 'pipeline-content';
-    challengeContentPane.setAttribute('role', 'tabpanel');
-    challengeContentPane.setAttribute('aria-labelledby', `deepthink-tab-challenge-details`);
-    let challengeDetailsHtml = `
-        <div class="deepthink-challenge-display model-detail-card">
-            <h4 class="model-title">Original Challenge</h4>
-            <p class="challenge-text">${escapeHtml(deepthinkProcess.challengeText)}</p>`;
-    if (deepthinkProcess.challengeImageBase64 && deepthinkProcess.challengeImageMimeType) {
-        challengeDetailsHtml += `<img src="data:${deepthinkProcess.challengeImageMimeType};base64,${deepthinkProcess.challengeImageBase64}" alt="Uploaded Challenge Image" class="challenge-image-display">`;
-    }
-    if (deepthinkProcess.requestPromptInitialStrategyGen) {
-        challengeDetailsHtml += `
-            <details class="model-detail-section collapsible-section">
-                <summary class="model-section-title">Initial Strategy Generation Prompt</summary>
-                <div class="scrollable-content-area custom-scrollbar"><pre>${escapeHtml(deepthinkProcess.requestPromptInitialStrategyGen)}</pre></div>
-            </details>`;
-    }
-    if (deepthinkProcess.status === 'retrying' && deepthinkProcess.retryAttempt !== undefined && deepthinkProcess.initialStrategies.length === 0) {
-        challengeDetailsHtml += `<p class="status-badge status-retrying">Retrying initial strategy generation (${deepthinkProcess.retryAttempt}/${MAX_RETRIES})...</p>`;
-    } else if (deepthinkProcess.error && deepthinkProcess.initialStrategies.length === 0) {
-        challengeDetailsHtml += `<div class="status-message error"><pre>${escapeHtml(deepthinkProcess.error)}</pre></div>`;
-    }
-    challengeDetailsHtml += `</div>`;
-    challengeContentPane.innerHTML = challengeDetailsHtml;
-    pipelinesContentContainer.appendChild(challengeContentPane);
-
-    // Strategic Solver Pane - EXACT COPY OF MATH MODE STRUCTURE
-    const strategicSolverContentPane = document.createElement('div');
-    strategicSolverContentPane.id = `pipeline-content-strategic-solver`;
-    strategicSolverContentPane.className = 'pipeline-content';
-    strategicSolverContentPane.setAttribute('role', 'tabpanel');
-    strategicSolverContentPane.setAttribute('aria-labelledby', `deepthink-tab-strategic-solver`);
-    
-    const strategicSolverCard = document.createElement('div');
-    strategicSolverCard.className = 'deepthink-strategic-solver model-detail-card';
-
-    if (deepthinkProcess.initialStrategies.length > 0) {
-        const subTabsNav = document.createElement('div');
-        subTabsNav.className = 'sub-tabs-nav';
-
-        deepthinkProcess.initialStrategies.forEach((_, index) => {
-            const subTabButton = document.createElement('button');
-            subTabButton.className = 'sub-tab-button';
-            subTabButton.id = `sub-tab-strategy-${index}`;
-            subTabButton.textContent = `Strategy ${index + 1}`;
-            if (index === deepthinkProcess.activeStrategyTab) {
-                subTabButton.classList.add('active');
-            }
-            subTabButton.addEventListener('click', () => activateDeepthinkStrategyTab(index));
-            subTabsNav.appendChild(subTabButton);
-        });
-
-        strategicSolverCard.appendChild(subTabsNav);
-
-        deepthinkProcess.initialStrategies.forEach((mainStrategy, index) => {
-            const subTabContent = document.createElement('div');
-            subTabContent.className = 'sub-tab-content';
-            subTabContent.id = `sub-tab-content-strategy-${index}`;
-            if (index === deepthinkProcess.activeStrategyTab) {
-                subTabContent.classList.add('active');
-            }
-
-            // Create strategy content wrapper with collapsible functionality
-            const strategyContentWrapper = document.createElement('div');
-            strategyContentWrapper.className = 'strategy-content collapsible';
-            
-            const strategyContent = document.createElement('div');
-            strategyContent.className = 'markdown-content';
-            let strategyContentHtml = renderMarkdown(mainStrategy.strategyText);
-            if (mainStrategy.isKilledByRedTeam) {
-                strategyContentHtml = `<span class="killed-strategy">ELIMINATED: ${strategyContentHtml}</span>`;
-                strategyContent.innerHTML = `${strategyContentHtml}<div class="elimination-reason">${escapeHtml(mainStrategy.redTeamReason || 'Eliminated by Red Team')}</div>`;
-            } else {
-                strategyContent.innerHTML = strategyContentHtml;
-            }
-            strategyContentWrapper.appendChild(strategyContent);
-            
-            // Create actions container for strategy-level buttons
-            const strategyActionsContainer = document.createElement('div');
-            strategyActionsContainer.className = 'strategy-actions';
-            
-            // Add expand/collapse button for main strategy if content is long enough
-            if (mainStrategy.strategyText.length > 500) {
-                const strategyExpandButton = document.createElement('button');
-                strategyExpandButton.className = 'sub-strategy-expand-toggle';
-                strategyExpandButton.innerHTML = `
-                    <span>Show More</span>
-                    <span class="material-symbols-outlined">expand_more</span>
-                `;
-                strategyExpandButton.addEventListener('click', () => {
-                    const isExpanded = strategyContentWrapper.classList.contains('expanded');
-                    if (isExpanded) {
-                        strategyContentWrapper.classList.remove('expanded');
-                        strategyExpandButton.classList.remove('expanded');
-                        strategyExpandButton.innerHTML = `
-                            <span>Show More</span>
-                            <span class="material-symbols-outlined">expand_more</span>
-                        `;
-                    } else {
-                        strategyContentWrapper.classList.add('expanded');
-                        strategyExpandButton.classList.add('expanded');
-                        strategyExpandButton.innerHTML = `
-                            <span>Show Less</span>
-                            <span class="material-symbols-outlined">expand_more</span>
-                        `;
-                    }
-                });
-                strategyActionsContainer.appendChild(strategyExpandButton);
-            }
-            
-            subTabContent.appendChild(strategyContentWrapper);
-            if (strategyActionsContainer.children.length > 0) {
-                subTabContent.appendChild(strategyActionsContainer);
-            }
-
-            const subStrategiesGrid = document.createElement('div');
-            subStrategiesGrid.className = 'sub-strategies-grid';
-
-            mainStrategy.subStrategies.forEach((subStrategy, subIndex) => {
-                const subStrategyCard = document.createElement('div');
-                subStrategyCard.className = 'sub-strategy-card';
-                
-                if (subStrategy.isKilledByRedTeam) {
-                    subStrategyCard.classList.add('killed-sub-strategy');
-                }
-
-                const subStrategyTitle = document.createElement('h6');
-                let titleText = `Sub-Strategy ${index + 1}.${subIndex + 1}`;
-                if (subStrategy.isKilledByRedTeam) {
-                    titleText = ` ${titleText} - ELIMINATED`;
-                }
-                subStrategyTitle.textContent = titleText;
-                subStrategyCard.appendChild(subStrategyTitle);
-
-                if (subStrategy.isKilledByRedTeam && subStrategy.redTeamReason) {
-                    const eliminationReason = document.createElement('div');
-                    eliminationReason.className = 'elimination-reason';
-                    eliminationReason.textContent = subStrategy.redTeamReason;
-                    subStrategyCard.appendChild(eliminationReason);
-                }
-
-                // Create content wrapper with size limiting
-                const subStrategyContentWrapper = document.createElement('div');
-                subStrategyContentWrapper.className = 'sub-strategy-content collapsible';
-                
-                const subStrategyText = document.createElement('div');
-                subStrategyText.className = 'markdown-content';
-                subStrategyText.innerHTML = renderMarkdown(subStrategy.subStrategyText);
-                subStrategyContentWrapper.appendChild(subStrategyText);
-                subStrategyCard.appendChild(subStrategyContentWrapper);
-                
-                // Create actions container for buttons
-                const actionsContainer = document.createElement('div');
-                actionsContainer.className = 'sub-strategy-actions';
-
-                const solutionButton = document.createElement('button');
-                solutionButton.className = 'button';
-                if (subStrategy.isKilledByRedTeam) {
-                    solutionButton.textContent = 'Eliminated - No Solution';
-                    solutionButton.disabled = true;
-                    solutionButton.classList.add('disabled');
-                } else {
-                    solutionButton.textContent = 'Solution';
-                    solutionButton.addEventListener('click', () => openDeepthinkSolutionModal(subStrategy.id));
-                }
-                actionsContainer.appendChild(solutionButton);
-                
-                // Add expand/collapse button if content is long enough
-                if (subStrategy.subStrategyText.length > 500) {
-                    const expandButton = document.createElement('button');
-                    expandButton.className = 'sub-strategy-expand-toggle';
-                    expandButton.innerHTML = `
-                        <span>Show More</span>
-                        <span class="material-symbols-outlined">expand_more</span>
-                    `;
-                    expandButton.addEventListener('click', () => {
-                        const isExpanded = subStrategyContentWrapper.classList.contains('expanded');
-                        if (isExpanded) {
-                            subStrategyContentWrapper.classList.remove('expanded');
-                            expandButton.classList.remove('expanded');
-                            expandButton.innerHTML = `
-                                <span>Show More</span>
-                                <span class="material-symbols-outlined">expand_more</span>
-                            `;
-                        } else {
-                            subStrategyContentWrapper.classList.add('expanded');
-                            expandButton.classList.add('expanded');
-                            expandButton.innerHTML = `
-                                <span>Show Less</span>
-                                <span class="material-symbols-outlined">expand_more</span>
-                            `;
-                        }
-                    });
-                    actionsContainer.appendChild(expandButton);
-                }
-
-                subStrategyCard.appendChild(actionsContainer);
-
-                subStrategiesGrid.appendChild(subStrategyCard);
-            });
-
-            subTabContent.appendChild(subStrategiesGrid);
-
-            // Judge Results Section
-            const judgeSection = document.createElement('div');
-            judgeSection.className = 'judge-results-section';
-
-            const judgeSectionTitle = document.createElement('h6');
-            judgeSectionTitle.className = 'judge-section-title';
-            judgeSectionTitle.textContent = `Judge Results for Strategy ${index + 1}`;
-            judgeSection.appendChild(judgeSectionTitle);
-
-            // Judge Status Display
-            const judgeStatusDiv = document.createElement('div');
-            judgeStatusDiv.className = 'judge-status';
-            
-            let statusBadge = '';
-            let judgeContent = '';
-            
-            if (mainStrategy.judgingStatus === 'completed' && mainStrategy.judgedBestSolution) {
-                statusBadge = '<span class="status-badge status-completed">Judge Completed</span>';
-                judgeContent = `
-                    <div class="judge-best-solution">
-                        <div class="markdown-content">
-                            ${renderMathContent(mainStrategy.judgedBestSolution)}
-                        </div>
-                    </div>`;
-                
-                // Add the selected sub-strategy ID if available
-                if (mainStrategy.judgedBestSubStrategyId) {
-                    const selectedSubStrategy = mainStrategy.subStrategies.find(ss => ss.id === mainStrategy.judgedBestSubStrategyId);
-                    if (selectedSubStrategy) {
-                        const subStrategyIndex = mainStrategy.subStrategies.indexOf(selectedSubStrategy);
-                        statusBadge += `<span class="selected-substrategy-badge">Selected: Sub-Strategy ${index + 1}.${subStrategyIndex + 1}</span>`;
-                    }
-                }
-            } else if (mainStrategy.judgingStatus === 'processing' || mainStrategy.judgingStatus === 'retrying') {
-                statusBadge = '<span class="status-badge status-processing">Judge Processing...</span>';
-                judgeContent = '<div class="judge-pending">Judge is evaluating solutions from sub-strategies...</div>';
-            } else if (mainStrategy.judgingStatus === 'error') {
-                statusBadge = '<span class="status-badge status-error">Judge Error</span>';
-                judgeContent = `<div class="judge-error">Error: ${escapeHtml(mainStrategy.judgingError || 'Unknown error')}</div>`;
-            } else if (mainStrategy.isKilledByRedTeam) {
-                statusBadge = '<span class="status-badge status-eliminated">Strategy Eliminated</span>';
-                judgeContent = '<div class="judge-skipped">Strategy was eliminated by Red Team - no judging performed.</div>';
-            } else {
-                statusBadge = '<span class="status-badge status-pending">Judge Pending</span>';
-                judgeContent = '<div class="judge-pending">Waiting for solutions to complete before judging...</div>';
-            }
-            
-            judgeStatusDiv.innerHTML = statusBadge;
-            judgeSection.appendChild(judgeStatusDiv);
-            
-            const judgeContentDiv = document.createElement('div');
-            judgeContentDiv.className = 'judge-content';
-            judgeContentDiv.innerHTML = judgeContent;
-            judgeSection.appendChild(judgeContentDiv);
-
-            subTabContent.appendChild(judgeSection);
-
-            strategicSolverCard.appendChild(subTabContent);
-        });
-    } else {
-        // If there was an error generating strategies, surface it instead of showing perpetual loading
-        if (deepthinkProcess.status === 'error' && deepthinkProcess.error) {
-            strategicSolverCard.innerHTML = `<div class="status-message error"><pre>${escapeHtml(deepthinkProcess.error)}</pre></div>`;
-        } else {
-            strategicSolverCard.innerHTML = '<div class="loading">Generating strategic approaches...</div>';
-        }
-    }
-
-    strategicSolverContentPane.appendChild(strategicSolverCard);
-    pipelinesContentContainer.appendChild(strategicSolverContentPane);
-
-    // Hypothesis Explorer Pane
-    const hypothesisExplorerContentPane = document.createElement('div');
-    hypothesisExplorerContentPane.id = `pipeline-content-hypothesis-explorer`;
-    hypothesisExplorerContentPane.className = 'pipeline-content';
-    hypothesisExplorerContentPane.setAttribute('role', 'tabpanel');
-    hypothesisExplorerContentPane.setAttribute('aria-labelledby', `deepthink-tab-hypothesis-explorer`);
-    hypothesisExplorerContentPane.innerHTML = renderDeepthinkHypothesisExplorer();
-    pipelinesContentContainer.appendChild(hypothesisExplorerContentPane);
-
-    // Red Team Evaluator Pane
-    const redTeamContentPane = document.createElement('div');
-    redTeamContentPane.id = `pipeline-content-red-team-evaluator`;
-    redTeamContentPane.className = 'pipeline-content';
-    redTeamContentPane.setAttribute('role', 'tabpanel');
-    redTeamContentPane.setAttribute('aria-labelledby', `deepthink-tab-red-team-evaluator`);
-    redTeamContentPane.innerHTML = renderDeepthinkRedTeamEvaluator();
-    pipelinesContentContainer.appendChild(redTeamContentPane);
-
-    // Add Red Team full screen modal to body if it doesn't exist
-    if (!document.getElementById('deepthink-red-team-full-modal')) {
-        const modalHtml = `
-            <div id="deepthink-red-team-full-modal" class="red-team-full-modal">
-                <div class="red-team-modal-header">
-                    <h3 class="red-team-modal-title">Full Red Team Reasoning</h3>
-                    <button class="red-team-modal-close" onclick="closeDeepthinkRedTeamModal()">
-                        <span class="material-symbols-outlined">close</span>
-                    </button>
-                </div>
-                <div id="deepthink-red-team-modal-content" class="red-team-modal-content"></div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-    }
-
-    // Final Result Pane
-    const finalResultContentPane = document.createElement('div');
-    finalResultContentPane.id = `pipeline-content-final-result`;
-    finalResultContentPane.className = 'pipeline-content';
-    finalResultContentPane.setAttribute('role', 'tabpanel');
-    finalResultContentPane.setAttribute('aria-labelledby', `deepthink-tab-final-result`);
-    finalResultContentPane.innerHTML = renderDeepthinkFinalResult();
-    pipelinesContentContainer.appendChild(finalResultContentPane);
-
-    // Activate the current tab
-    if (deepthinkProcess.activeTabId) {
-        activateTab(deepthinkProcess.activeTabId);
-    } else {
-        activateTab('strategic-solver');
-    }
-}
-
-function renderDeepthinkChallengeDetails(): string {
-    if (!activeDeepthinkPipeline) return '';
-
-    return `
-        <div class="challenge-details">
-            <h2>Core Challenge</h2>
-            <div class="challenge-text">
-                <pre>${activeDeepthinkPipeline.challengeText}</pre>
-            </div>
-            ${activeDeepthinkPipeline.challengeImageBase64 ? `
-                <div class="challenge-image">
-                    <h3>Associated Image</h3>
-                    <img src="data:${activeDeepthinkPipeline.challengeImageMimeType};base64,${activeDeepthinkPipeline.challengeImageBase64}" 
-                         alt="Challenge image" 
-                         style="max-width: 100%; height: auto;">
-                </div>
-            ` : ''}
-            <div class="process-status">
-                <h3>Analysis Status</h3>
-                <p>Status: <span class="status-${activeDeepthinkPipeline.status}">${activeDeepthinkPipeline.status}</span></p>
-                ${activeDeepthinkPipeline.error ? `<p class="error">Error: ${activeDeepthinkPipeline.error}</p>` : ''}
-            </div>
-        </div>
-    `;
-}
-
-function renderDeepthinkStrategicSolver(): string {
-    if (!activeDeepthinkPipeline) return '';
-
-    const strategies = activeDeepthinkPipeline.initialStrategies;
-    if (strategies.length === 0) {
-        return '<div class="loading">Generating strategic approaches...</div>';
-    }
-
-    return `
-        <div class="strategic-solver">
-            <h2>Strategic Analysis</h2>
-            <div class="strategy-tabs">
-                ${strategies.map((strategy, index) => `
-                    <div class="strategy-tab ${index === (activeDeepthinkPipeline.activeStrategyTab ?? 0) ? 'active' : ''}" 
-                         onclick="activateDeepthinkStrategyTab(${index})">
-                        Strategy ${index + 1}
-                        ${strategy.isKilledByRedTeam ? ' <span class="killed-indicator"></span>' : ''}
-                    </div>
-                `).join('')}
-            </div>
-            <div class="strategy-content">
-                ${renderDeepthinkStrategyContent(activeDeepthinkPipeline.activeStrategyTab ?? 0)}
-            </div>
-        </div>
-    `;
-}
-
-function renderDeepthinkStrategyContent(strategyIndex: number): string {
-    if (!activeDeepthinkPipeline || strategyIndex >= activeDeepthinkPipeline.initialStrategies.length) return '';
-
-    const strategy = activeDeepthinkPipeline.initialStrategies[strategyIndex];
-    return `
-        <div class="strategy-detail">
-            <h3>Strategy ${strategyIndex + 1}</h3>
-            <div class="strategy-text">
-                <div class="markdown-content">${renderMarkdown(strategy.strategyText)}</div>
-            </div>
-            
-            ${strategy.isKilledByRedTeam ? `
-                <div class="red-team-kill">
-                    <h4> Eliminated by Red Team</h4>
-                    <p>${strategy.redTeamReason || 'No specific reason provided.'}</p>
-                </div>
-            ` : ''}
-
-            <div class="sub-strategies">
-                <h4>Tactical Sub-Strategies</h4>
-                ${strategy.subStrategies.length === 0 ? '<div class="loading">Generating tactical approaches...</div>' : 
-                  strategy.subStrategies.map((sub, subIndex) => `
-                    <div class="sub-strategy ${sub.isKilledByRedTeam ? 'killed' : ''}">
-                        <h5>Sub-strategy ${subIndex + 1} ${sub.isKilledByRedTeam ? '❌' : ''}</h5>
-                        <div class="sub-strategy-text">
-                            <div class="markdown-content">${renderMarkdown(sub.subStrategyText)}</div>
-                        </div>
-                        
-                        ${sub.solutionAttempt ? `
-                            <div class="solution-attempt">
-                                <h6>Initial Analysis</h6>
-                                <pre>${sub.solutionAttempt}</pre>
-                            </div>
-                        ` : ''}
-                        
-                        ${sub.refinedSolution ? `
-                            <div class="refined-solution">
-                                <h6>Refined Analysis</h6>
-                                <pre>${sub.refinedSolution}</pre>
-                            </div>
-                        ` : ''}
-                        
-                        ${sub.isKilledByRedTeam ? `
-                            <div class="red-team-kill">
-                                <p><strong>Eliminated by Red Team:</strong> ${sub.redTeamReason || 'No specific reason provided.'}</p>
-                            </div>
-                        ` : ''}
-                    </div>
-                  `).join('')}
-            </div>
-
-            ${strategy.judgedBestSolution ? `
-                <div class="best-solution">
-                    <h4>🏆 Selected Best Solution</h4>
-                    <div class="markdown-content">${renderMarkdown(strategy.judgedBestSolution)}</div>
-                </div>
-            ` : ''}
-        </div>
-    `;
-}
-
-function renderDeepthinkHypothesisExplorer(): string {
-    if (!activeDeepthinkPipeline) return '';
-
-    const deepthinkProcess = activeDeepthinkPipeline;
-    let hypothesisExplorerHtml = `<div class="math-hypothesis-explorer model-detail-card">`;
-
-    if (deepthinkProcess.hypotheses.length > 0) {
-        hypothesisExplorerHtml += `<div class="hypotheses-grid">`;
-        deepthinkProcess.hypotheses.forEach((hypothesis, index) => {
-            let statusClass = 'status-pending';
-            let statusText = 'Pending';
-            let glowClass = '';
-
-            const normalized = hypothesis.finalStatus === 'validated' ? 'proven' : hypothesis.finalStatus;
-            switch (normalized) {
-                case 'proven':
-                    statusClass = 'status-completed';
-                    statusText = 'Proven';
-                    glowClass = 'hypothesis-proven';
-                    break;
-                case 'refuted':
-                    statusClass = 'status-error';
-                    statusText = 'Refuted';
-                    glowClass = 'hypothesis-refuted';
-                    break;
-                case 'unresolved':
-                    statusClass = 'status-pending';
-                    statusText = 'Unresolved';
-                    break;
-                case 'contradiction':
-                    statusClass = 'status-error';
-                    statusText = 'Contradiction';
-                    glowClass = 'hypothesis-contradiction';
-                    break;
-                default:
-                    if (hypothesis.testerStatus === 'processing') {
-                        statusClass = 'status-processing';
-                        statusText = 'Processing';
-                    }
-            }
-
-            hypothesisExplorerHtml += `<div class="hypothesis-card ${glowClass}">
-                <h5>Hypothesis ${index + 1}</h5>
-                <p class="hypothesis-text">${escapeHtml(hypothesis.hypothesisText)}</p>
-                <div class="hypothesis-status">
-                    <span class="status-badge ${statusClass}">${statusText}</span>
-                </div>
-                <div class="hypothesis-tester-status">
-                    <div class="tester-status">
-                        <span class="agent-label">Hypothesis Tester:</span>
-                        <span class="status-badge ${hypothesis.testerStatus === 'completed' ? 'status-completed' : hypothesis.testerStatus === 'processing' ? 'status-processing' : hypothesis.testerStatus === 'error' ? 'status-error' : 'status-pending'}">${hypothesis.testerStatus}</span>
-                    </div>
-                </div>
-                <button class="button view-argument-button" data-hypothesis-id="${hypothesis.id}">View The Argument</button>
-            </div>`;
-        });
-        hypothesisExplorerHtml += `</div>`;
-    } else {
-        hypothesisExplorerHtml += '<div class="loading">Generating hypotheses...</div>';
-    }
-
-    if (deepthinkProcess.knowledgePacket) {
-        const hypothesesFromPacket = parseKnowledgePacketForStyling(deepthinkProcess.knowledgePacket, deepthinkProcess.hypotheses);
-        hypothesisExplorerHtml += `
-            <div class="model-detail-section">
-                <h5 class="model-section-title">Synthesized Knowledge Packet</h5>
-                <div class="knowledge-packet-grid">
-                    ${hypothesesFromPacket}
-                </div>
-            </div>`;
-    }
-
-    hypothesisExplorerHtml += `</div>`;
-    return hypothesisExplorerHtml;
-}
-
-function renderDeepthinkRedTeamEvaluator(): string {
-    if (!activeDeepthinkPipeline) return '';
-
-    const deepthinkProcess = activeDeepthinkPipeline;
-    let redTeamHtml = `<div class="math-red-team model-detail-card">`;
-
-    if (deepthinkProcess.redTeamAgents && deepthinkProcess.redTeamAgents.length > 0) {
-        redTeamHtml += `<div class="red-team-agents-grid">`;
-        deepthinkProcess.redTeamAgents.forEach((redTeamAgent, index) => {
-            let statusClass = 'status-pending';
-            let statusText = 'Pending';
-            if (redTeamAgent.status === 'processing') {
-                statusClass = 'status-processing';
-                statusText = 'Processing';
-            } else if (redTeamAgent.status === 'completed') {
-                statusClass = 'status-completed';
-                statusText = 'Completed';
-            } else if (redTeamAgent.status === 'error') {
-                statusClass = 'status-error';
-                statusText = 'Error';
-            } else if (redTeamAgent.status === 'cancelled') {
-                statusClass = 'status-cancelled';
-                statusText = 'Cancelled';
-            }
-
-            const assignedStrategy = deepthinkProcess.initialStrategies.find(s => s.id === redTeamAgent.assignedStrategyId);
-            const strategyTitle = assignedStrategy ? assignedStrategy.strategyText.substring(0, 80) + '...' : 'Unknown Strategy';
-
-            redTeamHtml += `
-                <div class="red-team-agent-card">
-                    <div class="red-team-agent-header">
-                        <h5 class="red-team-agent-title">Red Team Agent ${index + 1}</h5>
-                        <span class="status-badge ${statusClass}">${statusText}</span>
-                    </div>
-                    <div class="red-team-agent-content">
-                        <p><strong>Assigned Strategy:</strong> ${escapeHtml(strategyTitle)}</p>`;
-
-            if (redTeamAgent.status === 'completed') {
-                const killedStrategiesCount = redTeamAgent.killedStrategyIds.length;
-                const killedSubStrategiesCount = redTeamAgent.killedSubStrategyIds.length;
-                
-                redTeamHtml += `
-                    <div class="red-team-results">
-                        <div class="red-team-evaluation-summary">
-                            <div class="evaluation-metric">
-                                <span class="metric-value">${killedStrategiesCount}</span>
-                                <span class="metric-label">Killed Strategies</span>
-                            </div>
-                            <div class="evaluation-metric">
-                                <span class="metric-value">${killedSubStrategiesCount}</span>
-                                <span class="metric-label">Killed Sub-Strategies</span>
-                            </div>
-                        </div>`;
-
-                if (killedStrategiesCount > 0 || killedSubStrategiesCount > 0) {
-                    redTeamHtml += `<div class="killed-items">`;
-                    if (killedStrategiesCount > 0) {
-                        redTeamHtml += `<p><strong>Eliminated Strategies:</strong> ${redTeamAgent.killedStrategyIds.join(', ')}</p>`;
-                    }
-                    if (killedSubStrategiesCount > 0) {
-                        redTeamHtml += `<p><strong>Eliminated Sub-Strategies:</strong> ${redTeamAgent.killedSubStrategyIds.join(', ')}</p>`;
-                    }
-                    redTeamHtml += `</div>`;
-                }
-
-                redTeamHtml += `</div>`;
-            }
-
-            if (redTeamAgent.error) {
-                redTeamHtml += `<div class="status-message error"><pre>${escapeHtml(redTeamAgent.error)}</pre></div>`;
-            }
-
-            if (redTeamAgent.reasoning || redTeamAgent.evaluationResponse) {
-                const reasoningText = redTeamAgent.reasoning || redTeamAgent.evaluationResponse || '';
-                redTeamHtml += `
-                    <div class="red-team-reasoning-section">
-                        <div class="red-team-reasoning-header">
-                            <div class="red-team-reasoning-toggle">
-                                <span class="code-icon">&lt;&gt;</span>
-                                <span>Reasoning</span>
-                            </div>
-                            <div class="red-team-reasoning-buttons">
-                                <button class="red-team-reasoning-btn" onclick="toggleDeepthinkRedTeamReasoning('${redTeamAgent.id}')">
-                                    <span class="material-symbols-outlined">visibility</span>
-                                </button>
-                                <button class="red-team-reasoning-btn" onclick="showFullDeepthinkRedTeamReasoning('${redTeamAgent.id}', \`${escapeHtml(reasoningText).replace(/`/g, '\\`')}\`)">
-                                    <span class="material-symbols-outlined">fullscreen</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div id="deepthink-red-team-reasoning-${redTeamAgent.id}" class="red-team-reasoning-content">${escapeHtml(reasoningText)}</div>
-                    </div>`;
-            }
-
-            redTeamHtml += `
-                    </div>
-                </div>`;
-        });
-        redTeamHtml += `</div>`;
-    } else {
-        redTeamHtml += `<div class="no-data-message">
-            <h4>Red Team Evaluator</h4>
-            <p>No Red Team agents have been generated yet. Red Team agents will appear here once the evaluation process begins.</p>
-        </div>`;
-    }
-
-    if (deepthinkProcess.redTeamError) {
-        redTeamHtml += `<div class="status-message error"><pre>${escapeHtml(deepthinkProcess.redTeamError)}</pre></div>`;
-    }
-
-    redTeamHtml += `</div>`;
-    return redTeamHtml;
-}
-
-function renderDeepthinkFinalResult(): string {
-    if (!activeDeepthinkPipeline) return '';
-
-    const deepthinkProcess = activeDeepthinkPipeline;
-    let finalResultHtml = `<div class="math-final-result model-detail-card">`;
-    
-    if (deepthinkProcess.finalJudgingStatus === 'completed' && deepthinkProcess.finalJudgedBestSolution) {
-        finalResultHtml += `<div class="final-solution-display">
-            <div class="markdown-content">
-                ${renderMathContent(deepthinkProcess.finalJudgedBestSolution)}
-            </div>
-        </div>`;
-    } else if (deepthinkProcess.finalJudgingStatus === 'processing' || deepthinkProcess.finalJudgingStatus === 'retrying') {
-        finalResultHtml += `<p class="status-badge status-processing">Final judging in progress...</p>`;
-    } else if (deepthinkProcess.finalJudgingStatus === 'error') {
-        finalResultHtml += `<div class="status-message error">
-            <p>Error during final judging:</p>
-            <pre>${escapeHtml(deepthinkProcess.finalJudgingError || 'Unknown error')}</pre>
-        </div>`;
-    } else if (deepthinkProcess.status === 'completed') {
-        finalResultHtml += `<p class="status-badge status-pending">Final result not available</p>`;
-    } else {
-        finalResultHtml += `<p class="status-badge status-pending">Waiting for solution completion...</p>`;
-    }
-    finalResultHtml += `</div>`;
-    
-    return finalResultHtml;
-}
-
-function getStatusIcon(status: string): string {
-    switch (status) {
-        case 'validated': return '✅';
-        case 'refuted': return '❌';
-        case 'contradiction': return '⚠️';
-        case 'unresolved': return '❓';
-        case 'needs_further_analysis': return '🔍';
-        default: return '⏳';
-    }
-}
-
-// ----- END DEEPTHINK MODE SPECIFIC FUNCTIONS -----
 
 // ---------- REACT MODE SPECIFIC FUNCTIONS ----------
 
@@ -7867,17 +2978,15 @@ function initializeUI() {
             }
             const initialIdea = initialIdeaInput.value.trim();
             if (!initialIdea) {
-                alert("Please enter an idea, premise, math problem, or request.");
+                alert("Please enter an idea, premise, or request.");
                 return;
             }
 
-            if (currentMode === 'math') {
-                await startMathSolvingProcess(initialIdea, currentProblemImageBase64, currentProblemImageMimeType);
-            } else if (currentMode === 'deepthink') {
+            if (currentMode === 'deepthink') {
                 await startDeepthinkAnalysisProcess(initialIdea, currentProblemImageBase64, currentProblemImageMimeType);
             } else if (currentMode === 'react') {
                 await startReactModeProcess(initialIdea);
-            } else { // Website, Creative, Agent modes
+            } else { // Website mode
                 initPipelines();
                 if (pipelinesState.length === 0) {
                     alert("Please select at least one variant (temperature) to run.");
@@ -7905,26 +3014,6 @@ function initializeUI() {
         });
     }
 
-    if (mathProblemImageInput && mathProblemImagePreview) {
-        mathProblemImageInput.addEventListener('change', (event) => {
-            const file = (event.target as HTMLInputElement).files?.[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    currentProblemImageBase64 = (e.target?.result as string).split(',')[1]; // Get base64 part
-                    currentProblemImageMimeType = file.type;
-                    mathProblemImagePreview.src = e.target?.result as string;
-                    mathProblemImagePreview.style.display = 'block';
-                };
-                reader.readAsDataURL(file);
-            } else {
-                currentProblemImageBase64 = null;
-                currentProblemImageMimeType = null;
-                mathProblemImagePreview.src = '#';
-                mathProblemImagePreview.style.display = 'none';
-            }
-        });
-    }
 
     if (exportConfigButton) {
         exportConfigButton.addEventListener('click', exportConfiguration);
@@ -8021,11 +3110,6 @@ function initializeUI() {
                 const contentType = target.dataset.contentType as ('html' | 'text');
                 if (pipelineId !== -1 && iterationNumber !== -1 && (contentType === 'html' || contentType === 'text')) {
                     openDiffModal(pipelineId, iterationNumber, contentType);
-                }
-            } else if (target.classList.contains('view-argument-button')) {
-                const hypothesisId = target.dataset.hypothesisId;
-                if (hypothesisId) {
-                    openArgumentModal(hypothesisId);
                 }
             } else if (target.closest('#view-provided-patches-button')) {
                 openPatchesModal();
@@ -8478,7 +3562,8 @@ function activateDiffMode(mode: 'instant-fixes' | 'global-compare') {
             } else {
                 // For non-HTML modes, we don't have separate raw vs fixed versions yet
                 const sourceIteration = pipeline.iterations.find(iter => iter.iterationNumber === diffSourceData.iterationNumber);
-                targetContent = sourceIteration?.generatedOrRevisedText || sourceIteration?.generatedMainContent;
+                // Fallback to generatedHtml if present; otherwise leave undefined (no instant fixes for non-HTML)
+                targetContent = sourceIteration?.generatedHtml;
                 targetTitle = sourceIteration?.title || "Target";
             }
             
@@ -9170,6 +4255,34 @@ function closeDiffModal() {
 document.addEventListener('DOMContentLoaded', () => {
     initializeUI();
     initializeSliderEventListeners();
+    
+    // Initialize deepthink module with all required dependencies
+    initializeDeepthinkModule({
+        ai,
+        callGemini,
+        cleanOutputByType,
+        parseJsonSuggestions: parseJsonSuggestions as any,
+        parseJsonSafe,
+        updateControlsState,
+        escapeHtml: (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'),
+        renderMarkdown,
+        renderMathContent,
+        getSelectedTemperature,
+        getSelectedModel,
+        getSelectedTopP,
+        getSelectedStrategiesCount,
+        getSelectedSubStrategiesCount,
+        getSelectedHypothesisCount,
+        getSelectedRedTeamAggressiveness,
+        getRefinementEnabled,
+        cleanTextOutput,
+        customPromptsDeepthinkState,
+        tabsNavContainer: document.getElementById('tabs-nav-container'),
+        pipelinesContentContainer: document.getElementById('pipelines-content-container'),
+        setActiveDeepthinkPipeline: (pipeline: DeepthinkPipelineState | null) => {
+            activeDeepthinkPipeline = pipeline;
+        }
+    });
 
     // Default to first mode if none specifically checked (e.g. after import or on fresh load)
     const appModeRadios = document.querySelectorAll('input[name="appMode"]');
@@ -9315,3 +4428,11 @@ document.addEventListener('DOMContentLoaded', () => {
         observer.observe(tabsContainer, { childList: true, subtree: true });
     }
 });
+
+// Missing Deepthink functions moved to Deepthink.tsx module
+
+// runDeepthinkRedTeamEvaluation moved to Deepthink.tsx module
+
+// openDeepthinkSolutionModal moved to Deepthink.tsx module
+
+// closeSolutionModal moved to Deepthink.tsx module
