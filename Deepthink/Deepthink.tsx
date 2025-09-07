@@ -1,5 +1,6 @@
-import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
-import { type CustomizablePromptsDeepthink, createDefaultCustomPromptsDeepthink } from './DeepthinkPrompts.js';
+import { GoogleGenAI, Part, GenerateContentResponse } from "@google/genai";
+import { CustomizablePromptsDeepthink, createDefaultCustomPromptsDeepthink } from './DeepthinkPrompts';
+import { renderMathContent } from '../Components/RenderMathMarkdown';
 
 // Import types and constants from main index.tsx
 export interface DeepthinkSubStrategyData {
@@ -28,8 +29,6 @@ export interface DeepthinkHypothesisData {
     testerAttempt?: string;
     testerStatus: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
     testerError?: string;
-    testerRetryAttempt?: number;
-    finalStatus: 'pending' | 'validated' | 'refuted' | 'unresolved' | 'contradiction' | 'needs_further_analysis';
     isDetailsOpen?: boolean;
 }
 
@@ -121,8 +120,6 @@ let getRefinementEnabled: () => boolean;
 let getSelectedHypothesisCount: () => number;
 let getSelectedRedTeamAggressiveness: () => string;
 let escapeHtml: (unsafe: string) => string;
-let renderMarkdown: (content: string) => string;
-let renderMathContent: (content: string) => string;
 let cleanTextOutput: (text: string) => string;
 let updateControlsState: (newState: any) => void;
 let customPromptsDeepthinkState: CustomizablePromptsDeepthink;
@@ -143,8 +140,6 @@ export function initializeDeepthinkModule(dependencies: {
     parseJsonSafe: typeof parseJsonSafe;
     updateControlsState: (newState: any) => void;
     escapeHtml: typeof escapeHtml;
-    renderMarkdown: typeof renderMarkdown;
-    renderMathContent: (content: string) => string;
     getSelectedTemperature: () => number;
     getSelectedModel: () => string;
     getSelectedTopP: () => number;
@@ -176,8 +171,6 @@ export function initializeDeepthinkModule(dependencies: {
     getSelectedRedTeamAggressiveness = dependencies.getSelectedRedTeamAggressiveness;
     cleanTextOutput = dependencies.cleanTextOutput;
     escapeHtml = dependencies.escapeHtml;
-    renderMarkdown = dependencies.renderMarkdown;
-    renderMathContent = dependencies.renderMathContent;
     tabsNavContainer = dependencies.tabsNavContainer;
     pipelinesContentContainer = dependencies.pipelinesContentContainer;
     setActiveDeepthinkPipeline = dependencies.setActiveDeepthinkPipeline;
@@ -433,10 +426,14 @@ export function openDeepthinkSolutionModal(subStrategyId: string) {
     modalBody.style.padding = '20px';
     modalBody.style.height = 'calc(100vh - 120px)';
 
-    const refinementEnabled = getRefinementEnabled();
+    // Check if refinement was actually performed during this run
+    // If refinedSolution equals solutionAttempt, it means refinement was disabled during the run
+    const refinementWasPerformed = subStrategy.refinedSolution !== subStrategy.solutionAttempt;
+    const currentRefinementEnabled = getRefinementEnabled();
+    
     const solutionComparison = document.createElement('div');
     solutionComparison.style.display = 'grid';
-    solutionComparison.style.gridTemplateColumns = refinementEnabled ? '1fr 1fr' : '1fr';
+    solutionComparison.style.gridTemplateColumns = currentRefinementEnabled ? '1fr 1fr' : '1fr';
     solutionComparison.style.gap = '20px';
     solutionComparison.style.height = '100%';
 
@@ -451,7 +448,7 @@ export function openDeepthinkSolutionModal(subStrategyId: string) {
     leftHeader.style.padding = '12px 16px';
     leftHeader.style.background = 'rgba(15, 17, 32, 0.4)';
     leftHeader.style.borderBottom = '1px solid #333';
-    leftHeader.innerHTML = refinementEnabled 
+    leftHeader.innerHTML = currentRefinementEnabled 
         ? '<h4 style="margin: 0;"><span class="material-symbols-outlined">psychology</span>Attempted Solution</h4>'
         : '<h4 style="margin: 0;"><span class="material-symbols-outlined">psychology</span>Solution</h4>';
     leftPanel.appendChild(leftHeader);
@@ -465,7 +462,7 @@ export function openDeepthinkSolutionModal(subStrategyId: string) {
 
     solutionComparison.appendChild(leftPanel);
 
-    // Always show refined solution panel, but grey it out if refinement is disabled
+    // Always show refined solution panel, but grey it out if refinement was not performed during this run
     const rightPanel = document.createElement('div');
     rightPanel.style.display = 'flex';
     rightPanel.style.flexDirection = 'column';
@@ -473,8 +470,8 @@ export function openDeepthinkSolutionModal(subStrategyId: string) {
     rightPanel.style.borderRadius = '8px';
     rightPanel.style.overflow = 'hidden';
     
-    // Apply disabled styling if refinement is disabled
-    if (!refinementEnabled) {
+    // Apply disabled styling if refinement was not performed during this run
+    if (!refinementWasPerformed) {
         rightPanel.classList.add('disabled-pane');
     }
 
@@ -483,7 +480,7 @@ export function openDeepthinkSolutionModal(subStrategyId: string) {
     rightHeader.style.background = 'rgba(15, 17, 32, 0.4)';
     rightHeader.style.borderBottom = '1px solid #333';
     
-    const headerContent = refinementEnabled 
+    const headerContent = currentRefinementEnabled 
         ? '<h4 style="margin: 0;"><span class="material-symbols-outlined">auto_fix_high</span>Refined Solution</h4>'
         : '<h4 style="margin: 0; opacity: 0.6;"><span class="material-symbols-outlined">auto_fix_off</span>Refined Solution (Disabled)</h4>';
     rightHeader.innerHTML = headerContent;
@@ -495,14 +492,14 @@ export function openDeepthinkSolutionModal(subStrategyId: string) {
     rightContent.style.padding = '16px';
     rightContent.style.position = 'relative';
     
-    const contentText = refinementEnabled 
+    const contentText = currentRefinementEnabled 
         ? (subStrategy.refinedSolution || 'Refined solution not available')
         : (subStrategy.refinedSolution || subStrategy.solutionAttempt || 'Solution refinement is disabled');
     
     rightContent.innerHTML = renderMathContent(contentText);
     
-    // Add disabled overlay if refinement is off
-    if (!refinementEnabled) {
+    // Add disabled overlay if refinement was not performed during this run
+    if (!refinementWasPerformed) {
         const disabledOverlay = document.createElement('div');
         disabledOverlay.classList.add('disabled-overlay');
         disabledOverlay.textContent = 'Refinement Disabled';
@@ -558,7 +555,47 @@ export function closeSolutionModal() {
 export function parseKnowledgePacketForStyling(knowledgePacket: string): string {
     if (!knowledgePacket) return '<div class="no-knowledge">No knowledge packet available</div>';
     
-    // For the current knowledge packet format, we'll render it as markdown content
+    // Check if this is the new full information packet format
+    if (knowledgePacket.includes('<Full Information Packet>')) {
+        // Parse the new format with full hypothesis outputs
+        let html = '<div class="full-information-packet">';
+        
+        // Extract hypothesis blocks
+        const hypothesisRegex = /<Hypothesis (\d+)>\s*Hypothesis:\s*(.*?)\s*Hypothesis Testing:\s*(.*?)\s*<\/Hypothesis \d+>/gs;
+        let match;
+        let hypothesisCount = 0;
+        
+        while ((match = hypothesisRegex.exec(knowledgePacket)) !== null) {
+            hypothesisCount++;
+            const [, number, hypothesis, testing] = match;
+            
+            html += `<div class="hypothesis-block">
+                <div class="hypothesis-header">
+                    <span class="hypothesis-number">Hypothesis ${number}</span>
+                </div>
+                <div class="hypothesis-content">
+                    <div class="hypothesis-text">
+                        <strong>Hypothesis:</strong>
+                        <div class="hypothesis-description">${renderMathContent(hypothesis.trim())}</div>
+                    </div>
+                    <div class="hypothesis-testing">
+                        <strong>Hypothesis Testing:</strong>
+                        <div class="testing-output">${renderMathContent(testing.trim())}</div>
+                    </div>
+                </div>
+            </div>`;
+        }
+        
+        // Handle case where hypothesis exploration is disabled
+        if (hypothesisCount === 0 && knowledgePacket.includes('HYPOTHESIS EXPLORATION: Disabled')) {
+            html += '<div class="hypothesis-disabled">HYPOTHESIS EXPLORATION: Disabled - No hypotheses generated.</div>';
+        }
+        
+        html += '</div>';
+        return html;
+    }
+    
+    // Fallback for old format - render as markdown content
     return renderMathContent(knowledgePacket);
 }
 
@@ -794,7 +831,9 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                 // Check prerequisites without blocking loops
                 const checkPrerequisites = () => {
                     const redTeamComplete = currentProcess.redTeamComplete;
-                    const knowledgePacketReady = currentProcess.hypothesisExplorerComplete && currentProcess.knowledgePacket;
+                    const hypothesisCount = getSelectedHypothesisCount();
+                    // If hypothesis generation is disabled, we don't need to wait for knowledge packet
+                    const knowledgePacketReady = hypothesisCount === 0 || (currentProcess.hypothesisExplorerComplete && currentProcess.knowledgePacket);
                     return (redTeamComplete && knowledgePacketReady) || currentProcess.isStopRequested;
                 };
                 
@@ -835,7 +874,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                 const solutionPrompt = customPromptsDeepthinkState.user_deepthink_solutionAttempt
                                     .replace('{{originalProblemText}}', challengeText)
                                     .replace('{{currentSubStrategy}}', subStrategy.subStrategyText)
-                                    .replace('{{knowledgePacket}}', currentProcess.knowledgePacket || 'Knowledge packet not available.');
+                                    .replace('{{knowledgePacket}}', currentProcess.knowledgePacket || 'No hypothesis exploration performed.');
 
                                 subStrategy.requestPromptSolutionAttempt = solutionPrompt;
 
@@ -895,7 +934,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                     .replace('{{originalProblemText}}', challengeText)
                                     .replace('{{currentSubStrategy}}', subStrategy.subStrategyText)
                                     .replace('{{solutionAttempt}}', subStrategy.solutionAttempt || '')
-                                    .replace('{{knowledgePacket}}', currentProcess.knowledgePacket || 'No hypothesis exploration results available yet.');
+                                    .replace('{{knowledgePacket}}', currentProcess.knowledgePacket || 'No hypothesis exploration performed.');
 
                                 subStrategy.requestPromptSelfImprovement = improvementPrompt;
 
@@ -949,8 +988,21 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
         // Track B: Hypothesis Explorer (Generate → Test → Synthesize knowledge packet)
         const trackBPromise = (async () => {
             try {
-                // Generate hypotheses with current slider values
+                // Check if hypothesis generation is enabled
                 const currentHypothesisCount = getSelectedHypothesisCount();
+                
+                if (currentHypothesisCount === 0) {
+                    // Hypothesis generation is turned off
+                    console.log("Hypothesis generation disabled - skipping hypothesis exploration");
+                    currentProcess.hypothesisGenStatus = 'completed';
+                    currentProcess.hypotheses = [];
+                    currentProcess.knowledgePacket = "<Full Information Packet>\nHYPOTHESIS EXPLORATION: Disabled - No hypotheses generated.\n</Full Information Packet>";
+                    currentProcess.hypothesisExplorerComplete = true;
+                    renderActiveDeepthinkPipeline();
+                    return;
+                }
+                
+                // Generate hypotheses with current slider values
                 const currentRedTeamAggressiveness = getSelectedRedTeamAggressiveness();
                 const freshHypothesisPrompts = createDefaultCustomPromptsDeepthink(getSelectedStrategiesCount(), getSelectedSubStrategiesCount(), currentHypothesisCount, currentRedTeamAggressiveness);
                 
@@ -986,7 +1038,6 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                         id: `hyp${i + 1}`,
                         hypothesisText: hypotheses[i],
                         testerStatus: 'pending',
-                        finalStatus: 'pending',
                         isDetailsOpen: false
                     };
                     currentProcess.hypotheses.push(hypothesis);
@@ -1024,20 +1075,6 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                         hypothesis.testerAttempt = testerResponse;
                         hypothesis.testerStatus = 'completed';
 
-                        // Determine final status based on the response
-                        const response = testerResponse.toLowerCase();
-                        if (response.includes('validated') || response.includes('proven true')) {
-                            hypothesis.finalStatus = 'validated';
-                        } else if (response.includes('refuted') || response.includes('proven false')) {
-                            hypothesis.finalStatus = 'refuted';
-                        } else if (response.includes('contradiction')) {
-                            hypothesis.finalStatus = 'contradiction';
-                        } else if (response.includes('needs further analysis')) {
-                            hypothesis.finalStatus = 'needs_further_analysis';
-                        } else {
-                            hypothesis.finalStatus = 'unresolved';
-                        }
-
                         renderActiveDeepthinkPipeline();
                     } catch (error: any) {
                         hypothesis.testerStatus = 'error';
@@ -1048,36 +1085,17 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                 await Promise.allSettled(hypothesisTestingPromises);
 
-                // Synthesize knowledge packet
-                const validatedHypotheses = currentProcess.hypotheses.filter(h => h.finalStatus === 'validated');
-                const refutedHypotheses = currentProcess.hypotheses.filter(h => h.finalStatus === 'refuted');
-                const unresolvedHypotheses = currentProcess.hypotheses.filter(h => h.finalStatus === 'unresolved' || h.finalStatus === 'needs_further_analysis');
-
-                let knowledgePacket = "HYPOTHESIS EXPLORATION RESULTS:\n\n";
+                // Synthesize knowledge packet with full hypothesis outputs
+                let knowledgePacket = "<Full Information Packet>\n";
                 
-                if (validatedHypotheses.length > 0) {
-                    knowledgePacket += "VALIDATED HYPOTHESES (use as established facts):\n";
-                    validatedHypotheses.forEach((h, i) => {
-                        knowledgePacket += `${i + 1}. ${h.hypothesisText}\n`;
-                    });
-                    knowledgePacket += "\n";
-                }
-
-                if (refutedHypotheses.length > 0) {
-                    knowledgePacket += "REFUTED HYPOTHESES (avoid approaches that depend on these):\n";
-                    refutedHypotheses.forEach((h, i) => {
-                        knowledgePacket += `${i + 1}. ${h.hypothesisText}\n`;
-                    });
-                    knowledgePacket += "\n";
-                }
-
-                if (unresolvedHypotheses.length > 0) {
-                    knowledgePacket += "UNRESOLVED QUESTIONS (acknowledge limitations):\n";
-                    unresolvedHypotheses.forEach((h, i) => {
-                        knowledgePacket += `${i + 1}. ${h.hypothesisText}\n`;
-                    });
-                    knowledgePacket += "\n";
-                }
+                currentProcess.hypotheses.forEach((hypothesis, index) => {
+                    knowledgePacket += `<Hypothesis ${index + 1}>\n`;
+                    knowledgePacket += `Hypothesis: ${hypothesis.hypothesisText}\n`;
+                    knowledgePacket += `Hypothesis Testing: ${hypothesis.testerAttempt || 'No testing output available'}\n`;
+                    knowledgePacket += `</Hypothesis ${index + 1}>\n`;
+                });
+                
+                knowledgePacket += "</Full Information Packet>";
 
                 currentProcess.knowledgePacket = knowledgePacket;
                 currentProcess.hypothesisExplorerComplete = true;
@@ -1522,8 +1540,10 @@ function openSubStrategySolutionModal(subStrategyId: string) {
         return;
     }
     
-    // Check if refinement is enabled
-    const refinementEnabled = getRefinementEnabled();
+    // Check if refinement was actually performed during this run
+    // If refinedSolution equals solutionAttempt, it means refinement was disabled during the run
+    const refinementWasPerformed = subStrategy.refinedSolution !== subStrategy.solutionAttempt;
+    const currentRefinementEnabled = getRefinementEnabled();
     
     // Create full-screen modal overlay
     const modalOverlay = document.createElement('div');
@@ -1533,10 +1553,10 @@ function openSubStrategySolutionModal(subStrategyId: string) {
     modalContent.className = 'modal-content fullscreen-content';
     
     // Determine refined solution panel styling and content
-    const refinedPaneClass = refinementEnabled ? '' : 'disabled-pane';
-    const refinedIcon = refinementEnabled ? 'verified' : 'auto_fix_off';
-    const refinedTitle = refinementEnabled ? 'Refined Solution' : 'Refined Solution (Disabled)';
-    const refinedOverlay = refinementEnabled ? '' : '<div class="disabled-overlay">Refinement Disabled</div>';
+    const refinedPaneClass = refinementWasPerformed ? '' : 'disabled-pane';
+    const refinedIcon = currentRefinementEnabled ? 'verified' : 'auto_fix_off';
+    const refinedTitle = currentRefinementEnabled ? 'Refined Solution' : 'Refined Solution (Disabled)';
+    const refinedOverlay = refinementWasPerformed ? '' : '<div class="disabled-overlay">Refinement Disabled</div>';
     
     modalContent.innerHTML = `
         <div class="modal-header">
@@ -1576,11 +1596,11 @@ function openSubStrategySolutionModal(subStrategyId: string) {
                             <h4>${refinedTitle}</h4>
                         </div>
                         <div class="diff-actions">
-                            <button class="copy-solution-btn" data-content="${escapeHtml(subStrategy.refinedSolution || '')}" ${!refinementEnabled ? 'disabled' : ''}>
+                            <button class="copy-solution-btn" data-content="${escapeHtml(subStrategy.refinedSolution || '')}" ${!refinementWasPerformed ? 'disabled' : ''}>
                                 <span class="material-symbols-outlined">content_copy</span>
                                 Copy
                             </button>
-                            <button class="download-solution-btn" data-content="${escapeHtml(subStrategy.refinedSolution || '')}" data-filename="refined-solution.md" ${!refinementEnabled ? 'disabled' : ''}>
+                            <button class="download-solution-btn" data-content="${escapeHtml(subStrategy.refinedSolution || '')}" data-filename="refined-solution.md" ${!refinementWasPerformed ? 'disabled' : ''}>
                                 <span class="material-symbols-outlined">download</span>
                                 Download
                             </button>
@@ -1825,7 +1845,7 @@ function renderHypothesisExplorerContent(deepthinkProcess: DeepthinkPipelineStat
                 <div class="knowledge-packet-header">
                     <div class="knowledge-packet-title">
                         <span class="material-symbols-outlined">psychology</span>
-                        <span>HYPOTHESIS EXPLORATION RESULTS:</span>
+                        <span>Full Information Packet:</span>
                     </div>
                 </div>
                 <div class="knowledge-packet-content">
@@ -1907,10 +1927,8 @@ function renderFinalResultContent(deepthinkProcess: DeepthinkPipelineState): str
     
     if (deepthinkProcess.finalJudgingStatus === 'completed' && deepthinkProcess.finalJudgedBestSolution) {
         html += `
-            <div class="final-solution-display judged-solution-container final-judged-solution">
-                <div class="markdown-content">
-                    ${renderMathContent(deepthinkProcess.finalJudgedBestSolution)}
-                </div>
+            <div class="judged-solution-container final-judged-solution">
+                ${renderMathContent(deepthinkProcess.finalJudgedBestSolution)}
             </div>
         `;
     } else if (deepthinkProcess.finalJudgingStatus === 'processing') {

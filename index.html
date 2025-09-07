@@ -6,9 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iterative Studio</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
     <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="Components/RenderMathMarkdown.css">
     <script type="importmap">
 {
   "imports": {
@@ -63,7 +65,7 @@
                         <div id="app-mode-selector" class="radio-group-modern" role="radiogroup" aria-label="Select Application Mode">
                            <label class="radio-label-modern">
                                 <input type="radio" name="appMode" value="website" checked>
-                                <span>HTML</span>
+                                <span>Refine</span>
                             </label>
                             <label class="radio-label-modern">
                                 <input type="radio" name="appMode" value="deepthink">
@@ -90,8 +92,8 @@
 
                             <div id="model-parameters-container" class="input-group-tight">
                                 <div class="input-group-tight">
-                                    <label for="temperature-slider" class="input-label">Temperature: <span id="temperature-value">0.7</span></label>
-                                    <input type="range" id="temperature-slider" class="slider" min="0" max="2" step="0.1" value="0.7" aria-label="Temperature slider">
+                                    <label for="temperature-slider" class="input-label">Temperature: <span id="temperature-value">1.0</span></label>
+                                    <input type="range" id="temperature-slider" class="slider" min="0" max="2" step="0.1" value="1.0" aria-label="Temperature slider">
                                 </div>
                                 <div class="input-group-tight">
                                     <label for="top-p-slider" class="input-label">Top P: <span id="top-p-value">0.95</span></label>
@@ -105,9 +107,75 @@
                                     <label for="sub-strategies-slider" class="input-label">Sub-strategies: <span id="sub-strategies-value">3</span></label>
                                     <input type="range" id="sub-strategies-slider" class="slider" min="1" max="10" step="1" value="3" aria-label="Number of sub-strategies slider">
                                 </div>
-                                <div class="input-group-tight">
-                                    <label for="hypothesis-slider" class="input-label">Hypothesis: <span id="hypothesis-value">4</span></label>
-                                    <input type="range" id="hypothesis-slider" class="slider" min="1" max="6" step="1" value="4" aria-label="Number of hypothesis slider">
+                                <!-- Information Packet Options Container -->
+                                <div class="information-packet-container" style="margin-top: 1rem;">
+                                    <div class="information-packet-window" id="information-packet-window">
+                                        <div class="window-header">
+                                            <div class="window-left">
+                                                <label class="window-toggle-label">
+                                                    <input type="checkbox" id="hypothesis-toggle" class="window-toggle-input" checked>
+                                                    <span class="window-toggle-slider"></span>
+                                                </label>
+                                                <div class="window-title">Information Packet</div>
+                                            </div>
+                                            <div class="window-right">
+                                                <div class="window-controls">
+                                                    <div class="window-button close"></div>
+                                                    <div class="window-button minimize"></div>
+                                                    <div class="window-button maximize"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="window-content" id="information-packet-content">
+                                            <div class="loading-info">
+                                                <div class="loading-line" style="width: 85%;"></div>
+                                                <div class="loading-line" style="width: 92%;"></div>
+                                                <div class="loading-line" style="width: 78%;"></div>
+                                                <div class="loading-line" style="width: 95%;"></div>
+                                                <div class="loading-line" style="width: 68%;"></div>
+                                                <div class="loading-line" style="width: 88%;"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="execution-agents-visualization" id="execution-agents-visualization">
+                                        <div class="connection-nodes">
+                                            <svg class="connection-svg" viewBox="0 0 400 40">
+                                                <defs>
+                                                    <linearGradient id="blueGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                        <stop offset="0%" style="stop-color:var(--accent-blue);stop-opacity:0.9" />
+                                                        <stop offset="100%" style="stop-color:var(--accent-blue);stop-opacity:0.3" />
+                                                    </linearGradient>
+                                                </defs>
+                                                <!-- Central node at top border -->
+                                                <circle cx="200" cy="0" r="4" fill="var(--accent-blue)" opacity="1"/>
+                                                <!-- Multiple non-linear connection lines -->
+                                                <line x1="200" y1="0" x2="60" y2="40" stroke="url(#blueGradient)" stroke-width="2" opacity="0.8"/>
+                                                <line x1="200" y1="0" x2="120" y2="40" stroke="url(#blueGradient)" stroke-width="2" opacity="0.7"/>
+                                                <line x1="200" y1="0" x2="180" y2="40" stroke="url(#blueGradient)" stroke-width="2" opacity="0.8"/>
+                                                <line x1="200" y1="0" x2="220" y2="40" stroke="url(#blueGradient)" stroke-width="2" opacity="0.6"/>
+                                                <line x1="200" y1="0" x2="280" y2="40" stroke="url(#blueGradient)" stroke-width="2" opacity="0.7"/>
+                                                <line x1="200" y1="0" x2="340" y2="40" stroke="url(#blueGradient)" stroke-width="2" opacity="0.8"/>
+                                                <!-- End nodes at bottom border -->
+                                                <circle cx="60" cy="40" r="3" fill="var(--accent-blue)" opacity="0.6"/>
+                                                <circle cx="120" cy="40" r="3" fill="var(--accent-blue)" opacity="0.5"/>
+                                                <circle cx="180" cy="40" r="3" fill="var(--accent-blue)" opacity="0.6"/>
+                                                <circle cx="220" cy="40" r="3" fill="var(--accent-blue)" opacity="0.4"/>
+                                                <circle cx="280" cy="40" r="3" fill="var(--accent-blue)" opacity="0.5"/>
+                                                <circle cx="340" cy="40" r="3" fill="var(--accent-blue)" opacity="0.6"/>
+                                            </svg>
+                                        </div>
+                                        <div class="execution-agents-wrapper">
+                                            <div class="execution-agents-text">
+                                                Execution & Refinement Agents
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="hypothesis-slider-container" id="hypothesis-slider-container">
+                                        <div class="input-group-tight">
+                                            <label for="hypothesis-slider" class="input-label">Hypothesis Count: <span id="hypothesis-value">4</span></label>
+                                            <input type="range" id="hypothesis-slider" class="slider" min="1" max="6" step="1" value="4" aria-label="Number of hypothesis slider">
+                                        </div>
+                                    </div>
                                 </div>
                                 <!-- Red Team Options Container -->
                                 <div class="red-team-options-container">
@@ -227,7 +295,7 @@
                                 <div class="prompt-card">
                                     <div class="prompt-card-header">
                                         <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{initialIdea}}</code>, <code>{{rawHtml}}</code></span>
+                                        <span class="prompt-placeholders">Variables: <code>{{initialIdea}}</code>, <code>{{currentContent}}</code></span>
                                     </div>
                                     <div class="prompt-card-body"><textarea id="user-initial-bugfix" class="prompt-textarea" rows="4"></textarea></div>
                                 </div>
@@ -241,7 +309,7 @@
                                 <div class="prompt-card">
                                     <div class="prompt-card-header">
                                         <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{initialIdea}}</code>, <code>{{currentHtml}}</code></span>
+                                        <span class="prompt-placeholders">Variables: <code>{{initialIdea}}</code>, <code>{{currentContent}}</code></span>
                                     </div>
                                     <div class="prompt-card-body"><textarea id="user-initial-features" class="prompt-textarea" rows="4"></textarea></div>
                                 </div>
@@ -255,7 +323,7 @@
                                 <div class="prompt-card">
                                     <div class="prompt-card-header">
                                         <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{currentHtml}}</code>, <code>{{featuresToImplementStr}}</code></span>
+                                        <span class="prompt-placeholders">Variables: <code>{{currentContent}}</code>, <code>{{featuresToImplementStr}}</code></span>
                                     </div>
                                     <div class="prompt-card-body"><textarea id="user-refine-implement" class="prompt-textarea" rows="4"></textarea></div>
                                 </div>
@@ -269,7 +337,7 @@
                                 <div class="prompt-card">
                                     <div class="prompt-card-header">
                                         <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{rawHtml}}</code></span>
+                                        <span class="prompt-placeholders">Variables: <code>{{currentContent}}</code></span>
                                     </div>
                                     <div class="prompt-card-body"><textarea id="user-refine-bugfix" class="prompt-textarea" rows="4"></textarea></div>
                                 </div>
@@ -283,7 +351,7 @@
                                 <div class="prompt-card">
                                     <div class="prompt-card-header">
                                         <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{initialIdea}}</code>, <code>{{currentHtml}}</code></span>
+                                        <span class="prompt-placeholders">Variables: <code>{{initialIdea}}</code>, <code>{{currentContent}}</code></span>
                                     </div>
                                     <div class="prompt-card-body"><textarea id="user-refine-features" class="prompt-textarea" rows="4"></textarea></div>
                                 </div>
@@ -297,7 +365,7 @@
                                 <div class="prompt-card">
                                     <div class="prompt-card-header">
                                         <span class="prompt-card-title">User Prompt Template</span>
-                                        <span class="prompt-placeholders">Variables: <code>{{currentHtml}}</code></span>
+                                        <span class="prompt-placeholders">Variables: <code>{{currentContent}}</code></span>
                                     </div>
                                     <div class="prompt-card-body"><textarea id="user-final-polish" class="prompt-textarea" rows="4"></textarea></div>
                                 </div>
