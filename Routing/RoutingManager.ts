@@ -37,7 +37,7 @@ export class RoutingManager {
             this.promptsModal = new PromptsModal();
             this.promptsModal.setModelConfig(this.modelConfigManager);
         }
-        
+
         // Initialize provider management UI with prompts modal
         if (!this.providerManagementUI) {
             this.providerManagementUI = new ProviderManagementUI(this.providerManager, this.promptsModal);
@@ -46,18 +46,18 @@ export class RoutingManager {
                 this.refreshProviders();
             });
         }
-        
+
         // Initialize UI components only when DOM is ready
         if (!this.modelSelectionUI) {
             this.modelSelectionUI = new ModelSelectionUI(this.modelConfigManager);
         }
-        
+
         // Update available models from provider manager
         this.updateAvailableModels();
-        
+
         // Initialize model selection UI
         this.modelSelectionUI.initialize();
-        
+
         // Set up any additional routing logic here
         this.setupEventListeners();
     }
@@ -75,9 +75,9 @@ export class RoutingManager {
             description: `${model.provider} model`,
             provider: model.provider
         }));
-        
+
         this.modelConfigManager.setAvailableModels(modelOptions);
-        
+
         // Update model selection UI if it exists
         if (this.modelSelectionUI) {
             this.modelSelectionUI.updateModelOptions();
@@ -124,15 +124,15 @@ export class RoutingManager {
         contextualPromptsRef?: { current: any }
     ): void {
         this.promptsManager = new PromptsManager(
-            websitePromptsRef, 
-            deepthinkPromptsRef, 
-            reactPromptsRef, 
+            websitePromptsRef,
+            deepthinkPromptsRef,
+            reactPromptsRef,
             agenticPromptsRef,
             adaptiveDeepthinkPromptsRef,
             contextualPromptsRef
         );
         this.promptsManager.initializeTextareas();
-        
+
         // Connect PromptsManager to PromptsModal for model selector state management
         if (this.promptsModal) {
             this.promptsModal.setPromptsManager(this.promptsManager);

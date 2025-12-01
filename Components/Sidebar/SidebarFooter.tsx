@@ -20,6 +20,14 @@ export const SidebarFooter: React.FC = () => {
                 >
                     info
                 </span>
+                <span
+                    className="api-call-warning material-symbols-outlined"
+                    id="api-call-pqf-warning"
+                    style={{ display: 'none', marginLeft: '4px' }}
+                    title="PQF Enabled - avg run to worst case"
+                >
+                    info
+                </span>
             </div>
             <button id="generate-button" className="button primary-action" type="button">
                 <span className="button-text">Deepthink</span>

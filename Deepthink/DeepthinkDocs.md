@@ -442,31 +442,33 @@ Quality filtering by evaluating strategies and sub-strategies for fundamental fl
 **Process:**
 
 1. **Agent Assignment:**
-   - One red team agent per main strategy
-   - Receives: Original problem, assigned main strategy, all sub-strategies
+   - **Single Consolidated Agent** ("Strategic Evaluator Prime")
+   - Receives: Original problem, ALL main strategies, and ALL sub-strategies in a single consolidated prompt.
 
 2. **Evaluation:**
-   - Evaluates main strategy AND all sub-strategies within it
-   - Can eliminate entire main strategy (prunes whole branch)
-   - Can eliminate individual sub-strategies (surgical pruning)
-   - Cannot evaluate other agents' strategies
+   - Evaluates ALL strategies and sub-strategies simultaneously in a single pass.
+   - Can eliminate entire main strategies (prunes whole branch).
+   - Can eliminate individual sub-strategies (surgical pruning).
+   - Ensures consistent evaluation standards across all strategies.
 
 3. **JSON Response:**
 ```json
 {
-  "evaluation_id": "main1",
+  "evaluation_id": "red-team-evaluation",
   "challenge": "Brief description",
   "strategy_evaluations": [
     {"id": "main1", "decision": "keep", "reason": "..."},
     {"id": "main1-sub2", "decision": "eliminate", 
-     "reason": "...", "criteria_failed": ["Circular Reasoning"]}
+     "reason": "...", "criteria_failed": ["Circular Reasoning"]},
+    {"id": "main2", "decision": "eliminate", "reason": "Fundamentally flawed..."}
   ]
 }
 ```
 
 4. **Apply Results:**
-   - Eliminated: `isKilledByRedTeam = true`, `redTeamReason = "[reason]"`
-   - Safety: If all eliminated → Pipeline stops with error
+   - Eliminated items are marked: `isKilledByRedTeam = true`.
+   - **Cascade Elimination:** If a main strategy is eliminated, ALL its sub-strategies are automatically eliminated.
+   - Safety: If all strategies are eliminated → Pipeline stops with error.
 
 **Evaluation Criteria:**
 - Completely Off-Topic
@@ -481,10 +483,10 @@ Quality filtering by evaluating strategies and sub-strategies for fundamental fl
 - Unverifiable Claims
 - Poor Logical Rigor
 
-**Parallel Execution:**
-- Red team agents run in parallel for all strategies
-- After completion: `applyRedTeamResults()` marks eliminated
-- Count remaining, terminate if none survive
+**Execution Model:**
+- **Single Agent Execution:** One agent evaluates all N strategies.
+- **Efficiency:** Reduces API calls from N to 1.
+- **Consistency:** Avoids variance between different Red Team agents.
 
 ---
 
@@ -546,20 +548,19 @@ Execute in parallel for all main strategies:
     mainStrategy.status = 'completed'
 ```
 
-**Step 3: Red Team Evaluation** (if enabled, runs in parallel)
+**Step 3: Red Team Evaluation** (if enabled)
 
 ```
-Execute in parallel for all main strategies:
-  For each mainStrategy:
-    Red Team Agent evaluates:
-      - The mainStrategy itself
-      - All subStrategies within mainStrategy
-    Produces JSON with "keep" or "eliminate" decisions
-    Apply results:
-      - Set isKilledByRedTeam = true for eliminated items
-      - Set redTeamReason = explanation
+Execute Single Consolidated Red Team Agent:
+  Input: Consolidated list of ALL main strategies and sub-strategies
+  Process: Evaluates all items in a single pass
+  Produces: Single JSON with "keep" or "eliminate" decisions for all items
+  Apply results:
+    - Set isKilledByRedTeam = true for eliminated items
+    - If Main Strategy eliminated -> Automatically eliminate all its sub-strategies
+    - Set redTeamReason = explanation
 
-After all complete:
+After completion:
   Count remaining active strategies and sub-strategies
   If none remain: Pipeline terminates with error
 ```
@@ -1701,15 +1702,15 @@ flowchart TB
     B1 --> C1["Strategy Interpreter<br>1.1: Sub-Strategy"] & C2["Strategy Interpreter<br>1.2: Sub-Strategy"] & C3["Strategy Interpreter<br>1.3: Sub-Strategy"]
     B2 --> C4["Strategy Interpreter<br>2.1: Sub-Strategy"] & C5["Strategy Interpreter<br>2.2: Sub-Strategy"] & C6["Strategy Interpreter<br>2.3: Sub-Strategy"]
     B3 --> C7["Strategy Interpreter<br>3.1: Sub-Strategy"] & C8["Strategy Interpreter<br>3.2: Sub-Strategy"] & C9["Strategy Interpreter<br>3.3: Sub-Strategy"]
-    C1 --> R1["Red Team Evaluator<br>Strategy 1 + Subs<br>First Pass Only"]
-    C2 --> R1
-    C3 --> R1
-    C4 --> R2["Red Team Evaluator<br>Strategy 2 + Subs<br>First Pass Only"]
-    C5 --> R2
-    C6 --> R2
-    C7 --> R3["Red Team Evaluator<br>Strategy 3 + Subs<br>First Pass Only"]
-    C8 --> R3
-    C9 --> R3
+    C1 --> R_ALL["Red Team Evaluator<br>All Strategies + Subs"]
+    C2 --> R_ALL
+    C3 --> R_ALL
+    C4 --> R_ALL
+    C5 --> R_ALL
+    C6 --> R_ALL
+    C7 --> R_ALL
+    C8 --> R_ALL
+    C9 --> R_ALL
     DECISION -- No --> S1["Strategy<br>Agent 1"] & S2["Strategy<br>Agent 2"] & S3["Strategy<br>Agent 3"]
     S1 --> SE1["Execution<br>Agent 1"]
     S2 --> SE2["Execution<br>Agent 2"]
@@ -1726,9 +1727,7 @@ flowchart TB
     PQF1 -- After 3 Iterations --> BEST["Best N Strategies<br>Selected"]
     PQF2 -- After 3 Iterations --> BEST
     PQF3 -- After 3 Iterations --> BEST
-    R1 -- "Surviving<br>Sub-Strategies" --> D1["Execution<br>Agent 1.x"] & D2["Execution<br>Agent 1.y"]
-    R2 -- "Surviving<br>Sub-Strategies" --> D3["Execution<br>Agent 2.x"] & D4["Execution<br>Agent 2.y"]
-    R3 -- "Surviving<br>Sub-Strategies" --> D5["Execution<br>Agent 3.x"] & D6["Execution<br>Agent 3.y"]
+    R_ALL -- "Surviving<br>Sub-Strategies" --> D1["Execution<br>Agent 1.x"] & D2["Execution<br>Agent 1.y"] & D3["Execution<br>Agent 2.x"] & D4["Execution<br>Agent 2.y"] & D5["Execution<br>Agent 3.x"] & D6["Execution<br>Agent 3.y"]
     INFO --> D1 & D2 & D3 & D4 & D5 & D6 & SE1 & SE2 & SE3 & F["Dissected Observations<br>Synthesizer"]
     D1 --> CR1["Critique<br>Agent 1.x"] & POOL_INIT["StructuredSolutionPool<br>Initialized with<br>Original Solutions"]
     D2 --> CR2["Critique<br>Agent 1.y"] & POOL_INIT
@@ -1781,9 +1780,7 @@ flowchart TB
      C7:::strategyGen
      C8:::strategyGen
      C9:::strategyGen
-     R1:::redteam
-     R2:::redteam
-     R3:::redteam
+     R_ALL:::redteam
      S1:::strategyGen
      S2:::strategyGen
      S3:::strategyGen

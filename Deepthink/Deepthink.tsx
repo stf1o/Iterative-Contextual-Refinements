@@ -1,4 +1,3 @@
-import { Part } from "@google/genai";
 import { AIProvider } from '../Routing/AIProvider';
 import { CustomizablePromptsDeepthink, createDefaultCustomPromptsDeepthink } from './DeepthinkPrompts';
 import { renderMathContent } from '../Components/RenderMathMarkdown';
@@ -139,202 +138,14 @@ export function activateDeepthinkStrategyTab(strategyIndex: number) {
 }
 
 
-// Deepthink red team evaluation function
-export async function runDeepthinkRedTeamEvaluation(
-    currentProcess: DeepthinkPipelineState,
-    problemText: string,
-    imageBase64?: string | null,
-    imageMimeType?: string | null,
-    makeDeepthinkApiCall?: any
-): Promise<void> {
-    if (!currentProcess || !makeDeepthinkApiCall) return;
 
-    const validStrategies = currentProcess.initialStrategies.filter(s =>
-        s.status === 'completed' && s.subStrategies && s.subStrategies.length > 0
-    );
 
-    if (validStrategies.length === 0) {
-        currentProcess.redTeamStatus = 'completed';
-        currentProcess.redTeamComplete = true;
-        currentProcess.redTeamAgents = [];
-        renderActiveDeepthinkPipeline();
-        return;
-    }
+// ===== Red Team UI Helper Functions =====
+// Note: Red Team evaluation logic is now in DeepthinkCore.ts via runConsolidatedRedTeamAnalysis
+// This file only contains UI helper functions
 
-    currentProcess.redTeamAgents = validStrategies.map((strategy, index) => ({
-        id: `redteam-${index}`,
-        assignedStrategyId: strategy.id,
-        killedStrategyIds: [],
-        killedSubStrategyIds: [],
-        status: 'pending',
-        isDetailsOpen: true
-    }));
-    currentProcess.redTeamStatus = 'processing';
-    renderActiveDeepthinkPipeline();
 
-    await Promise.allSettled(currentProcess.redTeamAgents.map(async (redTeamAgent, agentIndex) => {
-        if (currentProcess.isStopRequested) {
-            redTeamAgent.status = 'cancelled';
-            return;
-        }
 
-        try {
-            redTeamAgent.status = 'processing';
-            renderActiveDeepthinkPipeline();
-
-            const assignedStrategy = currentProcess.initialStrategies.find(s => s.id === redTeamAgent.assignedStrategyId);
-            if (!assignedStrategy || !assignedStrategy.subStrategies || assignedStrategy.subStrategies.length === 0) {
-                redTeamAgent.status = 'completed';
-                redTeamAgent.reasoning = "No sub-strategies to evaluate - strategy passed by default";
-                return;
-            }
-
-            const subStrategiesText = assignedStrategy.subStrategies
-                .map((sub, idx) => `${idx + 1}. [ID: ${sub.id}] ${sub.subStrategyText}`)
-                .join('\n\n');
-
-            // Generate fresh red team prompts with current aggressiveness setting
-            const currentRedTeamAggressiveness = getSelectedRedTeamAggressiveness();
-            const freshRedTeamPrompts = createDefaultCustomPromptsDeepthink(
-                getSelectedStrategiesCount(),
-                getSelectedSubStrategiesCount(),
-                getSelectedHypothesisCount(),
-                currentRedTeamAggressiveness
-            );
-
-            const redTeamPrompt = freshRedTeamPrompts.user_deepthink_redTeam
-                .replace('{{originalProblemText}}', problemText)
-                .replace('{{assignedStrategy}}', `[ID: ${assignedStrategy.id}] ${assignedStrategy.strategyText}`)
-                .replace('{{subStrategies}}', subStrategiesText);
-
-            const redTeamPromptParts: Part[] = [{ text: redTeamPrompt }];
-            if (imageBase64 && imageMimeType) {
-                redTeamPromptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-            }
-            redTeamAgent.requestPrompt = redTeamPrompt + (imageBase64 ? "\n[Image Provided]" : "");
-
-            const redTeamResponse = await makeDeepthinkApiCall(
-                redTeamPromptParts,
-                freshRedTeamPrompts.sys_deepthink_redTeam,
-                true,
-                `Red Team Agent ${agentIndex + 1}`,
-                redTeamAgent,
-                'retryAttempt'
-            );
-
-            redTeamAgent.evaluationResponse = cleanTextOutput(redTeamResponse);
-            redTeamAgent.rawResponse = redTeamResponse;
-
-            try {
-                let cleanedResponse = redTeamResponse.trim();
-                cleanedResponse = cleanedResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-                cleanedResponse = cleanedResponse.replace(/^[^{]*/, '').replace(/[^}]*$/, '');
-
-                const jsonStart = cleanedResponse.indexOf('{');
-                const jsonEnd = cleanedResponse.lastIndexOf('}');
-                if (jsonStart === -1 || jsonEnd === -1 || jsonStart >= jsonEnd) {
-                    throw new Error(`No valid JSON object boundaries found`);
-                }
-                cleanedResponse = cleanedResponse.substring(jsonStart, jsonEnd + 1);
-
-                const parsed = JSON.parse(cleanedResponse);
-                // Build a comprehensive reasoning display from the strategy evaluations
-                let reasoningHtml = '<div class="red-team-evaluation-results">';
-
-                if (parsed.challenge) {
-                    reasoningHtml += `<h4>Challenge Evaluation: ${parsed.challenge}</h4>`;
-                }
-
-                if (Array.isArray(parsed.strategy_evaluations)) {
-                    parsed.strategy_evaluations.forEach((evaluation: any) => {
-                        const decision = String(evaluation.decision || '').toLowerCase();
-                        const id = evaluation.id || 'Unknown ID';
-                        const reason = evaluation.reason || 'No reason provided';
-
-                        reasoningHtml += `
-                            <div class="strategy-evaluation-item">
-                                <div class="evaluation-header">
-                                    <span class="strategy-id">${id}</span>
-                                    <span class="decision-badge decision-${decision}">${decision}</span>
-                                </div>
-                                <div class="evaluation-reason">
-                                    ${renderMathContent(reason)}
-                                </div>
-                            </div>`;
-                    });
-                }
-
-                reasoningHtml += '</div>';
-                redTeamAgent.reasoning = reasoningHtml;
-
-                const killedStrategyIds: string[] = [];
-                const killedSubStrategyIds: string[] = [];
-                const reasonMap: { [key: string]: string } = {};
-
-                if (Array.isArray(parsed.strategy_evaluations)) {
-                    parsed.strategy_evaluations.forEach((evaluation: any) => {
-                        if (!evaluation || typeof evaluation !== 'object') return;
-                        const decision = String(evaluation.decision || '').toLowerCase();
-                        const id = typeof evaluation.id === 'string' ? evaluation.id : '';
-                        if (!id) return;
-                        if (decision === 'eliminate') {
-                            if (id.includes('main')) {
-                                if (id.includes('-sub')) killedSubStrategyIds.push(id); else killedStrategyIds.push(id);
-                            } else {
-                                killedSubStrategyIds.push(id);
-                            }
-                            reasonMap[id] = evaluation.reason || evaluation.reasoning || 'Eliminated by Red Team';
-                        }
-                    });
-                }
-
-                redTeamAgent.killedStrategyIds = killedStrategyIds;
-                redTeamAgent.killedSubStrategyIds = killedSubStrategyIds;
-                (redTeamAgent as any).killedReasonMap = reasonMap;
-            } catch (parseError) {
-                redTeamAgent.reasoning = `JSON parsing failed. Raw response: ${(redTeamAgent.evaluationResponse || '').substring(0, 500)}...`;
-                redTeamAgent.killedStrategyIds = [];
-                redTeamAgent.killedSubStrategyIds = [];
-            }
-
-            redTeamAgent.status = 'completed';
-        } catch (e: any) {
-            redTeamAgent.status = 'error';
-            redTeamAgent.error = e.message || `Failed to run Red Team Agent ${agentIndex + 1}.`;
-        } finally {
-            renderActiveDeepthinkPipeline();
-        }
-    }));
-
-    currentProcess.redTeamAgents.forEach(redTeamAgent => {
-        if (redTeamAgent.status === 'completed') {
-            const reasonMap = (redTeamAgent as any).killedReasonMap || {};
-            const fallbackReason = `Eliminated by Red Team Agent ${redTeamAgent.id}`;
-
-            redTeamAgent.killedStrategyIds.forEach(strategyId => {
-                const strategy = currentProcess.initialStrategies.find(s => s.id === strategyId);
-                if (strategy) {
-                    strategy.isKilledByRedTeam = true;
-                    strategy.redTeamReason = reasonMap[strategyId] || fallbackReason;
-                }
-            });
-
-            redTeamAgent.killedSubStrategyIds.forEach(subStrategyId => {
-                currentProcess.initialStrategies.forEach(strategy => {
-                    const subStrategy = strategy.subStrategies.find(sub => sub.id === subStrategyId);
-                    if (subStrategy) {
-                        subStrategy.isKilledByRedTeam = true;
-                        subStrategy.redTeamReason = reasonMap[subStrategyId] || fallbackReason;
-                    }
-                });
-            });
-        }
-    });
-
-    currentProcess.redTeamStatus = 'completed';
-    currentProcess.redTeamComplete = true;
-    renderActiveDeepthinkPipeline();
-}
 
 // Solution modal functions
 // Global variable to track active modal updates
@@ -934,7 +745,7 @@ function deepthinkClickHandler(event: Event) {
             const agentId = button.getAttribute('data-agent-id');
             if (agentId && pipeline) {
                 // Check Red Team agents first
-                const redTeamAgent = pipeline.redTeamAgents.find(a => a.id === agentId);
+                const redTeamAgent = pipeline.redTeamEvaluations.find(a => a.id === agentId);
                 if (redTeamAgent && redTeamAgent.reasoning) {
                     openRedTeamReasoningModal(redTeamAgent);
                     return;
@@ -1732,20 +1543,21 @@ export function renderDissectedObservationsContent(deepthinkProcess: DeepthinkPi
 export function renderRedTeamContent(deepthinkProcess: DeepthinkPipelineState): string {
     let html = '<div class="deepthink-red-team">';
 
-    const hasRedTeam = deepthinkProcess.redTeamAgents && deepthinkProcess.redTeamAgents.length > 0;
+    const hasRedTeam = deepthinkProcess.redTeamEvaluations && deepthinkProcess.redTeamEvaluations.length > 0;
     const hasPostQF = deepthinkProcess.postQualityFilterAgents && deepthinkProcess.postQualityFilterAgents.length > 0;
 
     if (hasRedTeam || hasPostQF) {
         // Add red team agents grid
         if (hasRedTeam) {
             html += '<div class="red-team-agents-grid">';
-            deepthinkProcess.redTeamAgents.forEach((agent, index) => {
+            deepthinkProcess.redTeamEvaluations.forEach((agent, index) => {
                 const killedCount = (agent.killedStrategyIds?.length || 0) + (agent.killedSubStrategyIds?.length || 0);
                 const reasoningSubtitle = killedCount > 0 ? 'See elimination rationale' : 'View agent notes';
+                const title = deepthinkProcess.redTeamEvaluations.length === 1 ? "Red Team Evaluation" : `Red Team Agent ${index + 1}`;
                 html += `
                     <div class="red-team-agent-card">
                         <div class="red-team-agent-header">
-                            <h4 class="red-team-agent-title">Red Team Agent ${index + 1}</h4>
+                            <h4 class="red-team-agent-title">${title}</h4>
                             <span class="status-badge status-${agent.status}">${agent.status}</span>
                         </div>
                         <div class="red-team-results">

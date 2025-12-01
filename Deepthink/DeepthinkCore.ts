@@ -165,7 +165,7 @@ export interface DeepthinkPipelineState {
     dissectedSynthesisStatus?: 'pending' | 'processing' | 'retrying' | 'completed' | 'error' | 'cancelled';
     dissectedSynthesisError?: string;
     dissectedSynthesisRetryAttempt?: number;
-    redTeamAgents: DeepthinkRedTeamData[];
+    redTeamEvaluations: DeepthinkRedTeamData[];
     redTeamStatus?: 'pending' | 'processing' | 'completed' | 'error' | 'cancelled';
     redTeamError?: string;
     postQualityFilterAgents: DeepthinkPostQualityFilterData[];
@@ -351,7 +351,7 @@ export function parseKnowledgePacketForStyling(knowledgePacket: string): string 
 // ========== RED TEAM EVALUATION FUNCTIONS ==========
 
 export function applyRedTeamResults(currentProcess: DeepthinkPipelineState): void {
-    currentProcess.redTeamAgents.forEach(redTeamAgent => {
+    currentProcess.redTeamEvaluations.forEach(redTeamAgent => {
         if (redTeamAgent.status === 'completed') {
             const reasonMap = (redTeamAgent as any).killedReasonMap || {};
             const fallbackReason = `Eliminated by Red Team Agent ${redTeamAgent.id}`;
@@ -377,27 +377,26 @@ export function applyRedTeamResults(currentProcess: DeepthinkPipelineState): voi
     });
 }
 
-export async function runRedTeamForStrategy(
+export async function runConsolidatedRedTeamAnalysis(
     currentProcess: DeepthinkPipelineState,
-    mainStrategy: DeepthinkMainStrategyData,
+    strategies: DeepthinkMainStrategyData[],
     problemText: string,
     imageBase64: string | null | undefined,
     imageMimeType: string | null | undefined,
     makeDeepthinkApiCall: any,
     _aggressiveness: string
 ): Promise<void> {
-    if (!mainStrategy.subStrategies || mainStrategy.subStrategies.length === 0) return;
+    if (!strategies || strategies.length === 0) return;
 
-    const agentIndex = currentProcess.redTeamAgents.length;
     const redTeamAgent: DeepthinkRedTeamData = {
-        id: `redteam-${agentIndex}`,
-        assignedStrategyId: mainStrategy.id,
+        id: `redteam-consolidated`,
+        assignedStrategyId: 'all',
         killedStrategyIds: [],
         killedSubStrategyIds: [],
         status: 'pending',
         isDetailsOpen: true
     };
-    currentProcess.redTeamAgents.push(redTeamAgent);
+    currentProcess.redTeamEvaluations = [redTeamAgent];
     if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
 
     if (currentProcess.isStopRequested) {
@@ -409,14 +408,16 @@ export async function runRedTeamForStrategy(
         redTeamAgent.status = 'processing';
         if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
 
-        const subStrategiesText = mainStrategy.subStrategies
-            .map((sub, idx) => `${idx + 1}. [ID: ${sub.id}] ${sub.subStrategyText}`)
-            .join('\n\n');
+        const allStrategiesText = strategies.map(mainStrategy => {
+            const subStrategiesText = mainStrategy.subStrategies
+                .map((sub) => `  - Sub-Strategy [ID: ${sub.id}]: ${sub.subStrategyText}`)
+                .join('\n');
+            return `Main Strategy [ID: ${mainStrategy.id}]:\n${mainStrategy.strategyText}\nSub-Strategies:\n${subStrategiesText}`;
+        }).join('\n\n' + '='.repeat(40) + '\n\n');
 
         const redTeamPrompt = customPromptsDeepthinkState.user_deepthink_redTeam
             .replace('{{originalProblemText}}', problemText)
-            .replace('{{assignedStrategy}}', `[ID: ${mainStrategy.id}] ${mainStrategy.strategyText}`)
-            .replace('{{subStrategies}}', subStrategiesText);
+            .replace('{{allStrategies}}', allStrategiesText);
 
         const redTeamPromptParts: Part[] = [{ text: redTeamPrompt }];
         if (imageBase64 && imageMimeType) {
@@ -428,7 +429,7 @@ export async function runRedTeamForStrategy(
             redTeamPromptParts,
             customPromptsDeepthinkState.sys_deepthink_redTeam,
             true,
-            `Red Team Agent ${agentIndex + 1}`,
+            `Red Team Evaluation`,
             redTeamAgent,
             'retryAttempt'
         );
@@ -489,11 +490,14 @@ export async function runRedTeamForStrategy(
                     if (!id) return;
                     if (decision === 'eliminate') {
                         if (id.includes('main')) {
-                            if (id.includes('-sub')) killedSubStrategyIds.push(id); else killedStrategyIds.push(id);
-                        } else {
-                            killedSubStrategyIds.push(id);
+                            if (id.includes('sub')) {
+                                killedSubStrategyIds.push(id);
+                            } else {
+                                killedStrategyIds.push(id);
+                            }
                         }
-                        reasonMap[id] = evaluation.reason || evaluation.reasoning || 'Eliminated by Red Team';
+                        const reason = evaluation.reason || 'No reason provided';
+                        reasonMap[id] = reason;
                     }
                 });
             }
@@ -501,17 +505,18 @@ export async function runRedTeamForStrategy(
             redTeamAgent.killedStrategyIds = killedStrategyIds;
             redTeamAgent.killedSubStrategyIds = killedSubStrategyIds;
             (redTeamAgent as any).killedReasonMap = reasonMap;
-        } catch (parseError) {
-            redTeamAgent.reasoning = `JSON parsing failed. Raw response: ${(redTeamAgent.evaluationResponse || '').substring(0, 500)}...`;
-            redTeamAgent.killedStrategyIds = [];
-            redTeamAgent.killedSubStrategyIds = [];
-        }
+            redTeamAgent.status = 'completed';
+            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
 
-        redTeamAgent.status = 'completed';
-    } catch (e: any) {
+        } catch (e: any) {
+            console.error("Error parsing Red Team JSON:", e);
+            redTeamAgent.status = 'error';
+            redTeamAgent.error = "Failed to parse Red Team response: " + e.message;
+            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+        }
+    } catch (error: any) {
         redTeamAgent.status = 'error';
-        redTeamAgent.error = e.message || `Failed to run Red Team Agent ${agentIndex + 1}.`;
-    } finally {
+        redTeamAgent.error = error.message || "Red Team evaluation failed";
         if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
     }
 }
@@ -532,7 +537,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
         initialStrategies: [],
         hypotheses: [],
         solutionCritiques: [],
-        redTeamAgents: [],
+        redTeamEvaluations: [],
         postQualityFilterAgents: [],
         structuredSolutionPoolAgents: [],
         status: 'processing',
@@ -807,15 +812,13 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                 if (currentRedTeamAggressiveness !== 'off') {
                     currentProcess.redTeamStatus = 'processing';
-                    currentProcess.redTeamAgents = [];
+                    currentProcess.redTeamEvaluations = [];
                 } else {
                     currentProcess.redTeamStatus = 'completed';
                     currentProcess.redTeamComplete = true;
-                    currentProcess.redTeamAgents = [];
+                    currentProcess.redTeamEvaluations = [];
                 }
                 if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
-
-                const redTeamPromises: Promise<void>[] = [];
 
                 if (skipSubStrategies) {
                     currentProcess.initialStrategies.forEach((mainStrategy) => {
@@ -827,13 +830,6 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                             subStrategyFormat: 'markdown'
                         };
                         mainStrategy.subStrategies.push(subStrategy);
-                        mainStrategy.status = 'completed';
-
-                        if (currentRedTeamAggressiveness !== 'off') {
-                            redTeamPromises.push(
-                                runRedTeamForStrategy(currentProcess, mainStrategy, challengeText, imageBase64, imageMimeType, makeDeepthinkApiCall, currentRedTeamAggressiveness)
-                            );
-                        }
                     });
                     if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
                 } else {
@@ -884,14 +880,6 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                 mainStrategy.subStrategies.push(subStrategy);
                             }
 
-                            mainStrategy.status = 'completed';
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
-
-                            if (currentRedTeamAggressiveness !== 'off') {
-                                redTeamPromises.push(
-                                    runRedTeamForStrategy(currentProcess, mainStrategy, challengeText, imageBase64, imageMimeType, makeDeepthinkApiCall, currentRedTeamAggressiveness)
-                                );
-                            }
                         } catch (error: any) {
                             mainStrategy.status = 'error';
                             mainStrategy.error = error.message || "Sub-strategy generation failed";
@@ -902,8 +890,16 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                 if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped after sub-strategy generation.");
 
-                if (currentRedTeamAggressiveness !== 'off' && redTeamPromises.length > 0) {
-                    await Promise.allSettled(redTeamPromises);
+                if (currentRedTeamAggressiveness !== 'off') {
+                    await runConsolidatedRedTeamAnalysis(
+                        currentProcess,
+                        currentProcess.initialStrategies,
+                        challengeText,
+                        imageBase64,
+                        imageMimeType,
+                        makeDeepthinkApiCall,
+                        currentRedTeamAggressiveness
+                    );
                     currentProcess.redTeamComplete = true;
                     currentProcess.redTeamStatus = 'completed';
                     if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();

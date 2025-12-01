@@ -40,7 +40,6 @@ export type {
 export {
     initializeDeepthinkModule,
     activateDeepthinkStrategyTab,
-    runDeepthinkRedTeamEvaluation,
     openDeepthinkSolutionModal,
     closeSolutionModal,
     parseKnowledgePacketForStyling,

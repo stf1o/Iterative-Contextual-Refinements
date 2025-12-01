@@ -207,7 +207,7 @@ export class ModelSelectionUI {
     private updateCustomSelectOptions(): void {
         const dropdown = document.getElementById('custom-model-select-dropdown');
         const textElement = document.getElementById('custom-model-select-text');
-        
+
         if (!dropdown || !textElement) return;
 
         const availableModels = this.modelConfig.getAvailableModels();
@@ -251,11 +251,11 @@ export class ModelSelectionUI {
         sortedProviders.forEach(provider => {
             const models = modelsByProvider[provider];
             const config = providerConfig[provider.toLowerCase()] || { icon: provider.charAt(0).toUpperCase(), class: 'default' };
-            
+
             // Create provider section container
             const providerSection = document.createElement('div');
             providerSection.className = `custom-model-select-provider-section ${config.class}`;
-            
+
             // Add provider header
             const providerHeader = document.createElement('div');
             providerHeader.className = `custom-model-select-provider-header ${config.class}`;
@@ -275,7 +275,7 @@ export class ModelSelectionUI {
                 if (model.value === selectedModel) {
                     option.classList.add('selected');
                 }
-                
+
                 option.innerHTML = `
                     <span class="custom-model-select-option-text">${model.value}</span>
                 `;
@@ -322,8 +322,8 @@ export class ModelSelectionUI {
         }
 
         this.closeCustomSelect();
-    }   
- private initializeEventListeners(): void {
+    }
+    private initializeEventListeners(): void {
         // Model selection
         if (this.elements.modelSelect) {
             this.elements.modelSelect.addEventListener('change', () => {
@@ -362,14 +362,14 @@ export class ModelSelectionUI {
         if (this.elements.strategiesSlider && this.elements.strategiesValue) {
             this.elements.strategiesSlider.addEventListener('input', () => {
                 let value = parseInt(this.elements.strategiesSlider!.value);
-                
+
                 // Enforce max 5 strategies when iterative corrections is enabled
                 const iterativeEnabled = this.elements.iterativeCorrectionsToggle?.checked || false;
                 if (iterativeEnabled && value > 5) {
                     value = 5;
                     this.elements.strategiesSlider!.value = '5';
                 }
-                
+
                 this.modelConfig.updateParameter('strategiesCount', value);
                 this.elements.strategiesValue!.textContent = value.toString();
             });
@@ -398,7 +398,7 @@ export class ModelSelectionUI {
             this.elements.refinementToggle.addEventListener('change', () => {
                 const isRefinementEnabled = this.elements.refinementToggle!.checked;
                 this.modelConfig.updateParameter('refinementEnabled', isRefinementEnabled);
-                
+
                 // Control availability of sub-refinement options
                 if (isRefinementEnabled) {
                     // Enable dissected observations toggle (unless iterative corrections is on)
@@ -410,7 +410,7 @@ export class ModelSelectionUI {
                             this.modelConfig.updateParameter('dissectedObservationsEnabled', true);
                         }
                     }
-                    
+
                     // Enable iterative corrections toggle
                     if (this.elements.iterativeCorrectionsToggle) {
                         this.elements.iterativeCorrectionsToggle.disabled = false;
@@ -422,12 +422,12 @@ export class ModelSelectionUI {
                         this.elements.dissectedObservationsToggle.checked = false;
                         this.modelConfig.updateParameter('dissectedObservationsEnabled', false);
                     }
-                    
+
                     if (this.elements.iterativeCorrectionsToggle) {
                         this.elements.iterativeCorrectionsToggle.disabled = true;
                         this.elements.iterativeCorrectionsToggle.checked = false;
                         this.modelConfig.updateParameter('iterativeCorrectionsEnabled', false);
-                        
+
                         // Re-enable sub-strategies toggle when iterative corrections is turned off
                         if (this.elements.skipSubStrategiesToggle) {
                             this.elements.skipSubStrategiesToggle.disabled = false;
@@ -442,7 +442,7 @@ export class ModelSelectionUI {
             this.elements.skipSubStrategiesToggle.addEventListener('change', () => {
                 const isEnabled = this.elements.skipSubStrategiesToggle!.checked;
                 this.modelConfig.updateParameter('skipSubStrategies', !isEnabled);
-                
+
                 // Disable/enable sub-strategies slider based on toggle state
                 if (this.elements.subStrategiesSlider) {
                     this.elements.subStrategiesSlider.disabled = !isEnabled;
@@ -467,7 +467,7 @@ export class ModelSelectionUI {
                     this.elements.dissectedObservationsToggle!.checked = false;
                     return;
                 }
-                
+
                 this.modelConfig.updateParameter('dissectedObservationsEnabled', this.elements.dissectedObservationsToggle!.checked);
             });
         }
@@ -481,10 +481,10 @@ export class ModelSelectionUI {
                     this.elements.iterativeCorrectionsToggle!.checked = false;
                     return;
                 }
-                
+
                 const isEnabled = this.elements.iterativeCorrectionsToggle!.checked;
                 this.modelConfig.updateParameter('iterativeCorrectionsEnabled', isEnabled);
-                
+
                 // When iterative corrections is enabled:
                 // 1. Disable dissected observations synthesis
                 // 2. Disable sub-strategies and disable the toggle
@@ -496,13 +496,13 @@ export class ModelSelectionUI {
                         this.elements.dissectedObservationsToggle.disabled = true;
                         this.modelConfig.updateParameter('dissectedObservationsEnabled', false);
                     }
-                    
+
                     // Force disable sub-strategies and disable the toggle
                     if (this.elements.skipSubStrategiesToggle) {
                         this.elements.skipSubStrategiesToggle.checked = false;
                         this.elements.skipSubStrategiesToggle.disabled = true;
                         this.modelConfig.updateParameter('skipSubStrategies', true);
-                        
+
                         // Disable sub-strategies slider
                         if (this.elements.subStrategiesSlider) {
                             this.elements.subStrategiesSlider.disabled = true;
@@ -512,7 +512,7 @@ export class ModelSelectionUI {
                             }
                         }
                     }
-                    
+
                     // Limit strategies to max 5 for StructuredSolutionPool context management
                     if (this.elements.strategiesSlider && this.elements.strategiesValue) {
                         const currentStrategies = parseInt(this.elements.strategiesSlider.value);
@@ -527,13 +527,13 @@ export class ModelSelectionUI {
                     // Re-enable dissected observations when turning off iterative corrections
                     // (only if refinement is still enabled)
                     const isRefinementEnabled = this.elements.refinementToggle?.checked || false;
-                    
+
                     if (this.elements.dissectedObservationsToggle && isRefinementEnabled) {
                         this.elements.dissectedObservationsToggle.disabled = false;
                         this.elements.dissectedObservationsToggle.checked = true;
                         this.modelConfig.updateParameter('dissectedObservationsEnabled', true);
                     }
-                    
+
                     // Re-enable sub-strategies toggle
                     if (this.elements.skipSubStrategiesToggle) {
                         this.elements.skipSubStrategiesToggle.disabled = false;
@@ -552,7 +552,7 @@ export class ModelSelectionUI {
                     this.elements.provideAllSolutionsToggle!.checked = false;
                     return;
                 }
-                
+
                 this.modelConfig.updateParameter('provideAllSolutionsToCorrectors', this.elements.provideAllSolutionsToggle!.checked);
             });
         }
@@ -569,8 +569,8 @@ export class ModelSelectionUI {
 
         // Hypothesis toggle
         this.initializeHypothesisToggle();
-    } 
-   private initializeRedTeamButtons(): void {
+    }
+    private initializeRedTeamButtons(): void {
         const redTeamButtons = document.querySelectorAll('.red-team-button');
         redTeamButtons.forEach(button => {
             button.addEventListener('click', () => {
@@ -589,17 +589,17 @@ export class ModelSelectionUI {
         const hypothesisToggle = document.getElementById('hypothesis-toggle') as HTMLInputElement;
         const hypothesisSliderContainer = document.getElementById('hypothesis-slider-container');
         const windowHeader = document.querySelector('.information-packet-window .window-header');
-        
+
         const togglePacket = () => {
             const informationPacketContent = document.getElementById('information-packet-content');
             const executionAgentsVisualization = document.getElementById('execution-agents-visualization');
             const hypothesisSlider = document.getElementById('hypothesis-slider') as HTMLInputElement;
-            
+
             if (hypothesisToggle.checked) {
                 if (hypothesisSliderContainer) hypothesisSliderContainer.classList.remove('hidden');
                 if (informationPacketContent) informationPacketContent.classList.remove('hidden');
                 if (executionAgentsVisualization) executionAgentsVisualization.classList.remove('hidden');
-                
+
                 // Restore the slider value to the parameter
                 if (hypothesisSlider) {
                     const sliderValue = parseInt(hypothesisSlider.value, 10);
@@ -611,16 +611,16 @@ export class ModelSelectionUI {
                 if (executionAgentsVisualization) executionAgentsVisualization.classList.add('hidden');
                 this.modelConfig.updateParameter('hypothesisCount', 0);
             }
-            
+
             // Trigger API call estimator update
             if (this.apiCallEstimator) {
                 this.apiCallEstimator.updateApiCallDisplay();
             }
         };
-        
+
         if (hypothesisToggle && hypothesisSliderContainer) {
             hypothesisToggle.addEventListener('change', togglePacket);
-            
+
             // Make the entire window header clickable to toggle the packet
             if (windowHeader) {
                 windowHeader.addEventListener('click', (e) => {
@@ -630,7 +630,7 @@ export class ModelSelectionUI {
                         togglePacket();
                     }
                 });
-                
+
                 // Add cursor pointer to indicate clickability
                 (windowHeader as HTMLElement).style.cursor = 'pointer';
             }
@@ -689,7 +689,7 @@ export class ModelSelectionUI {
 
         if (this.elements.skipSubStrategiesToggle) {
             this.elements.skipSubStrategiesToggle.checked = !params.skipSubStrategies;
-            
+
             // Update sub-strategies slider state based on toggle
             if (this.elements.subStrategiesSlider) {
                 this.elements.subStrategiesSlider.disabled = params.skipSubStrategies;
@@ -739,26 +739,26 @@ export class ModelSelectionUI {
     private initializeRefinementState(): void {
         const params = this.modelConfig.getParameters();
         const isRefinementEnabled = params.refinementEnabled;
-        
+
         // Set initial state of dissected observations and iterative corrections toggles
         if (this.elements.dissectedObservationsToggle) {
             this.elements.dissectedObservationsToggle.checked = params.dissectedObservationsEnabled;
             // Disable if refinement is off OR if iterative corrections is on
             this.elements.dissectedObservationsToggle.disabled = !isRefinementEnabled || params.iterativeCorrectionsEnabled;
         }
-        
+
         if (this.elements.iterativeCorrectionsToggle) {
             this.elements.iterativeCorrectionsToggle.checked = params.iterativeCorrectionsEnabled;
             // Disable if refinement is off
             this.elements.iterativeCorrectionsToggle.disabled = !isRefinementEnabled;
         }
-        
+
         if (this.elements.provideAllSolutionsToggle) {
             this.elements.provideAllSolutionsToggle.checked = params.provideAllSolutionsToCorrectors;
             // Disable if refinement is off
             this.elements.provideAllSolutionsToggle.disabled = !isRefinementEnabled;
         }
-        
+
         // If iterative corrections is enabled, ensure sub-strategies is forced off and disabled
         if (params.iterativeCorrectionsEnabled && this.elements.skipSubStrategiesToggle) {
             this.elements.skipSubStrategiesToggle.checked = false;

@@ -307,7 +307,7 @@ const DeepthinkEmbeddedPanel: React.FC<{ state: AdaptiveDeepthinkUIState }> = ({
         pipelineState.initialStrategies.length,
         pipelineState.hypotheses.length,
         pipelineState.dissectedObservationsSynthesis,
-        pipelineState.redTeamAgents.length,
+        pipelineState.redTeamEvaluations.length,
         pipelineState.finalJudgedBestSolution,
         pipelineState.activeStrategyTab,
         pipelineState.hypothesisExplorerComplete,
@@ -336,7 +336,7 @@ const DeepthinkEmbeddedPanel: React.FC<{ state: AdaptiveDeepthinkUIState }> = ({
             hasTester: !!h.testerAttempt,
             testerStatus: h.testerStatus
         }))),
-        JSON.stringify(pipelineState.redTeamAgents.map(r => ({
+        JSON.stringify(pipelineState.redTeamEvaluations.map(r => ({
             id: r.id,
             status: r.status,
             killedCount: (r.killedStrategyIds?.length || 0) + (r.killedSubStrategyIds?.length || 0)
@@ -554,7 +554,7 @@ function createInitialDeepthinkPipelineState(question: string): DeepthinkPipelin
         initialStrategies: [],
         hypotheses: [],
         solutionCritiques: [],
-        redTeamAgents: [],
+        redTeamEvaluations: [],
         postQualityFilterAgents: [],
         structuredSolutionPoolAgents: [],
         strategicSolverComplete: false,

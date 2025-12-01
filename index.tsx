@@ -5,10 +5,10 @@
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './Core/App';
 import Sidebar from './Components/Sidebar/Sidebar';
 import MainContent from './Components/MainContent';
 import PromptsModalManager from './Routing/PromptsModal/PromptsModalManager';
+import { AppInitializer } from './Components/AppInitializer';
 
 document.addEventListener('DOMContentLoaded', () => {
     // First, render React components to populate the DOM
@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const root = createRoot(appContainer);
         root.render(
             <React.StrictMode>
+                <AppInitializer />
                 <Sidebar />
                 <MainContent />
             </React.StrictMode>
@@ -32,10 +33,4 @@ document.addEventListener('DOMContentLoaded', () => {
             <PromptsModalManager />
         </React.StrictMode>
     );
-
-    // After React components are rendered, initialize the App logic
-    // Use setTimeout to ensure React has completed rendering
-    setTimeout(() => {
-        App.init();
-    }, 0);
 });

@@ -9,19 +9,22 @@ export class ApiCallEstimator {
     private modelConfig: ModelConfigManager;
     private countElement: HTMLElement | null;
     private warningElement: HTMLElement | null;
+    private pqfWarningElement: HTMLElement | null;
 
     constructor(modelConfig: ModelConfigManager) {
         this.modelConfig = modelConfig;
         this.countElement = document.getElementById('api-call-count');
         this.warningElement = document.getElementById('api-call-warning');
+        this.pqfWarningElement = document.getElementById('api-call-pqf-warning');
     }
 
     /**
      * Calculate estimated API calls for Deepthink mode
+     * Returns a range { min, max } to account for variable retry loops
      */
-    public calculateDeepthinkApiCalls(): number {
+    public calculateDeepthinkApiCalls(): { min: number, max: number } {
         const params = this.modelConfig.getParameters();
-        
+
         const strategiesCount = params.strategiesCount;
         const subStrategiesCount = params.subStrategiesCount;
         const hypothesisCount = params.hypothesisCount;
@@ -32,28 +35,34 @@ export class ApiCallEstimator {
         const postQualityFilterEnabled = params.postQualityFilterEnabled;
         const redTeamEnabled = params.redTeamAggressiveness !== 'off';
 
-        let totalCalls = 0;
+        let minCalls = 0;
+        let maxCalls = 0;
 
         // 1. Initial Strategy Generation (1 call)
-        totalCalls += 1;
+        minCalls += 1;
+        maxCalls += 1;
 
         // 2. Sub-Strategy Generation (N calls - one per strategy, if not skipped)
         if (!skipSubStrategies) {
-            totalCalls += strategiesCount;
+            minCalls += strategiesCount;
+            maxCalls += strategiesCount;
         }
 
         // 3. Solution Attempts
         const solutionCount = skipSubStrategies ? strategiesCount : (strategiesCount * subStrategiesCount);
-        totalCalls += solutionCount;
+        minCalls += solutionCount;
+        maxCalls += solutionCount;
 
         // 4-5. Hypothesis Track (only if hypothesis count > 0)
         if (hypothesisCount > 0) {
             // 4. Hypothesis Generation (1 call)
-            totalCalls += 1;
-            
+            minCalls += 1;
+            maxCalls += 1;
+
             // 5. Hypothesis Testing (H calls - one per hypothesis)
-            totalCalls += hypothesisCount;
-            
+            minCalls += hypothesisCount;
+            maxCalls += hypothesisCount;
+
             // Note: Knowledge Synthesis is done by system, not an API call
         }
 
@@ -62,59 +71,78 @@ export class ApiCallEstimator {
             if (iterativeCorrectionsEnabled) {
                 // Initial critiques for all strategies (when skip sub-strategies is enabled)
                 if (skipSubStrategies) {
-                    totalCalls += strategiesCount; // Initial critiques
-                    
+                    minCalls += strategiesCount; // Initial critiques
+                    maxCalls += strategiesCount;
+
                     // PostQualityFilter (only if enabled)
                     if (postQualityFilterEnabled) {
-                        // Worst case: PostQualityFilter runs 3 times, each time kills all strategies
-                        // and generates new ones, then executes and critiques them
-                        // Iteration 1: 1 PostQF call + N strategy generation + N executions + N critiques
-                        // Iteration 2: 1 PostQF call + N strategy generation + N executions + N critiques  
-                        // Iteration 3: 1 PostQF call + N strategy generation + N executions + N critiques
+                        // Typical Case (Min):
+                        // 1 iteration, 50% replacement
+                        // Iteration 1: 1 PostQF + ceil(0.5*N) StratGen + ceil(0.5*N) Exec + ceil(0.5*N) Critiques
+                        const typicalReplacementCount = Math.ceil(strategiesCount * 0.5);
+                        minCalls += 1 + typicalReplacementCount + typicalReplacementCount + typicalReplacementCount;
+
+                        // Worst Case (Max):
+                        // 3 iterations, 100% replacement
+                        // Iteration 1: 1 PostQF + N StratGen + N Exec + N Critiques
+                        // Iteration 2: 1 PostQF + N StratGen + N Exec + N Critiques  
+                        // Iteration 3: 1 PostQF + N StratGen + N Exec + N Critiques
                         const postQFIterations = 3;
-                        totalCalls += postQFIterations * (1 + 1 + strategiesCount + strategiesCount); // PQF + StratGen + Solutions + Critiques
+                        maxCalls += postQFIterations * (1 + strategiesCount + strategiesCount + strategiesCount);
                     }
                 }
-                
+
                 // For each solution: 3 iterations × (1 critique + 1 correction + 1 solution pool) = 9 calls per solution
                 // Note: Solution pool calls = critique calls (1 per iteration)
-                totalCalls += solutionCount * 9;
+                minCalls += solutionCount * 9;
+                maxCalls += solutionCount * 9;
             } else {
                 // Standard Refinement Mode:
                 // 7. Solution Critique (N calls - one per main strategy)
-                totalCalls += strategiesCount;
-                
+                minCalls += strategiesCount;
+                maxCalls += strategiesCount;
+
                 // 8. Dissected Observations Synthesis (1 call if enabled)
                 if (dissectedObservationsEnabled) {
-                    totalCalls += 1;
+                    minCalls += 1;
+                    maxCalls += 1;
                 }
-                
+
                 // 9. Self-Improvement (M calls - one per solution)
-                totalCalls += solutionCount;
+                minCalls += solutionCount;
+                maxCalls += solutionCount;
             }
         }
 
-        // 10. Red Team Evaluation (N calls - one per main strategy, if enabled)
+        // 10. Red Team Evaluation (1 call - consolidated agent)
         if (redTeamEnabled) {
-            totalCalls += strategiesCount;
+            minCalls += 1;
+            maxCalls += 1;
         }
 
         // 11. Final Judging (1 call to select best solution)
-        totalCalls += 1;
+        minCalls += 1;
+        maxCalls += 1;
 
-        return totalCalls;
+        return { min: minCalls, max: maxCalls };
     }
 
     /**
      * Update the UI with the estimated API call count
      */
     public updateApiCallDisplay(): void {
-        const estimatedCalls = this.calculateDeepthinkApiCalls();
-        const redTeamEnabled = this.modelConfig.getParameters().redTeamAggressiveness !== 'off';
+        const { min, max } = this.calculateDeepthinkApiCalls();
+        const params = this.modelConfig.getParameters();
+        const redTeamEnabled = params.redTeamAggressiveness !== 'off';
+        const postQualityFilterEnabled = params.postQualityFilterEnabled;
 
         // Update the count display
         if (this.countElement) {
-            this.countElement.textContent = `~${estimatedCalls}`;
+            if (min === max) {
+                this.countElement.textContent = `~${min}`;
+            } else {
+                this.countElement.textContent = `~${min} to ${max}`;
+            }
         }
 
         // Show/hide the red team warning icon
@@ -123,6 +151,15 @@ export class ApiCallEstimator {
                 this.warningElement.style.display = 'block';
             } else {
                 this.warningElement.style.display = 'none';
+            }
+        }
+
+        // Show/hide the PQF warning icon
+        if (this.pqfWarningElement) {
+            if (postQualityFilterEnabled) {
+                this.pqfWarningElement.style.display = 'block';
+            } else {
+                this.pqfWarningElement.style.display = 'none';
             }
         }
     }
@@ -165,7 +202,7 @@ export class ApiCallEstimator {
         // Listen to red team button clicks - only update if on/off state changes
         const redTeamButtons = document.querySelectorAll('.red-team-button');
         let previousRedTeamEnabled = this.modelConfig.getParameters().redTeamAggressiveness !== 'off';
-        
+
         redTeamButtons.forEach(button => {
             button.addEventListener('click', () => {
                 setTimeout(() => {
