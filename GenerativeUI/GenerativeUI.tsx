@@ -16,17 +16,9 @@ import { parseJsonSafe } from '../Parsing';
 import { updateControlsState } from '../UI/Controls';
 import { globalState } from '../Core/State';
 
-// Load CSS styles from external file
-const injectStyles = () => {
-    const styleId = 'generativeui-styles';
-    if (document.getElementById(styleId)) return;
+import './GenerativeUI.css';
 
-    const link = document.createElement('link');
-    link.id = styleId;
-    link.rel = 'stylesheet';
-    link.href = './GenerativeUI/GenerativeUI.css';
-    document.head.appendChild(link);
-};
+// Prompts are now imported from './GenerativeUIPrompts'
 
 // Prompts are now imported from './GenerativeUIPrompts'
 
@@ -376,8 +368,7 @@ async function startContextualGeneration(
 
 // Initialize GenerativeUI mode
 export function initializeGenerativeUIMode() {
-    // Inject styles when initializing
-    injectStyles();
+    // Styles are imported at the top of the file
 
     // Setup postMessage listener for iframe interactions
     window.addEventListener('message', handleIframeMessage);
