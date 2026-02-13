@@ -1,10 +1,10 @@
 # Iterative Studio
 
-The system integrates with major AI providers (Google AI, OpenAI, Anthropic) and employs multi-agent-based architectures. There is no python or web search tools provided to any agent in any mode. The main agentic refinements agent has access to a searchacademia tool that search for papers on arxiv.
+The system integrates with major AI providers (Google AI, OpenAI, Anthropic) and employs multi-agent-based architectures. Deepthink & Contextual Mode provides optional access to python interprator for the models to use. The main agentic refinements agent has access to a searchacademia tool that search for papers on arxiv.
 
 ## Operational Modes
 
-The system operates in seven distinct modes, each optimized for specific use cases.
+The system operates in five distinct modes, each optimized for specific use cases.
 
 ### 1. Refine Mode
 
@@ -29,7 +29,7 @@ The system operates in seven distinct modes, each optimized for specific use cas
 4. Bug fix agent validates and corrects errors
 5. Process repeats for configured number of iterations
 
-### 3. Deepthink Mode
+### 2. Deepthink Mode
 
 **Purpose**: Complex problem-solving through strategic decomposition and hypothesis exploration.
 
@@ -70,7 +70,7 @@ The system operates in seven distinct modes, each optimized for specific use cas
 
 
 
-### 4. Adaptive Deepthink Mode
+### 3. Adaptive Deepthink Mode
 
 **Purpose**: Provide full access of deepthink mode to an agent.
 
@@ -100,7 +100,7 @@ The system operates in seven distinct modes, each optimized for specific use cas
 4. Results integrated back into conversation context
 5. Process continues iteratively until solution reached
 
-### 5. Agentic Mode
+### 4. Agentic Mode
 
 **Purpose**: General-purpose iterative refinement with tool-based content manipulation.
 
@@ -133,7 +133,7 @@ The system operates in seven distinct modes, each optimized for specific use cas
 4. Content iteratively refined through diff operations
 5. Process continues until user satisfaction
 
-### 6. Contextual Mode
+### 5. Contextual Mode
 
 **Purpose**: Iterative refinement through specialized agent collaboration.
 
