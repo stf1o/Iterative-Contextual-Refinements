@@ -6,9 +6,13 @@
 // ArXiv API integration for SearchAcademia tool
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker
+// Configure PDF.js worker with bundled version
+// Using new URL() pattern for Vite to properly bundle the worker
 if (typeof window !== 'undefined') {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url
+    ).toString();
 }
 
 export interface ArxivPaper {
@@ -38,7 +42,7 @@ export interface ArxivSearchOptions {
  */
 export async function searchArxiv(options: ArxivSearchOptions): Promise<ArxivPaper[]> {
     let searchQuery = '';
-    
+
     if (options.searchType === 'simple' && options.query) {
         // Simple search across all fields
         searchQuery = `all:${encodeURIComponent(options.query)}`;
@@ -48,18 +52,18 @@ export async function searchArxiv(options: ArxivSearchOptions): Promise<ArxivPap
     } else {
         throw new Error('Invalid search options');
     }
-    
+
     const maxResults = options.maxResults || 10;
     const startIndex = options.startIndex || 0;
-    
+
     const url = `https://export.arxiv.org/api/query?search_query=${searchQuery}&start=${startIndex}&max_results=${maxResults}`;
-    
+
     try {
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`arXiv API error: ${response.status}`);
         }
-        
+
         const xmlText = await response.text();
         return parseArxivResponse(xmlText);
     } catch (error) {
@@ -74,22 +78,22 @@ export async function searchArxiv(options: ArxivSearchOptions): Promise<ArxivPap
 function parseArxivResponse(xmlText: string): ArxivPaper[] {
     const parser = new DOMParser();
     const doc = parser.parseFromString(xmlText, 'text/xml');
-    
+
     const entries = doc.getElementsByTagName('entry');
     const papers: ArxivPaper[] = [];
-    
+
     for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
-        
+
         // Extract ID from the entry id URL
         const idElement = entry.getElementsByTagName('id')[0];
         const fullId = idElement?.textContent || '';
         const arxivId = fullId.split('/abs/')?.pop() || fullId;
-        
+
         // Extract title
         const titleElement = entry.getElementsByTagName('title')[0];
         const title = titleElement?.textContent?.trim() || '';
-        
+
         // Extract authors
         const authorElements = entry.getElementsByTagName('author');
         const authors: string[] = [];
@@ -99,18 +103,18 @@ function parseArxivResponse(xmlText: string): ArxivPaper[] {
                 authors.push(nameElement.textContent.trim());
             }
         }
-        
+
         // Extract abstract
         const summaryElement = entry.getElementsByTagName('summary')[0];
         const abstract = summaryElement?.textContent?.trim() || '';
-        
+
         // Extract dates
         const publishedElement = entry.getElementsByTagName('published')[0];
         const published = publishedElement?.textContent || '';
-        
+
         const updatedElement = entry.getElementsByTagName('updated')[0];
         const updated = updatedElement?.textContent || '';
-        
+
         // Extract categories
         const categoryElements = entry.getElementsByTagName('category');
         const categories: string[] = [];
@@ -120,32 +124,32 @@ function parseArxivResponse(xmlText: string): ArxivPaper[] {
                 categories.push(term);
             }
         }
-        
+
         // Extract links
         const linkElements = entry.getElementsByTagName('link');
         let pdfUrl = '';
         let arxivUrl = '';
-        
+
         for (let j = 0; j < linkElements.length; j++) {
             const link = linkElements[j];
             const type = link.getAttribute('type');
             const href = link.getAttribute('href');
-            
+
             if (type === 'application/pdf' && href) {
                 pdfUrl = href;
             } else if (link.getAttribute('rel') === 'alternate' && href) {
                 arxivUrl = href;
             }
         }
-        
+
         // Extract journal reference if available
         const journalRefElement = entry.getElementsByTagName('arxiv:journal_ref')[0];
         const journalRef = journalRefElement?.textContent?.trim();
-        
+
         // Extract DOI if available
         const doiElement = entry.getElementsByTagName('arxiv:doi')[0];
         const doi = doiElement?.textContent?.trim();
-        
+
         papers.push({
             id: arxivId,
             title,
@@ -160,7 +164,7 @@ function parseArxivResponse(xmlText: string): ArxivPaper[] {
             doi
         });
     }
-    
+
     return papers;
 }
 
@@ -176,7 +180,7 @@ export async function fetchPaperPDF(pdfUrl: string): Promise<string> {
             throw new Error(`Failed to fetch PDF: ${response.status}`);
         }
         const arrayBuffer = await response.arrayBuffer();
-        
+
         // Extract text from the PDF
         const textContent = await extractTextFromPDF(arrayBuffer);
         return textContent;
@@ -195,15 +199,15 @@ async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<string> {
         // Load the PDF document
         const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
         const pdf = await loadingTask.promise;
-        
+
         const totalPages = pdf.numPages;
         const textParts: string[] = [];
-        
+
         // Extract text from each page
         for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
             const page = await pdf.getPage(pageNum);
             const textContent = await page.getTextContent();
-            
+
             // Combine all text items from the page
             const pageText = textContent.items
                 .map((item: any) => {
@@ -214,21 +218,21 @@ async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<string> {
                     return '';
                 })
                 .join(' ');
-            
+
             // Add page separator for readability
             textParts.push(`\n\n--- Page ${pageNum} ---\n\n${pageText}`);
         }
-        
+
         // Combine all pages into a single text
         const fullText = textParts.join('\n');
-        
+
         // Clean up excessive whitespace while preserving structure
         const cleanedText = fullText
             .replace(/\s+/g, ' ')  // Replace multiple spaces with single space
             .replace(/ \n /g, '\n')  // Clean up spaces around newlines
             .replace(/\n{3,}/g, '\n\n')  // Limit consecutive newlines to 2
             .trim();
-        
+
         return cleanedText;
     } catch (error) {
         console.error('Error extracting text from PDF:', error);
@@ -241,31 +245,31 @@ async function extractTextFromPDF(arrayBuffer: ArrayBuffer): Promise<string> {
  */
 export function formatPaperForDisplay(paper: ArxivPaper): string {
     const lines: string[] = [];
-    
+
     lines.push(`Title: ${paper.title}`);
     lines.push(`Authors: ${paper.authors.join(', ')}`);
     lines.push(`Published: ${new Date(paper.published).toLocaleDateString()}`);
-    
+
     if (paper.updated !== paper.published) {
         lines.push(`Updated: ${new Date(paper.updated).toLocaleDateString()}`);
     }
-    
+
     lines.push(`Categories: ${paper.categories.join(', ')}`);
-    
+
     if (paper.journalRef) {
         lines.push(`Journal Reference: ${paper.journalRef}`);
     }
-    
+
     if (paper.doi) {
         lines.push(`DOI: ${paper.doi}`);
     }
-    
+
     lines.push(`arXiv ID: ${paper.id}`);
     lines.push(`PDF: ${paper.pdfUrl}`);
     lines.push(`URL: ${paper.arxivUrl}`);
     lines.push('');
     lines.push('Abstract:');
     lines.push(paper.abstract);
-    
+
     return lines.join('\n');
 }

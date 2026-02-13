@@ -3,7 +3,7 @@ import { globalState } from '../Core/State';
 import { activateDeepthinkStrategyTab } from '../Deepthink/Deepthink';
 
 export function activateTab(idToActivate: string | number) {
-    const { currentMode, activeDeepthinkPipeline, activeReactPipeline } = globalState;
+    const { currentMode, activeDeepthinkPipeline } = globalState;
 
     if (currentMode === 'deepthink' && activeDeepthinkPipeline) {
         activeDeepthinkPipeline.activeTabId = idToActivate as string;
@@ -19,31 +19,7 @@ export function activateTab(idToActivate: string | number) {
             activateDeepthinkStrategyTab(activeDeepthinkPipeline.activeStrategyTab ?? 0);
         }
 
-    } else if (currentMode === 'react' && activeReactPipeline) {
-        activeReactPipeline.activeTabId = idToActivate as string;
-        document.querySelectorAll('#tabs-nav-container .tab-button.react-mode-tab').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('#pipelines-content-container > .pipeline-content').forEach(pane => pane.classList.remove('active'));
-
-        const tabButton = document.getElementById(`react-tab-${idToActivate}`);
-        const contentPane = document.getElementById(`pipeline-content-${idToActivate}`);
-        if (tabButton) tabButton.classList.add('active');
-        if (contentPane) contentPane.classList.add('active');
-
-        if (idToActivate === 'agentic-refinements' && contentPane) {
-            import('../React/ReactAgenticIntegration').then(({ rehydrateReactAgenticUI, setActiveReactAgenticStateForImport }) => {
-                if ((window as any).__importedReactAgenticState) {
-                    setActiveReactAgenticStateForImport((window as any).__importedReactAgenticState);
-                    (window as any).__importedReactAgenticState = null;
-                }
-                const agenticContainer = contentPane.querySelector('#agentic-refinements-container') as HTMLElement;
-                if (agenticContainer) {
-                    rehydrateReactAgenticUI(agenticContainer);
-                }
-            }).catch(err => {
-                console.error('Failed to rehydrate React agentic UI:', err);
-            });
-        }
-    } else if (currentMode !== 'deepthink' && currentMode !== 'react') {
+    } else if (currentMode !== 'deepthink') {
         globalState.activePipelineId = idToActivate as number;
         document.querySelectorAll('#tabs-nav-container .tab-button').forEach(btn => {
             btn.classList.toggle('active', btn.id === `pipeline-tab-${globalState.activePipelineId}`);

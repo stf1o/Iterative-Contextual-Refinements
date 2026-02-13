@@ -8,6 +8,7 @@ import { RoutingManager } from './RoutingManager';
 // Export all routing-related functionality
 export { ApiKeyManager, type ApiKeyStatus } from './ApiConfig';
 export { ModelConfigManager, type ModelParameters, type ModelOption, AVAILABLE_MODELS, DEFAULT_TEMPERATURES, DEFAULT_MODEL_PARAMETERS } from './ModelConfig';
+export { DeepthinkConfigController, type DeepthinkConfigState, type DeepthinkConfigChangeEvent } from './DeepthinkConfigController';
 export { ApiKeyUI } from './ApiKeyUI';
 export { ModelSelectionUI } from './ModelSelectionUI';
 export { PromptsManager } from './PromptsManager';
@@ -17,6 +18,7 @@ export { type AIProvider, createAIProvider } from './AIProvider';
 export { ProviderManager, type ProviderConfig, type ModelInfo } from './ProviderManager';
 export { ProviderManagementUI } from './ProviderManagementUI';
 export { callAI, callGemini } from './AIService';
+
 
 // Global routing manager instance - initialized lazily
 let routingManagerInstance: RoutingManager | null = null;
@@ -37,6 +39,11 @@ export function initializeRouting(): void {
 
 // Export the routing manager for direct access
 export const routingManager = getRoutingManager();
+
+// Get the DeepthinkConfigController for centralized Deepthink config management
+export function getDeepthinkConfigController() {
+    return getRoutingManager().getDeepthinkConfigController();
+}
 
 // Convenience functions for backward compatibility
 export function getSelectedModel(): string {
@@ -111,13 +118,22 @@ export function getDeepthinkPrompts() {
     return getRoutingManager().getDeepthinkPrompts();
 }
 
-export function getReactPrompts() {
-    return getRoutingManager().getReactPrompts();
-}
-
 export function updateCustomPromptTextareasFromState() {
     const promptsManager = getRoutingManager().getPromptsManager();
     if (promptsManager) {
         promptsManager.updateTextareasFromState();
     }
+}
+
+export function getProviderForCurrentModel(): string {
+    const manager = getRoutingManager();
+    const modelConfigManager = manager.getModelConfigManager();
+    const selectedModel = modelConfigManager.getSelectedModel();
+
+    // Get provider from the model's configuration
+    // getModelProvider returns the provider string (e.g., 'gemini', 'openai', 'anthropic')
+    const provider = modelConfigManager.getModelProvider(selectedModel);
+
+    // Normalize 'google' to 'gemini' for consistency
+    return provider === 'google' ? 'gemini' : provider;
 }

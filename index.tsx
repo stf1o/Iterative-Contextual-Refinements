@@ -5,10 +5,10 @@
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import Sidebar from './Components/Sidebar/Sidebar';
-import MainContent from './Components/MainContent';
+import Sidebar from './Styles/Components/Sidebar/Sidebar';
+import MainContent from './Styles/Components/MainContent';
 import PromptsModalManager from './Routing/PromptsModal/PromptsModalManager';
-import { AppInitializer } from './Components/AppInitializer';
+import { AppInitializer } from './Styles/Components/AppInitializer';
 
 document.addEventListener('DOMContentLoaded', () => {
     // First, render React components to populate the DOM

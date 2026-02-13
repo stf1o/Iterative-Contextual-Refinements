@@ -5,20 +5,20 @@
 
 import { ApiKeyManager } from './ApiConfig';
 import { ModelConfigManager, ModelOption } from './ModelConfig';
-import { ApiKeyUI } from './ApiKeyUI';
 import { ModelSelectionUI } from './ModelSelectionUI';
 import { PromptsManager } from './PromptsManager';
 import { PromptsModal } from './PromptsModal';
 import { ProviderManager } from './ProviderManager';
 import { ProviderManagementUI } from './ProviderManagementUI';
 import { setApiKeyManager } from './AIService';
+import { DeepthinkConfigController } from './DeepthinkConfigController';
 
 export class RoutingManager {
     private apiKeyManager: ApiKeyManager;
     private modelConfigManager: ModelConfigManager;
+    private deepthinkConfigController: DeepthinkConfigController;
     private promptsManager: PromptsManager | null = null;
     private promptsModal: PromptsModal | null = null;
-    private apiKeyUI: ApiKeyUI | null = null;
     private modelSelectionUI: ModelSelectionUI | null = null;
     private providerManager: ProviderManager;
     private providerManagementUI: ProviderManagementUI | null = null;
@@ -26,6 +26,7 @@ export class RoutingManager {
     constructor() {
         this.apiKeyManager = new ApiKeyManager();
         this.modelConfigManager = new ModelConfigManager();
+        this.deepthinkConfigController = new DeepthinkConfigController(this.modelConfigManager);
         this.providerManager = this.apiKeyManager.getProviderManager();
         // Initialize AI service with the API key manager
         setApiKeyManager(this.apiKeyManager);
@@ -49,7 +50,7 @@ export class RoutingManager {
 
         // Initialize UI components only when DOM is ready
         if (!this.modelSelectionUI) {
-            this.modelSelectionUI = new ModelSelectionUI(this.modelConfigManager);
+            this.modelSelectionUI = new ModelSelectionUI(this.modelConfigManager, this.deepthinkConfigController);
         }
 
         // Update available models from provider manager
@@ -99,6 +100,10 @@ export class RoutingManager {
         return this.modelConfigManager;
     }
 
+    public getDeepthinkConfigController(): DeepthinkConfigController {
+        return this.deepthinkConfigController;
+    }
+
     public getProviderManagementUI(): ProviderManagementUI | null {
         return this.providerManagementUI;
     }
@@ -118,7 +123,6 @@ export class RoutingManager {
     public initializePromptsManager(
         websitePromptsRef: { current: any },
         deepthinkPromptsRef: { current: any },
-        reactPromptsRef: { current: any },
         agenticPromptsRef?: { current: any },
         adaptiveDeepthinkPromptsRef?: { current: any },
         contextualPromptsRef?: { current: any }
@@ -126,7 +130,6 @@ export class RoutingManager {
         this.promptsManager = new PromptsManager(
             websitePromptsRef,
             deepthinkPromptsRef,
-            reactPromptsRef,
             agenticPromptsRef,
             adaptiveDeepthinkPromptsRef,
             contextualPromptsRef
@@ -211,10 +214,6 @@ export class RoutingManager {
 
     public getDeepthinkPrompts() {
         return this.promptsManager?.getDeepthinkPrompts();
-    }
-
-    public getReactPrompts() {
-        return this.promptsManager?.getReactPrompts();
     }
 
     public getAgenticPromptsManager() {

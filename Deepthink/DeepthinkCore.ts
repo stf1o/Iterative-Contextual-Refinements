@@ -7,11 +7,12 @@
  */
 
 import { Part, GenerateContentResponse } from "@google/genai";
-import { AIProvider } from '../Routing/AIProvider';
+import { AIProvider, ThinkingConfig } from '../Routing/AIProvider';
 import { CustomizablePromptsDeepthink } from './DeepthinkPrompts';
-import { renderMathContent } from '../Components/RenderMathMarkdown';
+import { renderMathContent } from '../Styles/Components/RenderMathMarkdown';
 import { SolutionCritiqueHistoryManager, SolutionCorrectionHistoryManager, StructuredSolutionPoolHistoryManager, PostQualityFilterHistoryManager, StrategiesGeneratorHistoryManager } from './DeepthinkIterativeHistory';
 import { addSolutionPoolVersion } from './SolutionPool';
+import { extractPartsInOrder, formatPartsForDisplay } from '../Contextual/Contextual';
 
 // ========== TYPE DEFINITIONS ==========
 
@@ -207,7 +208,7 @@ let renderActiveDeepthinkPipeline: (() => void) | null = null;
 
 // Dependency references
 let getAIProvider: (() => AIProvider | null) | null = null;
-let callGemini: (parts: Part[], temperature: number, modelToUse: string, systemInstruction?: string, isJson?: boolean, topP?: number) => Promise<GenerateContentResponse>;
+let callGemini: (parts: Part[], temperature: number, modelToUse: string, systemInstruction?: string, isJson?: boolean, topP?: number, thinkingConfig?: ThinkingConfig) => Promise<GenerateContentResponse>;
 let cleanOutputByType: (rawOutput: string, type?: string) => string;
 let parseJsonSuggestions: (rawJsonString: string, suggestionKey?: string, expectedCount?: number) => string[];
 let parseJsonSafe: (raw: string, context: string) => any;
@@ -224,6 +225,8 @@ let getDissectedObservationsEnabled: () => boolean;
 let getIterativeCorrectionsEnabled: () => boolean;
 let getProvideAllSolutionsToCorrectors: () => boolean;
 let getPostQualityFilterEnabled: () => boolean;
+let getDeepthinkCodeExecutionEnabled: () => boolean;
+let getModelProvider: () => string;
 let escapeHtml: (unsafe: string) => string;
 let cleanTextOutput: (text: string) => string;
 let updateControlsState: (newState: any) => void;
@@ -259,6 +262,8 @@ export function initializeDeepthinkCore(dependencies: {
     getIterativeCorrectionsEnabled: () => boolean;
     getProvideAllSolutionsToCorrectors: () => boolean;
     getPostQualityFilterEnabled: () => boolean;
+    getDeepthinkCodeExecutionEnabled: () => boolean;
+    getModelProvider: () => string;
     cleanTextOutput: (text: string) => string;
     customPromptsDeepthinkState: CustomizablePromptsDeepthink;
     setActiveDeepthinkPipeline: (pipeline: DeepthinkPipelineState | null) => void;
@@ -284,6 +289,8 @@ export function initializeDeepthinkCore(dependencies: {
     getIterativeCorrectionsEnabled = dependencies.getIterativeCorrectionsEnabled;
     getProvideAllSolutionsToCorrectors = dependencies.getProvideAllSolutionsToCorrectors;
     getPostQualityFilterEnabled = dependencies.getPostQualityFilterEnabled;
+    getDeepthinkCodeExecutionEnabled = dependencies.getDeepthinkCodeExecutionEnabled;
+    getModelProvider = dependencies.getModelProvider;
     cleanTextOutput = dependencies.cleanTextOutput;
     escapeHtml = dependencies.escapeHtml;
     setActiveDeepthinkPipeline = dependencies.setActiveDeepthinkPipeline;
@@ -605,8 +612,34 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                     agentModel = customPromptsDeepthinkState.model_finalJudge || getSelectedModel();
                 }
 
-                const strategyResponse = await callGemini(parts, getSelectedTemperature(), agentModel, systemInstruction, isJson, getSelectedTopP());
-                responseText = strategyResponse.text || "";
+                // Determine if this agent should use code execution
+                // Target agents: Hypothesis Testing, Solution Attempt, Solution Critique, Self-Improvement, Structured Solution Pool
+                const codeExecutionTargetAgents = [
+                    'Hypothesis Testing',
+                    'Solution Attempt',
+                    'Solution Critique',
+                    'Self-Improvement',
+                    'Self Improvement',
+                    'Structured Solution Pool'
+                ];
+
+                const isCodeExecutionAgent = codeExecutionTargetAgents.some(agent => stepDescription.includes(agent));
+                const isGeminiProvider = getModelProvider() === 'gemini';
+                const shouldEnableCodeExecution = isCodeExecutionAgent && isGeminiProvider && getDeepthinkCodeExecutionEnabled();
+
+                const thinkingConfig: ThinkingConfig | undefined = shouldEnableCodeExecution
+                    ? { codeExecution: true }
+                    : undefined;
+
+                const strategyResponse = await callGemini(parts, getSelectedTemperature(), agentModel, systemInstruction, isJson, getSelectedTopP(), thinkingConfig);
+
+                // Handle code execution responses specially to preserve code blocks and output
+                if (shouldEnableCodeExecution && strategyResponse?.candidates?.[0]?.content?.parts) {
+                    const orderedParts = extractPartsInOrder(strategyResponse);
+                    responseText = formatPartsForDisplay(orderedParts);
+                } else {
+                    responseText = strategyResponse.text || "";
+                }
 
                 if (responseText && responseText.trim() !== "") {
                     break;

@@ -12,12 +12,11 @@ import {
     createInitialContextualState,
     newMessageId,
     ContextualMessage,
-    IterationData,
-    ContextualSystemBlock
+    IterationData
 } from './ContextualCore';
 import { CustomizablePromptsContextual } from './ContextualPrompts';
 import { renderContextualUI, updateContextualUI } from './ContextualUI';
-import { callAI, getSelectedModel, getSelectedTemperature, getSelectedTopP } from '../Routing';
+import { callAI, getSelectedModel, getSelectedTemperature, getSelectedTopP, getProviderForCurrentModel } from '../Routing';
 import { updateControlsState } from '../UI/Controls';
 import { globalState } from '../Core/State';
 
@@ -38,22 +37,36 @@ const MAX_RETRIES = 3;
 const INITIAL_DELAY_MS = 20000;
 const BACKOFF_FACTOR = 2;
 
-// Thinking configuration with dummy tool to enable thought signatures
+// Base thinking configuration with dummy tool to enable thought signatures
 // This tool is never actually called - it just enables Gemini to generate thought signatures
-const THINKING_CONFIG = {
-    thinkingBudget: -1,  // Dynamic thinking - model adjusts based on complexity
-    tools: [{
-        functionDeclarations: [{
-            name: "internal_reasoning_continuation",
-            description: "Internal marker for reasoning continuation across conversation turns",
-            parameters: {
-                type: "object",
-                properties: {},
-                required: []
-            }
-        }]
+const BASE_THINKING_TOOLS = [{
+    functionDeclarations: [{
+        name: "internal_reasoning_continuation",
+        description: "Internal marker for reasoning continuation across conversation turns",
+        parameters: {
+            type: "object",
+            properties: {},
+            required: []
+        }
     }]
-};
+}];
+
+/**
+ * Get thinking configuration with optional code execution
+ * Code execution is only enabled when:
+ * 1. The provider is Gemini
+ * 2. The user has enabled the code execution toggle
+ */
+function getThinkingConfig() {
+    const isGemini = getProviderForCurrentModel() === 'gemini';
+    const codeExecutionEnabled = globalState.geminiCodeExecutionEnabled && isGemini;
+
+    return {
+        thinkingBudget: -1,  // Dynamic thinking - model adjusts based on complexity
+        tools: BASE_THINKING_TOOLS,
+        codeExecution: codeExecutionEnabled
+    };
+}
 
 export function setContextualContentUpdateCallback(cb: ((content: string) => void) | null) {
     onContentUpdated = cb;
@@ -420,7 +433,7 @@ async function callMainGeneratorAgent(): Promise<{ text: string; geminiContent?:
                 contextualCustomPrompts!.sys_contextual_mainGenerator,
                 false,
                 topP,
-                THINKING_CONFIG
+                getThinkingConfig()
             );
 
             const text = extractTextFromResponse(response);
@@ -504,7 +517,7 @@ async function callIterativeAgent(currentGeneration: string): Promise<{ text: st
                 contextualCustomPrompts!.sys_contextual_iterativeAgent,
                 false,
                 topP,
-                THINKING_CONFIG
+                getThinkingConfig()
             );
 
             const text = extractTextFromResponse(response);
@@ -592,7 +605,7 @@ async function callStrategicPoolAgent(currentGeneration: string, currentCritique
                 contextualCustomPrompts!.sys_contextual_solutionPoolAgent,
                 false,
                 topP,
-                THINKING_CONFIG
+                getThinkingConfig()
             );
 
             const text = extractTextFromResponse(response);
@@ -661,7 +674,7 @@ async function callMemoryAgentForCondense(recentIterations: IterationData[], cur
             contextualCustomPrompts!.sys_contextual_memoryAgent,
             false,
             topP,
-            THINKING_CONFIG
+            getThinkingConfig()
         );
 
         const memory = extractTextFromResponse(response);
@@ -703,20 +716,163 @@ async function callMemoryAgentForCondense(recentIterations: IterationData[], cur
     }
 }
 
+/**
+ * Content part types from Gemini API response
+ * These represent the different kinds of content the model can return
+ * Including images from matplotlib/code execution
+ */
+export interface ResponsePart {
+    type: 'text' | 'code' | 'output' | 'image';
+    content: string;
+    language?: string;  // For code parts
+    mimeType?: string;  // For image parts
+}
+
+/**
+ * Extract all parts from Gemini response in their NATURAL ORDER
+ * This preserves the flow: text → code → output/image → more text
+ * Critical for maintaining the agent's reasoning flow
+ * 
+ * Gemini code execution can return:
+ * - text: Regular text content
+ * - executableCode: Python code that was executed
+ * - codeExecutionResult: Text output from execution (stdout/stderr)
+ * - inlineData: Images (matplotlib graphs, etc.) as base64
+ */
+export function extractPartsInOrder(response: any): ResponsePart[] {
+    const orderedParts: ResponsePart[] = [];
+
+    if (!response?.candidates?.[0]?.content?.parts) {
+        console.warn('⚠️ No response.candidates[0].content.parts found');
+        return orderedParts;
+    }
+
+    const parts = response.candidates[0].content.parts;
+
+    // DEBUG: Log the entire response structure to understand what we're actually receiving
+    console.group('🔍 GEMINI CODE EXECUTION RESPONSE DEBUG');
+    console.log('Total parts received:', parts.length);
+    console.log('Full response structure:', JSON.stringify(response, null, 2));
+
+    parts.forEach((part: any, index: number) => {
+        console.group(`Part ${index + 1}/${parts.length}`);
+        console.log('Keys:', Object.keys(part));
+        console.log('Full part:', JSON.stringify(part, null, 2));
+        console.groupEnd();
+    });
+    console.groupEnd();
+
+    for (const part of parts) {
+        // Text part
+        if (part.text) {
+            console.log('✅ Found text part');
+            orderedParts.push({
+                type: 'text',
+                content: part.text
+            });
+        }
+        // Executable code part
+        else if (part.executableCode) {
+            console.log('✅ Found executableCode part:', part.executableCode);
+            orderedParts.push({
+                type: 'code',
+                content: part.executableCode.code || '',
+                language: (part.executableCode.language || 'PYTHON').toLowerCase()
+            });
+        }
+        // Code execution result part (text output)
+        else if (part.codeExecutionResult) {
+            console.log('✅ Found codeExecutionResult part:', part.codeExecutionResult);
+            orderedParts.push({
+                type: 'output',
+                content: part.codeExecutionResult.output || ''
+            });
+        }
+        // Inline data - images from matplotlib, etc.
+        else if (part.inlineData) {
+            console.log('✅ Found inlineData part:', { mimeType: part.inlineData.mimeType, dataLength: part.inlineData.data?.length });
+            const mimeType = part.inlineData.mimeType || 'image/png';
+            const data = part.inlineData.data || '';
+            orderedParts.push({
+                type: 'image',
+                content: data, // Base64 encoded image data
+                mimeType: mimeType
+            });
+        }
+        else {
+            console.warn('⚠️ Unknown part type:', Object.keys(part), part);
+        }
+    }
+
+    console.log('📦 Total parts extracted:', orderedParts.length, orderedParts.map(p => p.type));
+
+    return orderedParts;
+}
+
+/**
+ * Format ordered parts for display with special markers for code execution
+ * Uses HTML comments as markers that RenderMathMarkdown can parse for rich rendering
+ */
+export function formatPartsForDisplay(parts: ResponsePart[]): string {
+    if (parts.length === 0) return '';
+
+    const formattedParts: string[] = [];
+
+    for (const part of parts) {
+        switch (part.type) {
+            case 'text':
+                formattedParts.push(part.content);
+                break;
+            case 'code':
+                // Use special markers for code execution blocks
+                // These will be parsed by the UI for rich rendering
+                formattedParts.push(
+                    `\n<!-- CODE_EXECUTION_START -->\n` +
+                    `<!-- LANGUAGE: ${part.language} -->\n` +
+                    `\`\`\`${part.language}\n${part.content}\n\`\`\`\n` +
+                    `<!-- CODE_EXECUTION_END -->`
+                );
+                break;
+            case 'output':
+                formattedParts.push(
+                    `\n<!-- EXECUTION_OUTPUT_START -->\n` +
+                    `\`\`\`\n${part.content}\n\`\`\`\n` +
+                    `<!-- EXECUTION_OUTPUT_END -->\n`
+                );
+                break;
+            case 'image':
+                // Images from matplotlib/code execution - embed as base64
+                formattedParts.push(
+                    `\n<!-- EXECUTION_IMAGE_START -->\n` +
+                    `<!-- MIME_TYPE: ${part.mimeType} -->\n` +
+                    `${part.content}\n` +
+                    `<!-- EXECUTION_IMAGE_END -->\n`
+                );
+                break;
+        }
+    }
+
+    return formattedParts.join('\n').trim();
+}
+
+/**
+ * Extract text from response, preserving natural order of all parts
+ * Code execution is interleaved with text exactly as Gemini returned it
+ */
 function extractTextFromResponse(response: any): string {
     if (typeof response === 'string') {
         return response.trim();
     }
     if (response && typeof response === 'object') {
-        // Handle Gemini API response format with thinking
+        // Handle Gemini API response format with thinking and code execution
         if (response.candidates && response.candidates[0]) {
             const candidate = response.candidates[0];
             if (candidate.content && candidate.content.parts) {
-                // Filter out thought signatures and extract text parts only
-                const textParts = candidate.content.parts
-                    .filter((part: any) => part.text)
-                    .map((part: any) => part.text);
-                return textParts.join('\n').trim();
+                // Extract all parts in their natural order
+                const orderedParts = extractPartsInOrder(response);
+
+                // Format preserving the natural flow
+                return formatPartsForDisplay(orderedParts);
             }
         }
         // Fallback to legacy extraction

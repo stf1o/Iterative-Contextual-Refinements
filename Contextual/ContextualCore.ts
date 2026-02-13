@@ -41,9 +41,15 @@ export interface ContextualState {
     contentHistory: ContentHistoryEntry[];
 }
 
-export type ContextualSystemBlock = 
+export type ContextualSystemBlock =
     | { kind: 'error'; message: string }
     | { kind: 'info'; message: string };
+
+export interface CodeExecutionPart {
+    code: string;
+    language: string;
+    output?: string;
+}
 
 export interface ContextualMessage {
     id: string;
@@ -53,6 +59,7 @@ export interface ContextualMessage {
     iterationNumber: number;
     status?: 'success' | 'error' | 'processing';
     blocks?: ContextualSystemBlock[];
+    codeExecution?: CodeExecutionPart[];  // Store code execution results from Gemini
 }
 
 export interface IterationData {
@@ -117,7 +124,7 @@ export class MainGeneratorHistoryManager {
             content: generation
         });
         this.turnsSinceLastCondense++;
-        
+
         // Store generation for recent iterations tracking
         if (this.recentIterations.length > 0) {
             const lastIteration = this.recentIterations[this.recentIterations.length - 1];
@@ -137,7 +144,7 @@ export class MainGeneratorHistoryManager {
             role: 'user',
             content: response
         });
-        
+
         // Track this iteration's critique
         this.recentIterations.push({
             iterationNumber: iterationNumber + 1,
@@ -273,9 +280,9 @@ export class IterativeAgentHistoryManager {
             content: suggestion
         });
         this.turnsSinceLastCondense++;
-        
+
         // Track this iteration's critique
-        this.recentIterations.push({  
+        this.recentIterations.push({
             iterationNumber,
             iterativeCritique: suggestion,
             mainGeneration: '' // Will be filled when generation is added
@@ -292,7 +299,7 @@ export class IterativeAgentHistoryManager {
             role: 'user',
             content: generation
         });
-        
+
         // Update the generation for the last iteration
         if (this.recentIterations.length > 0) {
             const lastIteration = this.recentIterations[this.recentIterations.length - 1];
@@ -419,7 +426,7 @@ export class MemoryAgentHistoryManager {
                 `Initial Main Generation:\n${this.initialMainGeneration}`,
                 '',
                 'Recent Iterations to Analyze:',
-                ...recentIterations.map(iter => 
+                ...recentIterations.map(iter =>
                     `[Iteration ${iter.iterationNumber}]\n- Iterative Agent Critique: ${iter.iterativeCritique}\n- Main Generator Response: ${iter.mainGeneration}`
                 ),
                 '',
@@ -443,7 +450,7 @@ export class MemoryAgentHistoryManager {
                 }),
                 '',
                 `Recent Iterations to Analyze (these iterations had the previous memory injected in their context):`,
-                ...recentIterations.map(iter => 
+                ...recentIterations.map(iter =>
                     `[Iteration ${iter.iterationNumber}]\n- Iterative Agent Critique: ${iter.iterativeCritique}\n- Main Generator Response: ${iter.mainGeneration}`
                 ),
                 '',

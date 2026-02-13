@@ -29,28 +29,6 @@ The system operates in seven distinct modes, each optimized for specific use cas
 4. Bug fix agent validates and corrects errors
 5. Process repeats for configured number of iterations
 
-### 2. React Mode
-
-**Purpose**: React application development with orchestrator-coordination and parallel workers architecture. This is a fully experimantal mode. Do not expect any results from this at all. I wanted to test if we can deploy multi-agentic architecture for "Parallel & Fast High Quality" codebase generation. Claude Code has a subagents feature and it cannot produce the working application using this architecture either. I need to think and experiment more on this mode. Currently, the orchestrator's plan and workeragents prompts are created as files and we provide the full access to these files to the React Agentic Refinements agent. It has access to diff tools to edit. So first it iteratively refines the current plan and workers prompts and then it starts the worker agents. It then reads the currentcodebase (full codebase) and look for syntax errors, import errors, build errors etc. It runs the build.
-
-
-**Key Components**:
-- `ReactAgenticIntegration.tsx`: Orchestrates React-specific workflow
-- `ReactBuildManager.tsx`: Handles live build and preview generation (Has some mounting errors)
-- `EmbeddedAgenticPrompts.ts`: Specialized prompts for React development
-
-**Workflow**:
-1. Orchestrator analyzes user request and creates plan
-2. The co-ordination agent starts the worker agents
-3. Workers execute in parallel, generating files
-4. Build manager compiles and validates output
-5. Live preview generated with error reporting (Currently not fully supported)
-
-**Tool Support**:
-- `StartWorkerAgents`: Parallel worker execution
-- `ApplyMultiFileDiff`: Multi-file editing
-- `BuildReactApp`: Live build and validation
-
 ### 3. Deepthink Mode
 
 **Purpose**: Complex problem-solving through strategic decomposition and hypothesis exploration.
@@ -198,39 +176,6 @@ User Request → Main Generator → Generated Content
 4. Memory agent compresses history when needed
 5. Cycle continues until completion criteria met
 
-### 7. Generative UI Mode
-
-**Purpose**: Interactive UI development with user interaction capture and refinement.
-
-**Architecture**:
-- Structured UI representation system
-- Reward function for quality assessment
-- Interaction tracking and feedback loop
-
-**Core Components**:
-- `GenerativeUICore.ts`: State and evaluation management
-- `GenerativeUIPrompts.ts`: Specialized prompts for UI generation
-- Interaction tracking script injected into generated HTML
-
-**Workflow Stages**:
-1. **Structure Generation**: Create UI component structure
-2. **Implementation**: Generate HTML/CSS/JS implementation
-3. **Evaluation**: Assess quality against reward function
-4. **Interaction Phase** (optional): Capture user interactions
-5. **Refinement**: Improve based on evaluation and interactions
-
-**Interaction System**:
-- Event tracking (clicks, inputs, hovers)
-- DOM snapshot capture
-- Interaction queuing with debouncing
-- Parent-iframe communication via postMessage
-
-**Key Features**:
-- Automatic syntax validation
-- Performance metrics tracking
-- Accessibility considerations
-- Iterative improvement based on quality scores
-
 ## Configuration
 
 ### Model Selection
@@ -243,7 +188,7 @@ Supports configuration of:
 
 ### Mode-Specific Settings
 
-**Website/React**:
+**Website**:
 - Refinement stages count
 - Evolution mode (Novelty/Quality)
 
@@ -253,11 +198,6 @@ Supports configuration of:
 - Hypothesis count
 - Red team aggressiveness
 - Iterative corrections toggle
-
-**Generative UI**:
-- Max iterations
-- Quality threshold
-- Interaction capture toggle
 
 ## Data Flow
 
@@ -311,8 +251,6 @@ Supported operations:
 /Components       - Shared UI components
 /Contextual       - Contextual mode implementation
 /Deepthink        - Deepthink mode implementation
-/GenerativeUI     - Generative UI mode
-/React            - React mode implementation
 /Routing          - AI provider routing
 /Parsing          - Response parsing utilities
 index.tsx         - Main application entry

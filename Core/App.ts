@@ -5,10 +5,6 @@
 
 import { initializeDeepthinkModule, startDeepthinkAnalysisProcess } from '../Deepthink/Deepthink';
 import {
-    initializeGenerativeUIMode,
-    startGenerativeUIProcess
-} from '../GenerativeUI/GenerativeUI';
-import {
     startContextualProcess
 } from '../Contextual/Contextual';
 import {
@@ -19,7 +15,7 @@ import {
     updateUIAfterModeChange,
     initializeEvolutionConvergenceButtons
 } from '../Refine/WebsiteUI';
-import { openDiffModal } from '../Components/DiffModal/DiffModalController';
+import { openDiffModal } from '../Styles/Components/DiffModal/DiffModalController';
 import {
     initializeAgenticMode,
     startAgenticProcess,
@@ -43,23 +39,23 @@ import {
     getProvideAllSolutionsToCorrectors,
     getPostQualityFilterEnabled,
     hasValidApiKey,
-    callAI
+    callAI,
+    getProviderForCurrentModel
 } from '../Routing';
 import {
     parseJsonSafe,
     cleanTextOutput,
     cleanOutputByType,
     parseJsonSuggestions
-} from '../Parsing';
+} from './Parsing';
 import { globalState } from './State';
 import { ApplicationMode } from './Types';
 import { updateControlsState } from '../UI/Controls';
-import { startReactModeProcess, createAndDownloadReactProjectZip } from '../React/ReactLogic';
-import { renderReactModePipeline } from '../React/ReactUI';
 import { runPipeline, initPipelines } from '../Refine/WebsiteLogic';
 import { renderPipelines } from '../Refine/WebsiteUI';
 import { LayoutController } from '../UI/LayoutController';
 import { GlobalModals } from '../UI/GlobalModals';
+import { setupCodeExecutionToggle } from '../UI/setupCodeExecutionToggle';
 
 export class App {
     public static init() {
@@ -71,9 +67,6 @@ export class App {
     }
 
     private static initializeGlobalFunctions() {
-        // Make function globally accessible for ReactAgenticIntegration
-        (window as any).createAndDownloadReactProjectZip = createAndDownloadReactProjectZip;
-        (window as any).renderReactModePipeline = renderReactModePipeline;
     }
 
     private static initializeUI() {
@@ -88,10 +81,11 @@ export class App {
 
         // Initialize Agentic mode
         initializeAgenticMode();
-        // Initialize GenerativeUI mode
-        initializeGenerativeUIMode();
 
         initializeEvolutionConvergenceButtons();
+
+        // Initialize Gemini code execution toggle for Contextual mode
+        setupCodeExecutionToggle();
 
         // Initialize deepthink module with all required dependencies
         initializeDeepthinkModule({
@@ -115,6 +109,8 @@ export class App {
             getIterativeCorrectionsEnabled,
             getProvideAllSolutionsToCorrectors,
             getPostQualityFilterEnabled,
+            getDeepthinkCodeExecutionEnabled: () => routingManager.getDeepthinkConfigController().isCodeExecutionEnabled(),
+            getModelProvider: getProviderForCurrentModel,
             cleanTextOutput,
             customPromptsDeepthinkState: globalState.customPromptsDeepthinkState,
             tabsNavContainer: document.getElementById('tabs-nav-container'),
@@ -172,16 +168,39 @@ export class App {
                     return;
                 }
 
+                // Validate file compatibility with selected provider in Deepthink modes
+                if ((globalState.currentMode === 'deepthink' || globalState.currentMode === 'adaptive-deepthink') &&
+                    globalState.currentProblemImages.length > 0) {
+
+                    const provider = getProviderForCurrentModel();
+                    const uploadedFiles = globalState.currentProblemImages;
+
+                    // OpenRouter: No file support at all
+                    if (provider === 'openrouter') {
+                        alert("OpenRouter models do not support file uploads. Please remove all files or select a different provider.");
+                        return;
+                    }
+
+                    // OpenAI / Anthropic: Only images (PNG, JPEG, GIF, WEBP) are supported
+                    if (provider === 'openai' || provider === 'anthropic') {
+                        const supportedImageTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+                        const unsupportedFiles = uploadedFiles.filter(f => !supportedImageTypes.includes(f.mimeType));
+
+                        if (unsupportedFiles.length > 0) {
+                            const unsupportedTypes = [...new Set(unsupportedFiles.map(f => f.mimeType))].join(', ');
+                            alert(`${provider.charAt(0).toUpperCase() + provider.slice(1)} only supports images (PNG, JPEG, GIF, WEBP).\n\nUnsupported file types detected: ${unsupportedTypes}\n\nPlease remove unsupported files or switch to Gemini for full file support.`);
+                            return;
+                        }
+                    }
+
+                    // Gemini: Full support, no validation needed
+                }
+
                 if (globalState.currentMode === 'deepthink') {
                     console.log('Starting Deepthink process');
-                    await startDeepthinkAnalysisProcess(initialIdea, globalState.currentProblemImageBase64, globalState.currentProblemImageMimeType);
-                } else if (globalState.currentMode === 'react') {
-                    console.log('Starting React process');
-                    try {
-                        await startReactModeProcess(initialIdea);
-                    } catch (e) {
-                        console.error('Error starting React process:', e);
-                    }
+                    // Note: original deepthink might only support one image, pass the first one for backwards compatibility if needed, or update deepthink too
+                    const firstImage = globalState.currentProblemImages.length > 0 ? globalState.currentProblemImages[0] : null;
+                    await startDeepthinkAnalysisProcess(initialIdea, firstImage?.base64, firstImage?.mimeType);
                 } else if (globalState.currentMode === 'agentic') {
                     console.log('Starting Agentic process');
                     try {
@@ -189,12 +208,10 @@ export class App {
                     } catch (e) {
                         console.error('Error starting Agentic process:', e);
                     }
-                } else if (globalState.currentMode === 'generativeui') {
-                    await startGenerativeUIProcess(initialIdea);
                 } else if (globalState.currentMode === 'contextual') {
                     await startContextualProcess(initialIdea, globalState.customPromptsContextualState);
                 } else if (globalState.currentMode === 'adaptive-deepthink') {
-                    await startAdaptiveDeepthinkProcess(initialIdea, globalState.customPromptsAdaptiveDeepthinkState, globalState.currentProblemImageBase64, globalState.currentProblemImageMimeType);
+                    await startAdaptiveDeepthinkProcess(initialIdea, globalState.customPromptsAdaptiveDeepthinkState, globalState.currentProblemImages);
                 } else { // Website mode
                     console.log('Starting Website mode');
                     initPipelines();
@@ -222,7 +239,7 @@ export class App {
         }
 
         if (exportConfigButton) {
-            exportConfigButton.addEventListener('click', exportConfiguration);
+            exportConfigButton.addEventListener('click', () => exportConfiguration());
         }
         if (importConfigInput) {
             importConfigInput.addEventListener('change', handleImportConfiguration);
@@ -251,7 +268,6 @@ export class App {
         routingManager.initializePromptsManager(
             { current: globalState.customPromptsWebsiteState },
             { current: globalState.customPromptsDeepthinkState },
-            { current: globalState.customPromptsReactState },
             { current: globalState.customPromptsAgenticState },
             { current: globalState.customPromptsAdaptiveDeepthinkState },
             { current: globalState.customPromptsContextualState }

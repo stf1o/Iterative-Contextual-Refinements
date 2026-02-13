@@ -22,6 +22,8 @@ export interface ModelInfo {
 // Hardcoded models available to all users
 const DEFAULT_MODELS: Record<string, string[]> = {
     gemini: [
+        'gemini-3-pro-preview',
+        'gemini-3-flash-preview',
         'gemini-2.5-pro',
         'gemini-2.5-flash',
         'gemini-2.5-flash-lite'
@@ -114,7 +116,7 @@ export class ProviderManager {
 
         // Check for environment variables
         this.checkEnvironmentKeys();
-        
+
         // Initialize providers that have API keys
         this.initializeConfiguredProviders();
     }
@@ -158,12 +160,12 @@ export class ProviderManager {
             if (config.isConfigured && config.apiKey) {
                 try {
                     const provider = createAIProvider(name);
-                    
+
                     // For local models, pass endpoint URL with models
-                    const initString = name === 'local' 
+                    const initString = name === 'local'
                         ? `${config.apiKey}|${config.models.join(',')}`
                         : config.apiKey;
-                    
+
                     if (provider.initialize(initString)) {
                         this.activeProviders.set(name, provider);
                     }
@@ -215,17 +217,17 @@ export class ProviderManager {
 
         try {
             const provider = createAIProvider(providerName);
-            
+
             // For local models, apiKey is actually the endpoint URL
             // We'll pass both endpoint and models as a combined string
-            const initString = providerName === 'local' 
-                ? `${apiKey}|${customModels.join(',')}` 
+            const initString = providerName === 'local'
+                ? `${apiKey}|${customModels.join(',')}`
                 : apiKey;
-                
+
             if (provider.initialize(initString)) {
                 config.apiKey = apiKey;
                 config.isConfigured = true;
-                
+
                 // For local models, only use the provided models
                 // For other providers, add custom models to the existing default models
                 if (providerName === 'local') {
@@ -234,7 +236,7 @@ export class ProviderManager {
                     const allModels = [...DEFAULT_MODELS[providerName] || [], ...customModels];
                     config.models = [...new Set(allModels)]; // Remove duplicates
                 }
-                
+
                 this.activeProviders.set(providerName, provider);
                 this.saveToStorage();
                 return true;

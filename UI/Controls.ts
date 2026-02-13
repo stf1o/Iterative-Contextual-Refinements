@@ -3,17 +3,15 @@ import { globalState } from '../Core/State';
 import { hasValidApiKey, routingManager } from '../Routing';
 
 export function updateControlsState() {
-    const { pipelinesState, activeDeepthinkPipeline, activeReactPipeline, currentMode } = globalState;
+    const { pipelinesState, activeDeepthinkPipeline, currentMode } = globalState;
 
     const anyPipelineRunningOrStopping = pipelinesState.some(p => p.status === 'running' || p.status === 'stopping');
     const deepthinkPipelineRunningOrStopping = activeDeepthinkPipeline?.status === 'processing' || activeDeepthinkPipeline?.status === 'stopping';
-    const reactPipelineRunningOrStopping = activeReactPipeline?.status === 'orchestrating' || activeReactPipeline?.status === 'agentic_orchestrating' || activeReactPipeline?.status === 'processing_workers' || activeReactPipeline?.status === 'stopping';
     const agenticRunning = globalState.isAgenticRunning;
-    const generativeUIRunning = globalState.isGenerativeUIRunning;
     const contextualRunning = globalState.isContextualRunning;
     const adaptiveDeepthinkRunning = globalState.isAdaptiveDeepthinkRunning;
 
-    globalState.isGenerating = anyPipelineRunningOrStopping || deepthinkPipelineRunningOrStopping || reactPipelineRunningOrStopping || agenticRunning || generativeUIRunning || contextualRunning || adaptiveDeepthinkRunning;
+    globalState.isGenerating = anyPipelineRunningOrStopping || deepthinkPipelineRunningOrStopping || agenticRunning || contextualRunning || adaptiveDeepthinkRunning;
 
     const isApiKeyReady = hasValidApiKey();
 

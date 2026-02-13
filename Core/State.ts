@@ -1,7 +1,6 @@
 
-import { ApplicationMode, PipelineState, DeepthinkPipelineState, ReactPipelineState } from './Types';
+import { ApplicationMode, PipelineState, DeepthinkPipelineState } from './Types';
 import { defaultCustomPromptsWebsite } from '../Refine/RefinePrompts';
-import { createDefaultCustomPromptsReact } from '../React/ReactPrompts';
 import { createDefaultCustomPromptsDeepthink } from '../Deepthink/DeepthinkPrompts';
 import { createDefaultCustomPromptsAdaptiveDeepthink } from '../AdaptiveDeepthink/AdaptiveDeepthinkPrompt';
 import { createDefaultCustomPromptsContextual } from '../Contextual/ContextualPrompts';
@@ -15,23 +14,21 @@ class GlobalStateManager {
     currentEvolutionMode: 'off' | 'novelty' | 'quality' = 'novelty';
     pipelinesState: PipelineState[] = [];
     activeDeepthinkPipeline: DeepthinkPipelineState | null = null;
-    activeReactPipeline: ReactPipelineState | null = null;
     activePipelineId: number | null = null;
     isGenerating: boolean = false;
-    currentProblemImageBase64: string | null = null;
-    currentProblemImageMimeType: string | null = null;
+    currentProblemImages: Array<{ base64: string, mimeType: string }> = [];
     isCustomPromptsOpen: boolean = false;
 
     // Mode running states
     isAgenticRunning: boolean = false;
-    isGenerativeUIRunning: boolean = false;
     isContextualRunning: boolean = false;
     isAdaptiveDeepthinkRunning: boolean = false;
-    isReactAgenticRunning: boolean = false;
+
+    // Gemini Code Execution (only for Contextual mode with Gemini provider)
+    geminiCodeExecutionEnabled: boolean = false;
 
     customPromptsWebsiteState = defaultCustomPromptsWebsite;
     customPromptsDeepthinkState = createDefaultCustomPromptsDeepthink(NUM_INITIAL_STRATEGIES_DEEPTHINK, NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK);
-    customPromptsReactState = createDefaultCustomPromptsReact();
     customPromptsAgenticState = { systemPrompt: AGENTIC_SYSTEM_PROMPT };
     customPromptsAdaptiveDeepthinkState = createDefaultCustomPromptsAdaptiveDeepthink();
     customPromptsContextualState = createDefaultCustomPromptsContextual();

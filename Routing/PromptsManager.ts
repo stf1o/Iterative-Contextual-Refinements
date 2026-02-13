@@ -4,7 +4,6 @@
  */
 
 import { CustomizablePromptsWebsite } from '../Refine/RefinePrompts';
-import { CustomizablePromptsReact } from '../React/ReactPrompts';
 import { CustomizablePromptsDeepthink } from '../Deepthink/DeepthinkPrompts';
 import { AgenticPromptsManager, AgenticPrompts } from '../Agentic/AgenticPromptsManager';
 import { CustomizablePromptsAdaptiveDeepthink } from '../AdaptiveDeepthink/AdaptiveDeepthinkPrompt';
@@ -15,7 +14,6 @@ import { ContextualPromptsManager } from '../Contextual/ContextualPromptsManager
 export class PromptsManager {
     private websitePromptsRef: { current: CustomizablePromptsWebsite };
     private deepthinkPromptsRef: { current: CustomizablePromptsDeepthink };
-    private reactPromptsRef: { current: CustomizablePromptsReact };
     private agenticPromptsRef: { current: AgenticPrompts };
     private adaptiveDeepthinkPromptsRef?: { current: CustomizablePromptsAdaptiveDeepthink };
     private contextualPromptsRef?: { current: CustomizablePromptsContextual };
@@ -27,14 +25,12 @@ export class PromptsManager {
     constructor(
         websitePromptsRef: { current: CustomizablePromptsWebsite },
         deepthinkPromptsRef: { current: CustomizablePromptsDeepthink },
-        reactPromptsRef: { current: CustomizablePromptsReact },
         agenticPromptsRef?: { current: AgenticPrompts },
         adaptiveDeepthinkPromptsRef?: { current: CustomizablePromptsAdaptiveDeepthink },
         contextualPromptsRef?: { current: CustomizablePromptsContextual }
     ) {
         this.websitePromptsRef = websitePromptsRef;
         this.deepthinkPromptsRef = deepthinkPromptsRef;
-        this.reactPromptsRef = reactPromptsRef;
         this.agenticPromptsRef = agenticPromptsRef || { current: { systemPrompt: '', verifierPrompt: '' } };
         this.adaptiveDeepthinkPromptsRef = adaptiveDeepthinkPromptsRef;
         this.contextualPromptsRef = contextualPromptsRef;
@@ -51,7 +47,6 @@ export class PromptsManager {
     public initializeTextareas(): void {
         this.initializeWebsiteTextareas();
         this.initializeDeepthinkTextareas();
-        this.initializeReactTextareas();
         this.initializeAgenticTextarea();
         if (this.adaptiveDeepthinkPromptsManager) {
             this.adaptiveDeepthinkPromptsManager.initializeTextareas();
@@ -66,7 +61,6 @@ export class PromptsManager {
         // Initialize model selectors for website mode
         this.initializeWebsiteModelSelectors();
         this.initializeDeepthinkModelSelectors();
-        this.initializeReactModelSelectors();
         this.agenticPromptsManager.initializeModelSelector();
         if (this.adaptiveDeepthinkPromptsManager) {
             this.adaptiveDeepthinkPromptsManager.initializeModelSelectors();
@@ -136,32 +130,6 @@ export class PromptsManager {
                         delete this.deepthinkPromptsRef.current[modelField];
                     } else {
                         (this.deepthinkPromptsRef.current as any)[modelField] = selectedValue;
-                    }
-                });
-            }
-        }
-    }
-
-    private initializeReactModelSelectors(): void {
-        const modelSelectorMap: { [key: string]: keyof CustomizablePromptsReact } = {
-            'orchestrator': 'model_orchestrator',
-            'worker': 'model_worker',
-            'agentic-embedded': 'model_agentic_embedded',
-            'agentic-verifier-embedded': 'model_agentic_verifier_embedded'
-        };
-
-        for (const [agentKey, modelField] of Object.entries(modelSelectorMap)) {
-            const selector = document.querySelector(`[data-agent="${agentKey}"]`) as HTMLSelectElement;
-            if (selector) {
-                const currentValue = this.reactPromptsRef.current[modelField] as string | undefined;
-                selector.value = currentValue || '';
-
-                selector.addEventListener('change', (e) => {
-                    const selectedValue = (e.target as HTMLSelectElement).value;
-                    if (selectedValue === '') {
-                        delete this.reactPromptsRef.current[modelField];
-                    } else {
-                        (this.reactPromptsRef.current as any)[modelField] = selectedValue;
                     }
                 });
             }
@@ -270,36 +238,6 @@ export class PromptsManager {
         this.agenticPromptsManager.initializeTextarea();
     }
 
-    private initializeReactTextareas(): void {
-        const textareaMap: { [K in keyof CustomizablePromptsReact]: string } = {
-            sys_orchestrator: 'sys-react-orchestrator',
-            user_orchestrator: 'user-react-orchestrator',
-            sys_worker: 'sys-react-worker',
-            user_worker: 'user-react-worker',
-            sys_agentic_embedded: 'sys-react-agentic-embedded',
-            sys_agentic_verifier_embedded: 'sys-react-agentic-verifier-embedded',
-            model_orchestrator: '',
-            model_worker: '',
-            model_agentic_embedded: '',
-            model_agentic_verifier_embedded: ''
-        } as any;
-
-        for (const [key, elementId] of Object.entries(textareaMap)) {
-            if (!elementId) continue;
-            const textarea = document.getElementById(elementId) as HTMLTextAreaElement;
-            if (textarea) {
-                if (textarea.dataset.hasListener) return;
-
-                const promptKey = key as keyof CustomizablePromptsReact;
-                textarea.value = this.reactPromptsRef.current[promptKey] || '';
-                textarea.addEventListener('input', (e) => {
-                    this.reactPromptsRef.current[promptKey] = (e.target as HTMLTextAreaElement).value;
-                });
-                textarea.dataset.hasListener = 'true';
-            }
-        }
-    }
-
     public updateTextareasFromState(): void {
         // Website prompts
         for (const key in this.websitePromptsRef.current) {
@@ -320,17 +258,6 @@ export class PromptsManager {
             const textarea = document.getElementById(elementId) as HTMLTextAreaElement;
             if (textarea) {
                 textarea.value = this.deepthinkPromptsRef.current[promptKey] || '';
-            }
-        }
-
-        // React prompts
-        for (const key in this.reactPromptsRef.current) {
-            const promptKey = key as keyof CustomizablePromptsReact;
-            const elementId = this.getReactElementId(promptKey);
-            if (!elementId) continue; // Skip model_* fields with no element IDs
-            const textarea = document.getElementById(elementId) as HTMLTextAreaElement;
-            if (textarea) {
-                textarea.value = this.reactPromptsRef.current[promptKey] || '';
             }
         }
 
@@ -389,22 +316,6 @@ export class PromptsManager {
             const selector = document.querySelector(`[data-agent="${agentKey}"]`) as HTMLSelectElement;
             if (selector) {
                 const currentValue = this.deepthinkPromptsRef.current[modelField] as string | undefined;
-                selector.value = currentValue || '';
-            }
-        }
-
-        // React model selectors
-        const reactModelMap: { [key: string]: keyof CustomizablePromptsReact } = {
-            'orchestrator': 'model_orchestrator',
-            'worker': 'model_worker',
-            'agentic-embedded': 'model_agentic_embedded',
-            'agentic-verifier-embedded': 'model_agentic_verifier_embedded'
-        };
-
-        for (const [agentKey, modelField] of Object.entries(reactModelMap)) {
-            const selector = document.querySelector(`[data-agent="${agentKey}"]`) as HTMLSelectElement;
-            if (selector) {
-                const currentValue = this.reactPromptsRef.current[modelField] as string | undefined;
                 selector.value = currentValue || '';
             }
         }
@@ -499,22 +410,6 @@ export class PromptsManager {
         return map[key] || '';
     }
 
-    private getReactElementId(key: keyof CustomizablePromptsReact): string {
-        const map: { [K in keyof CustomizablePromptsReact]: string } = {
-            sys_orchestrator: 'sys-react-orchestrator',
-            user_orchestrator: 'user-react-orchestrator',
-            sys_worker: 'sys-react-worker',
-            user_worker: 'user-react-worker',
-            sys_agentic_embedded: 'sys-react-agentic-embedded',
-            sys_agentic_verifier_embedded: 'sys-react-agentic-verifier-embedded',
-            model_orchestrator: '',
-            model_worker: '',
-            model_agentic_embedded: '',
-            model_agentic_verifier_embedded: ''
-        } as any;
-        return map[key] || '';
-    }
-
     // Getters for the prompt states
     public getWebsitePrompts(): CustomizablePromptsWebsite {
         return this.websitePromptsRef.current;
@@ -524,10 +419,6 @@ export class PromptsManager {
         return this.deepthinkPromptsRef.current;
     }
 
-    public getReactPrompts(): CustomizablePromptsReact {
-        return this.reactPromptsRef.current;
-    }
-
     // Setters for updating prompt states
     public setWebsitePrompts(prompts: CustomizablePromptsWebsite): void {
         this.websitePromptsRef.current = prompts;
@@ -535,10 +426,6 @@ export class PromptsManager {
 
     public setDeepthinkPrompts(prompts: CustomizablePromptsDeepthink): void {
         this.deepthinkPromptsRef.current = prompts;
-    }
-
-    public setReactPrompts(prompts: CustomizablePromptsReact): void {
-        this.reactPromptsRef.current = prompts;
     }
 
     public getAgenticPromptsManager(): AgenticPromptsManager {

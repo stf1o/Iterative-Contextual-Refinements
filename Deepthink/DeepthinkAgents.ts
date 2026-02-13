@@ -37,22 +37,21 @@ export async function generateStrategiesAgent(
     systemPrompt: string,
     userPromptTemplate: string,
     context: AgentExecutionContext,
-    imageBase64?: string | null,
-    imageMimeType?: string | null
+    images: Array<{ base64: string, mimeType: string }> = []
 ): Promise<AgentResponse> {
     try {
         const userPrompt = userPromptTemplate
             .replace('{{originalProblemText}}', question)
             .replace(/\$\{NUM_INITIAL_STRATEGIES_DEEPTHINK\}/g, numStrategies.toString());
 
-        const finalUserPrompt = specialContext 
+        const finalUserPrompt = specialContext
             ? `${userPrompt}\n\n<Special Context>\n${specialContext}\n</Special Context>`
             : userPrompt;
 
         const promptParts: Part[] = [{ text: finalUserPrompt }];
-        if (imageBase64 && imageMimeType) {
-            promptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-        }
+        images.slice().reverse().forEach(img => {
+            promptParts.unshift({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+        });
 
         const response = await context.callAI(
             promptParts,
@@ -98,22 +97,21 @@ export async function generateHypothesesAgent(
     systemPrompt: string,
     userPromptTemplate: string,
     context: AgentExecutionContext,
-    imageBase64?: string | null,
-    imageMimeType?: string | null
+    images: Array<{ base64: string, mimeType: string }> = []
 ): Promise<AgentResponse> {
     try {
         const userPrompt = userPromptTemplate
             .replace('{{originalProblemText}}', question)
             .replace(/\$\{NUM_HYPOTHESES\}/g, numHypotheses.toString());
 
-        const finalUserPrompt = specialContext 
+        const finalUserPrompt = specialContext
             ? `${userPrompt}\n\n<Special Context>\n${specialContext}\n</Special Context>`
             : userPrompt;
 
         const promptParts: Part[] = [{ text: finalUserPrompt }];
-        if (imageBase64 && imageMimeType) {
-            promptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-        }
+        images.slice().reverse().forEach(img => {
+            promptParts.unshift({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+        });
 
         const response = await context.callAI(
             promptParts,
@@ -160,8 +158,7 @@ export async function testHypothesesAgent(
     systemPrompt: string,
     userPromptTemplate: string,
     context: AgentExecutionContext,
-    imageBase64?: string | null,
-    imageMimeType?: string | null
+    images: Array<{ base64: string, mimeType: string }> = []
 ): Promise<AgentResponse> {
     try {
         const results = await Promise.all(
@@ -175,14 +172,14 @@ export async function testHypothesesAgent(
                     .replace('{{originalProblemText}}', question)
                     .replace('{{hypothesisText}}', hypothesis.text);
 
-                const finalUserPrompt = specialContext 
+                const finalUserPrompt = specialContext
                     ? `${userPrompt}\n\n<Special Context>\n${specialContext}\n</Special Context>`
                     : userPrompt;
 
                 const promptParts: Part[] = [{ text: finalUserPrompt }];
-                if (imageBase64 && imageMimeType) {
-                    promptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-                }
+                images.slice().reverse().forEach(img => {
+                    promptParts.unshift({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+                });
 
                 const response = await context.callAI(
                     promptParts,
@@ -229,8 +226,7 @@ export async function executeStrategiesAgent(
     systemPrompt: string,
     userPromptTemplate: string,
     context: AgentExecutionContext,
-    imageBase64?: string | null,
-    imageMimeType?: string | null
+    images: Array<{ base64: string, mimeType: string }> = []
 ): Promise<AgentResponse> {
     try {
         const results = await Promise.all(
@@ -258,14 +254,14 @@ export async function executeStrategiesAgent(
                     .replace('{{assignedStrategy}}', strategy.text)
                     .replace('{{knowledgePacket}}', informationPacket);
 
-                const finalUserPrompt = specialContext 
+                const finalUserPrompt = specialContext
                     ? `${userPrompt}\n\n<Special Context>\n${specialContext}\n</Special Context>`
                     : userPrompt;
 
                 const promptParts: Part[] = [{ text: finalUserPrompt }];
-                if (imageBase64 && imageMimeType) {
-                    promptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-                }
+                images.slice().reverse().forEach(img => {
+                    promptParts.unshift({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+                });
 
                 const response = await context.callAI(
                     promptParts,
@@ -311,8 +307,7 @@ export async function solutionCritiqueAgent(
     systemPrompt: string,
     userPromptTemplate: string,
     context: AgentExecutionContext,
-    imageBase64?: string | null,
-    imageMimeType?: string | null
+    images: Array<{ base64: string, mimeType: string }> = []
 ): Promise<AgentResponse> {
     try {
         const results = await Promise.all(
@@ -327,14 +322,14 @@ export async function solutionCritiqueAgent(
                     .replace('{{assignedStrategy}}', execution.strategy)
                     .replace('{{solutionAttempt}}', execution.execution);
 
-                const finalUserPrompt = specialContext 
+                const finalUserPrompt = specialContext
                     ? `${userPrompt}\n\n<Special Context>\n${specialContext}\n</Special Context>`
                     : userPrompt;
 
                 const promptParts: Part[] = [{ text: finalUserPrompt }];
-                if (imageBase64 && imageMimeType) {
-                    promptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-                }
+                images.slice().reverse().forEach(img => {
+                    promptParts.unshift({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+                });
 
                 const response = await context.callAI(
                     promptParts,
@@ -379,15 +374,14 @@ export async function correctedSolutionsAgent(
     systemPrompt: string,
     userPromptTemplate: string,
     context: AgentExecutionContext,
-    imageBase64?: string | null,
-    imageMimeType?: string | null
+    images: Array<{ base64: string, mimeType: string }> = []
 ): Promise<AgentResponse> {
     try {
         const results = await Promise.all(
             executionIds.map(async (id) => {
                 const execution = executionsData.get(id);
                 const critique = critiquesData.get(id);
-                
+
                 if (!execution || !critique) {
                     return { id, success: false, error: 'Execution or critique not found' };
                 }
@@ -399,9 +393,9 @@ export async function correctedSolutionsAgent(
                     .replace('{{solutionCritique}}', critique.critique);
 
                 const promptParts: Part[] = [{ text: userPrompt }];
-                if (imageBase64 && imageMimeType) {
-                    promptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-                }
+                images.slice().reverse().forEach(img => {
+                    promptParts.unshift({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+                });
 
                 const response = await context.callAI(
                     promptParts,
@@ -445,8 +439,7 @@ export async function selectBestSolutionAgent(
     systemPrompt: string,
     userPromptTemplate: string,
     context: AgentExecutionContext,
-    imageBase64?: string | null,
-    imageMimeType?: string | null
+    images: Array<{ base64: string, mimeType: string }> = []
 ): Promise<AgentResponse> {
     try {
         // Build all solutions for comparison
@@ -466,9 +459,9 @@ export async function selectBestSolutionAgent(
             .replace('{{allSolutions}}', allSolutions);
 
         const promptParts: Part[] = [{ text: userPrompt }];
-        if (imageBase64 && imageMimeType) {
-            promptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-        }
+        images.slice().reverse().forEach(img => {
+            promptParts.unshift({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+        });
 
         const response = await context.callAI(
             promptParts,

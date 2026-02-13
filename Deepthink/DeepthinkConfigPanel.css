@@ -465,7 +465,42 @@ body.light-mode .deepthink-config-scroll-container .execution-agents-visualizati
 /* Ensure backgrounds are not too transparent */
 body.light-mode .deepthink-config-scroll-container .refinement-method-card,
 body.light-mode .deepthink-config-scroll-container .post-quality-filter-card {
-    background: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.7);
+}
+
+body.light-mode .deepthink-config-scroll-container .strategy-execution-container {
+    background: rgba(232, 107, 107, 0.08);
+    /* Keep reddish tint but ensure visibility */
+}
+
+body.light-mode .deepthink-config-scroll-container .hypothesis-slider-card {
+    background: rgba(66, 133, 244, 0.08);
+    /* Keep bluish tint */
+}
+
+body.light-mode .deepthink-config-scroll-container .red-team-options-container {
+    background: rgba(236, 72, 153, 0.08);
+    /* Keep pinkish tint */
+}
+
+body.light-mode .deepthink-config-scroll-container .refinement-options-container {
+    background: rgba(139, 92, 246, 0.08);
+    /* Keep purple tint */
+}
+
+/* Ensure text legibility in light mode */
+body.light-mode .input-label,
+body.light-mode .method-name,
+body.light-mode .window-title,
+body.light-mode .red-team-options-header,
+body.light-mode .refinement-master-title {
+    color: #1a1a1a;
+}
+
+body.light-mode .method-type,
+body.light-mode .method-card-description,
+body.light-mode .refinement-master-description {
+    color: #4a4a4a;
 }
 
 /* ========================================================================== */
@@ -1016,6 +1051,42 @@ body.light-mode .deepthink-config-scroll-container .post-quality-filter-card {
     backdrop-filter: var(--card-blur-effect);
 }
 
+/* ========================================================================== */
+
+/* Collapsible Hypothesis Styles */
+.hypothesis-details summary {
+    user-select: none;
+    transition: background-color var(--transition-speed);
+}
+
+.hypothesis-details summary:hover {
+    background-color: rgba(var(--card-bg-base-rgb), 0.8) !important;
+}
+
+.hypothesis-details[open] summary .dropdown-icon {
+    transform: rotate(90deg);
+}
+
+.hypothesis-details-content {
+    animation: slideDown 0.2s ease-out;
+}
+
+/* Remove hardcoded backgrounds from hypothesis blocks to rely on container styles */
+.hypothesis-block,
+.hypothesis-text,
+.hypothesis-testing,
+.testing-output {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+/* Ensure XML buttons look good */
+.copy-xml-btn,
+.download-xml-btn {
+    min-width: 80px;
+}
+
 .red-team-button:hover {
     background: rgba(var(--card-bg-base-rgb), 0.8);
     border-color: rgba(var(--accent-pink-rgb), 0.5);
@@ -1053,4 +1124,94 @@ body.light-mode .deepthink-config-scroll-container .post-quality-filter-card {
     border: 1px solid var(--border-color);
     border-radius: 3px;
     backdrop-filter: var(--card-blur-effect);
+}
+
+/* ========================================================================== */
+/* == CODE EXECUTION TOGGLE STYLES ========================================= */
+/* ========================================================================== */
+
+.code-execution-toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(var(--accent-purple-rgb), 0.08);
+    border: 1px solid rgba(var(--accent-purple-rgb), 0.2);
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+
+.code-execution-toggle-container:hover {
+    background: rgba(var(--accent-purple-rgb), 0.12);
+    border-color: rgba(var(--accent-purple-rgb), 0.3);
+}
+
+.code-execution-toggle-label {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.code-execution-toggle-input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.code-execution-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(var(--text-secondary-color-rgb), 0.3);
+    transition: 0.3s;
+    border-radius: 20px;
+}
+
+.code-execution-toggle-slider::before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: var(--card-bg-color);
+    transition: 0.3s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.code-execution-toggle-input:checked+.code-execution-toggle-slider {
+    background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+}
+
+.code-execution-toggle-input:checked+.code-execution-toggle-slider::before {
+    transform: translateX(16px);
+}
+
+.code-execution-toggle-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.code-execution-toggle-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent-purple);
+}
+
+.code-execution-toggle-subtitle {
+    font-size: 0.7rem;
+    color: var(--text-tertiary-color);
+}
+
+/* Light mode adjustments */
+body.light-mode .code-execution-toggle-container {
+    background: rgba(var(--accent-purple-rgb), 0.06);
+    border-color: rgba(var(--accent-purple-rgb), 0.25);
 }

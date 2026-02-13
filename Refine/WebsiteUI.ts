@@ -1,11 +1,19 @@
 
 import { globalState } from '../Core/State';
 import { IterationData, PipelineState } from '../Core/Types';
-import { renderMathContent } from '../Components/RenderMathMarkdown';
-import { openDiffModal } from '../Components/DiffModal/DiffModalController';
-import { escapeHtml, isEmptyOrPlaceholderHtml } from '../Utils/DOMHelpers';
-import { isHtmlContent } from '../Parsing';
+import { renderMathContent } from '../Styles/Components/RenderMathMarkdown';
+import { openDiffModal } from '../Styles/Components/DiffModal/DiffModalController';
+import { isHtmlContent } from '../Core/Parsing';
 import { updateControlsState } from '../UI/Controls';
+
+function escapeHtml(unsafe: string): string {
+    if (typeof unsafe !== 'string') return '';
+    return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+function isEmptyOrPlaceholderHtml(html?: string): boolean {
+    return !html || html.trim() === '' || html.includes('<!-- No HTML generated yet') || html.includes('<!-- No valid HTML was generated') || html.includes('<!-- HTML generation cancelled. -->');
+}
 
 const MAX_RETRIES = 3;
 
@@ -13,13 +21,10 @@ import { getEmptyStateMessage } from '../UI/CommonUI';
 import { renderActiveDeepthinkPipeline, activateDeepthinkStrategyTab } from '../Deepthink/Deepthink';
 import { renderDeepthinkConfigPanelInContainer } from '../Deepthink/DeepthinkConfigPanel';
 import { renderAgenticMode } from '../Agentic/Agentic';
-import { renderGenerativeUIMode } from '../GenerativeUI/GenerativeUI';
 import { renderContextualMode } from '../Contextual/Contextual';
 import { renderAdaptiveDeepthinkMode } from '../AdaptiveDeepthink/AdaptiveDeepthinkMode';
-import { renderReactModePipeline } from '../React/ReactUI';
 import { routingManager } from '../Routing';
 import { cleanupAdaptiveDeepthinkMode } from '../AdaptiveDeepthink/AdaptiveDeepthinkMode';
-import { cleanupGenerativeUIMode } from '../GenerativeUI/GenerativeUI';
 import { cleanupAgenticMode } from '../Agentic/Agentic';
 import { stopContextualProcess } from '../Contextual/Contextual';
 
@@ -167,7 +172,7 @@ export function attachIterationEventListeners(pipelineId: number, iterationNumbe
         if (fullscreenBtn && !fullscreenBtn.hasAttribute('data-listener-attached')) {
             fullscreenBtn.setAttribute('data-listener-attached', 'true');
             fullscreenBtn.onclick = async () => {
-                const { openLivePreviewFullscreen } = await import('../Components/ActionButton');
+                const { openLivePreviewFullscreen } = await import('../Styles/Components/ActionButton');
                 const pipeline = globalState.pipelinesState.find(p => p.id === pipelineId);
                 const iter = pipeline?.iterations.find(it => it.iterationNumber === iterationNumber);
                 const html = iter?.generatedContent;
@@ -336,33 +341,7 @@ export function activateTab(idToActivate: string | number) {
             activateDeepthinkStrategyTab(globalState.activeDeepthinkPipeline.activeStrategyTab ?? 0);
         }
 
-    } else if (globalState.currentMode === 'react' && globalState.activeReactPipeline) {
-        globalState.activeReactPipeline.activeTabId = idToActivate as string;
-        document.querySelectorAll('#tabs-nav-container .tab-button.react-mode-tab').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('#pipelines-content-container > .pipeline-content').forEach(pane => pane.classList.remove('active'));
-
-        const tabButton = document.getElementById(`react-tab-${idToActivate}`);
-        const contentPane = document.getElementById(`pipeline-content-${idToActivate}`);
-        if (tabButton) tabButton.classList.add('active');
-        if (contentPane) contentPane.classList.add('active');
-
-        // Rehydrate the agentic UI if switching to agentic-refinements tab
-        if (idToActivate === 'agentic-refinements' && contentPane) {
-            import('../React/ReactAgenticIntegration').then(({ rehydrateReactAgenticUI, setActiveReactAgenticStateForImport }) => {
-                // If we have imported state, restore it first
-                if ((window as any).__importedReactAgenticState) {
-                    setActiveReactAgenticStateForImport((window as any).__importedReactAgenticState);
-                    (window as any).__importedReactAgenticState = null;
-                }
-                const agenticContainer = contentPane.querySelector('#agentic-refinements-container') as HTMLElement;
-                if (agenticContainer) {
-                    rehydrateReactAgenticUI(agenticContainer);
-                }
-            }).catch(() => {
-                // Removed console.error
-            });
-        }
-    } else if (globalState.currentMode !== 'deepthink' && globalState.currentMode !== 'react') {
+    } else if (globalState.currentMode !== 'deepthink') {
         globalState.activePipelineId = idToActivate as number;
         document.querySelectorAll('#tabs-nav-container .tab-button').forEach(btn => {
             btn.classList.toggle('active', btn.id === `pipeline-tab-${globalState.activePipelineId}`);
@@ -396,21 +375,6 @@ export function renderPipelines() {
         }
 
         renderAgenticMode();
-        return;
-    } else if (globalState.currentMode === 'generativeui') {
-        // Show header and tabs for generativeui mode
-        if (mainHeaderContent) mainHeaderContent.style.display = '';
-        if (tabsNavContainer) tabsNavContainer.style.display = '';
-
-        // Re-enable sidebar collapse
-        if (sidebarCollapseButton) {
-            sidebarCollapseButton.disabled = false;
-            sidebarCollapseButton.style.opacity = '';
-            sidebarCollapseButton.style.cursor = '';
-            sidebarCollapseButton.title = 'Collapse Sidebar';
-        }
-
-        renderGenerativeUIMode();
         return;
     } else if (globalState.currentMode === 'contextual') {
         // Contextual mode doesn't use header/tabs - they're hidden in renderContextualMode
@@ -463,22 +427,6 @@ export function renderPipelines() {
             if (tabsNavContainer) tabsNavContainer.style.display = 'none';
             if (pipelinesContentContainer) renderDeepthinkConfigPanelInContainer(pipelinesContentContainer);
         }
-        return;
-    } else if (globalState.currentMode === 'react') {
-        // Show header for react mode
-        if (mainHeaderContent) mainHeaderContent.style.display = '';
-        if (tabsNavContainer) tabsNavContainer.style.display = ''; // Ensure tabs are visible
-
-        // Re-enable sidebar collapse
-        if (sidebarCollapseButton) {
-            sidebarCollapseButton.disabled = false;
-            sidebarCollapseButton.style.opacity = '';
-            sidebarCollapseButton.style.cursor = '';
-            sidebarCollapseButton.title = 'Collapse Sidebar';
-        }
-
-        clearTabsContainer();
-        if (pipelinesContentContainer) pipelinesContentContainer.innerHTML = '';
         return;
     }
 
@@ -565,7 +513,7 @@ export function renderPipelines() {
         `;
 
         viewEvolutionBtn.addEventListener('click', async () => {
-            const { openEvolutionViewer } = await import('../Components/DiffModal/EvolutionViewer');
+            const { openEvolutionViewer } = await import('../Styles/Components/DiffModal/EvolutionViewer');
             const targetPipeline = resolvePipelineForEvolution();
 
             if (!targetPipeline) {
@@ -627,28 +575,10 @@ export function updateUIAfterModeChange() {
         if (apiCallIndicator) apiCallIndicator.style.display = 'flex';
         setDeepthinkControlsVisible(true);
         setRefineControlsVisible(false);
-    } else if (globalState.currentMode === 'react') {
-        if (initialIdeaLabel) initialIdeaLabel.textContent = 'React App Request:';
-        if (initialIdeaInput) initialIdeaInput.placeholder = 'E.g., "A simple to-do list app with local storage persistence", "A weather dashboard using OpenWeatherMap API"...';
-        if (generateButtonText) generateButtonText.textContent = 'Generate React App';
-        if (modelSelectionContainer) modelSelectionContainer.style.display = 'flex';
-        if (modelParametersContainer) modelParametersContainer.style.display = 'flex';
-        if (apiCallIndicator) apiCallIndicator.style.display = 'none';
-        setDeepthinkControlsVisible(false);
-        setRefineControlsVisible(false);
     } else if (globalState.currentMode === 'agentic') {
         if (initialIdeaLabel) initialIdeaLabel.textContent = 'Content to Refine:';
         if (initialIdeaInput) initialIdeaInput.placeholder = 'Enter text, code, data report, or any content you want the agent to iteratively refine...';
         if (generateButtonText) generateButtonText.textContent = 'Generate & Refine';
-        if (modelSelectionContainer) modelSelectionContainer.style.display = 'flex';
-        if (modelParametersContainer) modelParametersContainer.style.display = 'flex';
-        if (apiCallIndicator) apiCallIndicator.style.display = 'none';
-        setDeepthinkControlsVisible(false);
-        setRefineControlsVisible(false);
-    } else if (globalState.currentMode === 'generativeui') {
-        if (initialIdeaLabel) initialIdeaLabel.textContent = 'UI Query:';
-        if (initialIdeaInput) initialIdeaInput.placeholder = 'E.g., "Create a dashboard to track my project tasks with statuses for to-do, in-progress, and done"...';
-        if (generateButtonText) generateButtonText.textContent = 'Generate Interface';
         if (modelSelectionContainer) modelSelectionContainer.style.display = 'flex';
         if (modelParametersContainer) modelParametersContainer.style.display = 'flex';
         if (apiCallIndicator) apiCallIndicator.style.display = 'none';
@@ -694,11 +624,8 @@ export function updateUIAfterModeChange() {
     // Handle mode-specific cleanup/initialization
     if (!globalState.isGenerating) {
         globalState.pipelinesState = [];
-        globalState.activeReactPipeline = null;
         if (globalState.currentMode === 'agentic') {
             cleanupAgenticMode();
-        } else if (globalState.currentMode === 'generativeui') {
-            cleanupGenerativeUIMode();
         } else if (globalState.currentMode === 'contextual') {
             stopContextualProcess();
         } else if (globalState.currentMode === 'adaptive-deepthink') {
@@ -708,9 +635,4 @@ export function updateUIAfterModeChange() {
 
     // Render pipelines or appropriate UI for the mode
     renderPipelines();
-
-    // If in React mode, also render the React pipeline if it exists
-    if (globalState.currentMode === 'react' && globalState.activeReactPipeline) {
-        renderReactModePipeline();
-    }
 }

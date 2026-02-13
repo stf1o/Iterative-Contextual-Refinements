@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { initializePromptStyling, updatePromptContent } from '../Components/PromptStyling';
+import { initializePromptStyling, updatePromptContent } from '../Styles/Components/PromptStyling';
 import { PromptRefiner } from './PromptRefiner';
-import { openPromptDiffModal } from '../Components/DiffModal/DiffModalController';
+import { openPromptDiffModal } from '../Styles/Components/DiffModal/DiffModalController';
 
 export class PromptsModal {
     private elements: {
@@ -258,16 +258,6 @@ export class PromptsModal {
                     prompts: ["deepthink-red-team", "deepthink-post-quality-filter", "deepthink-final-judge"]
                 }
             ],
-            react: [
-                {
-                    groupTitle: "1. ORCHESTRATION",
-                    prompts: ["react-orchestrator"]
-                },
-                {
-                    groupTitle: "2. EMBEDDED AGENTIC REFINEMENT",
-                    prompts: ["react-agentic-embedded"]
-                }
-            ],
             agentic: [
                 {
                     groupTitle: "AGENTIC CONFIGURATION",
@@ -310,8 +300,7 @@ export class PromptsModal {
 
     private getModeDisplayName(normalizedMode: string): string {
         const mapping: Record<string, string> = {
-            adaptiveDeepthink: 'Adaptive Deepthink',
-            generativeui: 'Generative UI'
+            adaptiveDeepthink: 'Adaptive Deepthink'
         };
         const display = mapping[normalizedMode];
         if (display) {
@@ -401,7 +390,6 @@ export class PromptsModal {
         const allMaps = {
             ...this.getWebsiteAgentMap(),
             ...this.getDeepthinkAgentMap(),
-            ...this.getReactAgentMap(),
             ...this.getAgenticAgentMap(),
             ...this.getAdaptiveDeepthinkAgentMap(),
             ...this.getContextualAgentMap()
@@ -441,15 +429,6 @@ export class PromptsModal {
             'redTeam': 'sys-deepthink-red-team',
             'finalJudge': 'sys-deepthink-final-judge',
             'structuredSolutionPool': 'sys-deepthink-structured-solution-pool'
-        };
-    }
-
-    private getReactAgentMap(): { [key: string]: string } {
-        return {
-            'orchestrator': 'sys-react-orchestrator',
-            'worker': 'sys-react-worker',
-            'agentic-embedded': 'sys-react-agentic-embedded',
-            'agentic-verifier-embedded': 'sys-react-agentic-verifier-embedded'
         };
     }
 
@@ -790,14 +769,6 @@ export class PromptsModal {
             'structuredSolutionPool': 'sys-deepthink-structured-solution-pool'
         };
 
-        // React mode agents
-        const reactMap: { [key: string]: string } = {
-            'orchestrator': 'sys-react-orchestrator',
-            'worker': 'sys-react-worker',
-            'agentic-embedded': 'sys-react-agentic-embedded',
-            'agentic-verifier-embedded': 'sys-react-agentic-verifier-embedded'
-        };
-
         // Agentic mode agents
         const agenticMap: { [key: string]: string } = {
             'agentic': 'sys-agentic',
@@ -824,7 +795,7 @@ export class PromptsModal {
             'contextual-memory': 'sys-contextual-memory'
         };
 
-        return websiteMap[agentName] || deepthinkMap[agentName] || reactMap[agentName] || agenticMap[agentName] || adaptiveDeepthinkMap[agentName] || contextualMap[agentName] || null;
+        return websiteMap[agentName] || deepthinkMap[agentName] || agenticMap[agentName] || adaptiveDeepthinkMap[agentName] || contextualMap[agentName] || null;
     }
 
     private openPromptRefiner(agentName: string): void {

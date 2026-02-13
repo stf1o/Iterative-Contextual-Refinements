@@ -1,6 +1,6 @@
-import { openEvolutionViewerFromHistory } from '../Components/DiffModal/EvolutionViewer';
+import { openEvolutionViewerFromHistory } from '../Styles/Components/DiffModal/EvolutionViewer';
 import { DeepthinkPipelineState, getActiveDeepthinkPipeline } from './DeepthinkCore';
-import { openEmbeddedModal } from '../Components/EmbeddedModal';
+import { openEmbeddedModal } from '../Styles/Components/EmbeddedModal';
 import './SolutionPool.css';
 
 // Track solution pool versions for evolution view
@@ -65,6 +65,33 @@ export function openCurrentSolutionPool(pipelineId: string) {
 }
 
 /**
+ * Downloads the current solution pool as an XML file
+ */
+export function downloadSolutionPoolAsXML(pipelineId: string) {
+    const pipeline = getActiveDeepthinkPipeline();
+    if (!pipeline || pipeline.id !== pipelineId) {
+        alert('Pipeline not found.');
+        return;
+    }
+
+    if (!pipeline.structuredSolutionPool || pipeline.structuredSolutionPool.trim() === '') {
+        alert('No solution pool content available yet. The pool is still initializing.');
+        return;
+    }
+
+    const content = pipeline.structuredSolutionPool;
+    const blob = new Blob([content], { type: 'text/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'solution_pool.xml';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+/**
  * Clears solution pool versions for a given pipeline
  */
 export function clearSolutionPoolVersions(pipelineId: string) {
@@ -110,6 +137,10 @@ export function renderSolutionPoolContent(deepthinkProcess: DeepthinkPipelineSta
                 <button class="solution-pool-current-button" data-pipeline-id="${deepthinkProcess.id}">
                     <span class="material-symbols-outlined">database</span>
                     Current Pool
+                </button>
+                <button class="solution-pool-download-button" data-pipeline-id="${deepthinkProcess.id}">
+                    <span class="material-symbols-outlined">download</span>
+                    Download Pool (XML)
                 </button>
                 <button class="solution-pool-evolution-button" data-pipeline-id="${deepthinkProcess.id}">
                     <span class="material-symbols-outlined">timeline</span>

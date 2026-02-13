@@ -24,6 +24,7 @@ export interface ModelParameters {
     iterativeCorrectionsEnabled: boolean;
     provideAllSolutionsToCorrectors: boolean;
     postQualityFilterEnabled: boolean;
+    deepthinkCodeExecutionEnabled: boolean;
 }
 
 export const AVAILABLE_MODELS: ModelOption[] = [
@@ -45,7 +46,8 @@ export const DEFAULT_MODEL_PARAMETERS: ModelParameters = {
     dissectedObservationsEnabled: false,
     iterativeCorrectionsEnabled: false,
     provideAllSolutionsToCorrectors: false,
-    postQualityFilterEnabled: false
+    postQualityFilterEnabled: false,
+    deepthinkCodeExecutionEnabled: false
 };
 
 export class ModelConfigManager {
@@ -132,8 +134,13 @@ export class ModelConfigManager {
         return this.parameters.postQualityFilterEnabled;
     }
 
+    public isDeepthinkCodeExecutionEnabled(): boolean {
+        return this.parameters.deepthinkCodeExecutionEnabled;
+    }
+
     public getModelProvider(modelValue?: string): string {
-        const model = AVAILABLE_MODELS.find(m => m.value === (modelValue || this.selectedModel));
+        // Use instance's availableModels (dynamically populated), not the empty AVAILABLE_MODELS constant
+        const model = this.availableModels.find(m => m.value === (modelValue || this.selectedModel));
         return model?.provider || 'google';
     }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PromptCard, PromptPane } from '../Components/PromptCard';
+import { PromptCard, PromptPane } from '../Styles/Components/PromptCard';
 
 /**
  * Deepthink Mode Prompts Content

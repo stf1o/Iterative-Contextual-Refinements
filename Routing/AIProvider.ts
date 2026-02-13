@@ -14,8 +14,16 @@ export interface StructuredMessage {
 
 export interface ThinkingConfig {
     thinkingBudget?: number;  // -1 for dynamic, 0 to disable, or specific token count
+    thinkingLevel?: 'low' | 'medium' | 'high' | 'minimal';  // Gemini 3 thinking level control
     tools?: any[];  // Function declarations to enable thought signatures
+    codeExecution?: boolean;  // Enable Gemini native code execution tool
 }
+
+// Models that require mandatory high thinking level
+const GEMINI_3_MODELS = [
+    'gemini-3-pro-preview',
+    'gemini-3-flash-preview'
+];
 
 export interface AIProvider {
     initialize(apiKey: string): boolean;
@@ -35,6 +43,19 @@ export interface AIProvider {
 // Helper to check if input is structured messages
 function isStructuredMessages(input: any): input is StructuredMessage[] {
     return Array.isArray(input) && input.length > 0 && 'role' in input[0] && 'content' in input[0];
+}
+
+// Supported image MIME types for vision APIs (OpenAI and Anthropic)
+const VISION_SUPPORTED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
+// Helper to check if a Part contains inline image data
+function hasInlineData(part: any): part is { inlineData: { mimeType: string; data: string } } {
+    return part && part.inlineData && part.inlineData.mimeType && part.inlineData.data;
+}
+
+// Helper to check if a Part contains text
+function hasText(part: any): part is { text: string } {
+    return part && typeof part.text === 'string';
 }
 
 export class GoogleAIProvider implements AIProvider {
@@ -121,10 +142,42 @@ export class GoogleAIProvider implements AIProvider {
         if (topP !== undefined) config.topP = topP;
         if (systemInstruction) config.systemInstruction = systemInstruction;
         if (isJsonOutput) config.responseMimeType = "application/json";
-        
-        // Add thinking configuration for Gemini 2.5 models
-        if (thinkingConfig?.thinkingBudget !== undefined) {
+
+        // Check if this is a Gemini 3 model that requires high thinking level
+        const isGemini3Model = GEMINI_3_MODELS.some(m => modelToUse.includes(m));
+
+        // Add thinking configuration
+        if (isGemini3Model) {
+            // Gemini 3 models: Use thinkingLevel (mandatory high) instead of thinkingBudget
+            // Per Gemini 3 API docs: thinking_level is required instead of thinking_budget
+            config.thinkingConfig = {
+                thinkingLevel: 'high'  // Mandatory high thinking for Gemini 3 models
+            };
+            console.log('🧠 Gemini 3 Model Detected: Enforcing thinkingLevel=high');
+        } else if (thinkingConfig?.thinkingLevel) {
+            // Gemini 3 with explicit thinkingLevel (though we enforce high for Gemini 3)
+            config.thinkingConfig = {
+                thinkingLevel: thinkingConfig.thinkingLevel
+            };
+        } else if (thinkingConfig?.thinkingBudget !== undefined) {
+            // Legacy: Gemini 2.5 models use thinkingBudget
             config.thinkingBudget = thinkingConfig.thinkingBudget;
+        }
+
+        // Tools must be inside config, not at requestOptions level!
+        // Per official docs: config: { tools: [{ codeExecution: {} }] }
+
+        // IMPORTANT: codeExecution and functionDeclarations are MUTUALLY EXCLUSIVE!
+        // When code execution is enabled, we CANNOT use function declarations.
+        // Code execution takes priority when enabled.
+
+        if (thinkingConfig?.codeExecution) {
+            // Code execution mode - ONLY add codeExecution, no function declarations
+            config.tools = [{ codeExecution: {} }];
+            console.log('🔧 CODE EXECUTION TOOL ENABLED (function calling disabled)');
+        } else if (thinkingConfig?.tools && thinkingConfig.tools.length > 0) {
+            // Function calling mode - only when code execution is disabled
+            config.tools = [...thinkingConfig.tools];
         }
 
         const requestOptions: any = {
@@ -132,11 +185,13 @@ export class GoogleAIProvider implements AIProvider {
             contents: contents,
             config: config
         };
-        
-        // Add tools/function declarations if provided (enables thought signatures)
-        if (thinkingConfig?.tools && thinkingConfig.tools.length > 0) {
-            requestOptions.tools = thinkingConfig.tools;
-        }
+
+        // DEBUG: Log the full request to verify code execution is included
+        console.group('🚀 GEMINI API REQUEST DEBUG');
+        console.log('Model:', modelToUse);
+        console.log('Config.tools:', JSON.stringify(config.tools, null, 2));
+        console.log('codeExecution enabled?', thinkingConfig?.codeExecution);
+        console.groupEnd();
 
         const result = await this.client.models.generateContent(requestOptions);
 
@@ -195,13 +250,43 @@ export class OpenAIProvider implements AIProvider {
             for (const msg of promptOrParts) {
                 messages.push({ role: msg.role, content: msg.content });
             }
-        } else {
-            // Legacy behavior: system instruction + single user message
+        } else if (Array.isArray(promptOrParts) && promptOrParts.length > 0 && !isStructuredMessages(promptOrParts)) {
+            // Handle Part[] with potential images (vision support)
             if (systemInstruction) {
                 messages.push({ role: 'system', content: systemInstruction });
             }
 
-            const userContent = typeof promptOrParts === 'string' ? promptOrParts : promptOrParts.map(p => p.text).join('\n');
+            // Build multipart content array for OpenAI vision format
+            const contentParts: any[] = [];
+
+            for (const part of promptOrParts) {
+                if (hasText(part)) {
+                    contentParts.push({ type: 'text', text: part.text });
+                } else if (hasInlineData(part)) {
+                    // Check if this is a supported image type
+                    if (VISION_SUPPORTED_MIME_TYPES.includes(part.inlineData.mimeType)) {
+                        contentParts.push({
+                            type: 'image_url',
+                            image_url: {
+                                url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+                            }
+                        });
+                    }
+                    // Note: Unsupported file types are blocked by App.ts validation before reaching here
+                }
+            }
+
+            // If we have multipart content, use the array format
+            if (contentParts.length > 0) {
+                messages.push({ role: 'user', content: contentParts });
+            }
+        } else {
+            // Legacy behavior: simple string
+            if (systemInstruction) {
+                messages.push({ role: 'system', content: systemInstruction });
+            }
+
+            const userContent = typeof promptOrParts === 'string' ? promptOrParts : String(promptOrParts);
             messages.push({ role: 'user', content: userContent });
         }
 
@@ -382,9 +467,37 @@ export class AnthropicProvider implements AIProvider {
             if (systemMessages.length > 0) {
                 systemPrompt = systemMessages.join('\n\n');
             }
+        } else if (Array.isArray(promptOrParts) && promptOrParts.length > 0 && !isStructuredMessages(promptOrParts)) {
+            // Handle Part[] with potential images (vision support)
+            // Build multipart content array for Anthropic vision format
+            const contentParts: any[] = [];
+
+            for (const part of promptOrParts) {
+                if (hasText(part)) {
+                    contentParts.push({ type: 'text', text: part.text });
+                } else if (hasInlineData(part)) {
+                    // Check if this is a supported image type
+                    if (VISION_SUPPORTED_MIME_TYPES.includes(part.inlineData.mimeType)) {
+                        contentParts.push({
+                            type: 'image',
+                            source: {
+                                type: 'base64',
+                                media_type: part.inlineData.mimeType,
+                                data: part.inlineData.data
+                            }
+                        });
+                    }
+                    // Note: Unsupported file types are blocked by App.ts validation before reaching here
+                }
+            }
+
+            // If we have multipart content, use the array format
+            if (contentParts.length > 0) {
+                messages = [{ role: 'user', content: contentParts }];
+            }
         } else {
-            // Legacy behavior: single user message
-            const userContent = typeof promptOrParts === 'string' ? promptOrParts : promptOrParts.map(p => p.text).join('\n');
+            // Legacy behavior: single user message (string)
+            const userContent = typeof promptOrParts === 'string' ? promptOrParts : String(promptOrParts);
             messages = [{ role: 'user', content: userContent }];
         }
 

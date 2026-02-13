@@ -7,8 +7,8 @@ import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { ContextualState, ContextualMessage } from './ContextualCore';
-import { renderMathContent } from '../Components/RenderMathMarkdown';
-import { openEmbeddedModal } from '../Components/EmbeddedModal';
+import { renderMathContent, useHighlighting } from '../Styles/Components/RenderMathMarkdown';
+import { openEmbeddedModal } from '../Styles/Components/EmbeddedModal';
 import { FaRobot, FaStop, FaDatabase, FaSearch } from 'react-icons/fa';
 import { MdOutlineTaskAlt } from 'react-icons/md';
 import { CgSandClock } from 'react-icons/cg';
@@ -25,7 +25,7 @@ function ContextualUI({ state, onStop }: ContextualUIProps) {
     // Update evolution viewer when content history changes
     React.useEffect(() => {
         const updateViewer = async () => {
-            const { updateEvolutionViewerIfOpen } = await import('../Components/DiffModal/EvolutionViewer');
+            const { updateEvolutionViewerIfOpen } = await import('../Styles/Components/DiffModal/EvolutionViewer');
             updateEvolutionViewerIfOpen(state.id, state.contentHistory);
         };
         updateViewer();
@@ -55,6 +55,9 @@ function ContextualUI({ state, onStop }: ContextualUIProps) {
 // Left Panel - Current Best Generation
 const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: string; state: ContextualState }> = ({ content, state }) => {
     const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+
+    // Subscribe to highlighting updates
+    useHighlighting();
 
     // Check sidebar state on mount and listen for changes
     React.useEffect(() => {
@@ -148,7 +151,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
                     <button
                         className="action-btn"
                         onClick={async () => {
-                            const { openEvolutionViewerFromHistory } = await import('../Components/DiffModal/EvolutionViewer');
+                            const { openEvolutionViewerFromHistory } = await import('../Styles/Components/DiffModal/EvolutionViewer');
                             openEvolutionViewerFromHistory(state.contentHistory, state.id);
                         }}
                         title="View content evolution timeline (updates live)"
@@ -293,6 +296,9 @@ const AgentActivityPanel: React.FC<{ state: ContextualState; onStop: () => void 
 // Minimal Message Card (similar to verification report in Agentic mode)
 const MinimalMessageCard: React.FC<{ message: ContextualMessage; allMessages: ContextualMessage[] }> = ({ message, allMessages }) => {
     const [expanded, setExpanded] = React.useState(false);
+
+    // Subscribe to highlighting updates
+    useHighlighting();
 
     const getRoleLabel = (role: string) => {
         switch (role) {
@@ -494,4 +500,4 @@ export function renderIterativeCorrectionsUI(
     return root;
 }
 
-// Note: Modal functions removed - now using openEmbeddedModal from Components/EmbeddedModal.ts
+// Note: Modal functions removed - now using openEmbeddedModal from Styles/Components/EmbeddedModal.ts

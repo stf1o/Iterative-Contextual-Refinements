@@ -11,7 +11,7 @@ import ReactDOM from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { AgenticState, AgenticMessage, SystemBlock } from '../Agentic/AgenticCore';
 import { AgentActivityPanel } from '../Agentic/AgenticUI';
-import { renderMathContent } from '../Components/RenderMathMarkdown';
+import { renderMathContent } from '../Styles/Components/RenderMathMarkdown';
 import {
     AdaptiveDeepthinkState,
     AdaptiveDeepthinkConversationManager,
@@ -838,9 +838,12 @@ export function renderAdaptiveDeepthinkMode() {
 export async function startAdaptiveDeepthinkProcess(
     question: string,
     customPrompts: CustomizablePromptsAdaptiveDeepthink,
-    imageBase64?: string | null,
-    imageMimeType?: string | null
+    images: Array<{ base64: string, mimeType: string }> = []
 ) {
+    // Stop any existing process
+    if (activeAdaptiveDeepthinkState) {
+        stopAdaptiveDeepthinkProcess();
+    }
     if (!question || globalState.isAdaptiveDeepthinkRunning) return;
 
     // Create state
@@ -881,15 +884,17 @@ export async function startAdaptiveDeepthinkProcess(
     // Render initial UI
     renderAdaptiveDeepthinkMode();
 
-    // Start the orchestration loop
-    await runAdaptiveDeepthinkLoop(customPrompts, imageBase64, imageMimeType);
+    // Start the process in the background
+    startAdaptiveDeepthinkSession(question, customPrompts, images).catch(err => {
+        console.error("Adaptive Deepthink Error:", err);
+    });
 }
 
 // Main orchestration loop
-async function runAdaptiveDeepthinkLoop(
+async function startAdaptiveDeepthinkSession(
+    question: string,
     customPrompts: CustomizablePromptsAdaptiveDeepthink,
-    imageBase64?: string | null,
-    imageMimeType?: string | null
+    images: Array<{ base64: string, mimeType: string }> = []
 ) {
     if (!activeAdaptiveDeepthinkState || !globalState.isAdaptiveDeepthinkRunning) return;
 
@@ -978,12 +983,12 @@ async function runAdaptiveDeepthinkLoop(
                         await new Promise(resolve => setTimeout(resolve, delay));
                     }
 
-                    const promptParts: any[] = [{ text: prompt }];
-                    if (imageBase64 && imageMimeType) {
+                    const promptParts: any[] = [{ text: prompt }]; // Using any[] to match Gemini expectations broadly or fix type mismatch
+                    images.slice().reverse().forEach(img => {
                         promptParts.unshift({
-                            inlineData: { mimeType: imageMimeType, data: imageBase64 }
+                            inlineData: { mimeType: img.mimeType, data: img.base64 }
                         });
-                    }
+                    });
 
                     const response = await callAI(
                         promptParts,
@@ -1106,8 +1111,7 @@ async function runAdaptiveDeepthinkLoop(
                 activeAdaptiveDeepthinkState.coreState,
                 agentContext,
                 deepthinkPrompts,
-                imageBase64,
-                imageMimeType
+                images
             );
 
             // Parse tool result and update Deepthink state IMMEDIATELY

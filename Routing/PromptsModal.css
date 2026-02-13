@@ -336,7 +336,7 @@ textarea.prompt-textarea:focus {
     border-top: none;
     border-bottom-left-radius: var(--border-radius-sm);
     border-bottom-right-radius: var(--border-radius-sm);
-    z-index: 100;
+    z-index: var(--z-index-dropdown);
     display: none;
     box-shadow: var(--shadow-lg);
 }

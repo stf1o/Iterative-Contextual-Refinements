@@ -7,7 +7,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { AgenticState, AgenticMessage } from './AgenticCore';
-import { renderMathContent } from '../Components/RenderMathMarkdown';
+import { renderMathContent } from '../Styles/Components/RenderMathMarkdown';
 import { FaRobot, FaUser, FaCheckCircle, FaExclamationTriangle, FaStop, FaCalendarAlt, FaTag, FaFilePdf, FaExternalLinkAlt, FaChevronDown, FaChevronRight } from 'react-icons/fa';
 import { MdVerifiedUser } from 'react-icons/md';
 import { IoMdPaper } from 'react-icons/io';
@@ -709,7 +709,7 @@ export const CurrentTextPanel: React.FC<{ content: string; originalContent: stri
                     <button
                         className="action-btn"
                         onClick={async () => {
-                            const { openEvolutionViewerFromHistory } = await import("../Components/DiffModal/EvolutionViewer");
+                            const { openEvolutionViewerFromHistory } = await import("../Styles/Components/DiffModal/EvolutionViewer");
                             openEvolutionViewerFromHistory(state.contentHistory, state.id);
                         }}
                         title="View content evolution timeline (updates live)"
@@ -755,7 +755,7 @@ export const AgenticUI: React.FC<AgenticUIProps> = ({ state, onStop }) => {
     // Update evolution viewer when content history changes
     React.useEffect(() => {
         const updateViewer = async () => {
-            const { updateEvolutionViewerIfOpen } = await import('../Components/DiffModal/EvolutionViewer');
+            const { updateEvolutionViewerIfOpen } = await import('../Styles/Components/DiffModal/EvolutionViewer');
             updateEvolutionViewerIfOpen(state.id, state.contentHistory);
         };
         updateViewer();

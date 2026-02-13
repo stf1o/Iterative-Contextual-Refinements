@@ -3,9 +3,16 @@ import { globalState } from '../Core/State';
 import { PipelineStopRequestedError } from '../Core/Types';
 import { updatePipelineStatusUI, updateIterationUI } from './WebsiteUI';
 import { getSelectedRefinementStages, getSelectedTopP, callAI, getSelectedModel } from '../Routing';
-import { renderPrompt } from '../Utils/PromptUtils';
-import { cleanHtmlOutput, isHtmlContent } from '../Parsing';
+import { cleanHtmlOutput, isHtmlContent } from '../Core/Parsing';
 import { QUALITY_MODE_SYSTEM_PROMPT } from './RefinePrompts';
+
+function renderPrompt(template: string, data: Record<string, string>): string {
+    let rendered = template;
+    for (const key in data) {
+        rendered = rendered.replace(new RegExp(`{{${key}}}`, 'g'), data[key] || '');
+    }
+    return rendered;
+}
 
 const MAX_RETRIES = 3;
 const INITIAL_DELAY_MS = 20000;
@@ -53,10 +60,6 @@ export async function runPipeline(pipelineId: number, initialRequest: string) {
                 } else if (globalState.currentMode === 'deepthink') {
                     const modelField = `model_${agentKey}` as keyof typeof globalState.customPromptsDeepthinkState;
                     const selectedModel = globalState.customPromptsDeepthinkState[modelField] as string | undefined;
-                    return selectedModel;
-                } else if (globalState.currentMode === 'react') {
-                    const modelField = `model_${agentKey}` as keyof typeof globalState.customPromptsReactState;
-                    const selectedModel = globalState.customPromptsReactState[modelField] as string | undefined;
                     return selectedModel;
                 }
                 return undefined;

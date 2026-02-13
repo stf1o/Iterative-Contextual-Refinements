@@ -35,7 +35,7 @@ export interface AdaptiveDeepthinkState {
     question: string;
     status: 'idle' | 'processing' | 'completed' | 'error';
     error?: string;
-    
+
     // Data stores with unique IDs
     strategies: Map<string, { text: string }>;
     hypotheses: Map<string, { text: string }>;
@@ -43,7 +43,7 @@ export interface AdaptiveDeepthinkState {
     executions: Map<string, { strategy: string; execution: string }>;
     critiques: Map<string, { critique: string }>;
     correctedSolutions: Map<string, { strategy: string; correctedSolution: string }>;
-    
+
     // Final result
     selectedSolution?: string;
 }
@@ -87,11 +87,11 @@ export class AdaptiveDeepthinkConversationManager {
 
     async buildPrompt(): Promise<string> {
         const history = await this.getConversationHistory();
-        
+
         if (!history || history.trim().length === 0) {
             return `Core Challenge: ${this.question}`;
         }
-        
+
         return history;
     }
 
@@ -214,8 +214,7 @@ export async function executeAdaptiveDeepthinkTool(
     state: AdaptiveDeepthinkState,
     context: AgentExecutionContext,
     deepthinkPrompts: any,
-    imageBase64?: string | null,
-    imageMimeType?: string | null
+    images: Array<{ base64: string, mimeType: string }> = []
 ): Promise<string> {
     try {
         switch (toolCall.type) {
@@ -227,8 +226,7 @@ export async function executeAdaptiveDeepthinkTool(
                     deepthinkPrompts.sys_deepthink_initialStrategy,
                     deepthinkPrompts.user_deepthink_initialStrategy,
                     context,
-                    imageBase64,
-                    imageMimeType
+                    images
                 );
 
                 if (!response.success || !response.data) {
@@ -254,8 +252,7 @@ export async function executeAdaptiveDeepthinkTool(
                     deepthinkPrompts.sys_deepthink_hypothesisGeneration,
                     deepthinkPrompts.user_deepthink_hypothesisGeneration,
                     context,
-                    imageBase64,
-                    imageMimeType
+                    images
                 );
 
                 if (!response.success || !response.data) {
@@ -282,8 +279,7 @@ export async function executeAdaptiveDeepthinkTool(
                     deepthinkPrompts.sys_deepthink_hypothesisTester,
                     deepthinkPrompts.user_deepthink_hypothesisTester,
                     context,
-                    imageBase64,
-                    imageMimeType
+                    images
                 );
 
                 if (!response.success || !response.data) {
@@ -318,8 +314,7 @@ export async function executeAdaptiveDeepthinkTool(
                     deepthinkPrompts.sys_deepthink_solutionAttempt,
                     deepthinkPrompts.user_deepthink_solutionAttempt,
                     context,
-                    imageBase64,
-                    imageMimeType
+                    images
                 );
 
                 if (!response.success || !response.data) {
@@ -351,8 +346,7 @@ export async function executeAdaptiveDeepthinkTool(
                     deepthinkPrompts.sys_deepthink_solutionCritique,
                     deepthinkPrompts.user_deepthink_solutionCritique,
                     context,
-                    imageBase64,
-                    imageMimeType
+                    images
                 );
 
                 if (!response.success || !response.data) {
@@ -380,8 +374,7 @@ export async function executeAdaptiveDeepthinkTool(
                     deepthinkPrompts.sys_deepthink_selfImprovement,
                     deepthinkPrompts.user_deepthink_selfImprovement,
                     context,
-                    imageBase64,
-                    imageMimeType
+                    images
                 );
 
                 if (!response.success || !response.data) {
@@ -415,8 +408,7 @@ export async function executeAdaptiveDeepthinkTool(
                     deepthinkPrompts.sys_deepthink_finalJudge,
                     'Evaluate all provided solutions and select the best one. Provide your reasoning and the selected solution.\n\nCore Challenge: {{originalProblemText}}\n\n{{allSolutions}}',
                     context,
-                    imageBase64,
-                    imageMimeType
+                    images
                 );
 
                 if (!response.success || !response.data) {

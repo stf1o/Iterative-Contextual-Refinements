@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Type definitions for website and react prompts
+// Type definitions for website prompts
 export interface CustomizablePromptsWebsite {
     sys_initialGen: string;
     user_initialGen: string;

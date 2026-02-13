@@ -1,0 +1,42 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ * 
+ * StateSerializer - Public exports for the state serialization module
+ */
+
+// Core interfaces and types
+export {
+    type ModeStateHandler,
+    getModeHandler,
+} from './ModeStateHandler';
+
+// State sanitization
+export {
+    sanitizeState,
+} from './StateSanitizer';
+
+// Versioning and migration
+export {
+    CURRENT_STATE_VERSION,
+    type VersionedState,
+    type ExportedConfigV1,
+    isVersionedState,
+    migrateToLatest,
+    convertLegacyToVersioned,
+} from './StateVersion';
+
+// Serialization engine
+export {
+    type SerializationFormat,
+    type SerializationOptions,
+    serialize,
+    deserialize,
+    downloadBlob,
+    getFileExtension,
+    formatBytes,
+    estimateSerializedSize,
+} from './SerializationEngine';
+
+// Initialize handlers on import
+import './handlers';

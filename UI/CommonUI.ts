@@ -37,62 +37,44 @@ export function toggleCodeBlock(codeId: string) {
     }
 }
 
-// Copy code block with green feedback
+// SVG icons for copy button states
+const COPY_ICON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+</svg>`;
+
+const CHECK_ICON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polyline points="20 6 9 17 4 12"></polyline>
+</svg>`;
+
+// Copy code block with visual feedback
 export async function copyCodeBlock(codeId: string) {
     try {
-        const codeElement = document.getElementById(codeId);
+        const copyBtn = document.querySelector(`.copy-code-btn[data-code-id="${codeId}"]`) as HTMLElement | null;
+        if (!copyBtn) return;
+
+        // Find code element - try by ID first, then fall back to container search
+        let codeElement = document.getElementById(codeId);
+        if (!codeElement) {
+            const container = copyBtn.closest('.code-block-container');
+            codeElement = container?.querySelector('.code-block-content code') as HTMLElement | null;
+        }
         if (!codeElement) return;
 
         const codeText = codeElement.textContent || '';
         await navigator.clipboard.writeText(codeText);
 
-        const copyBtn = document.querySelector(`.copy-code-btn[data-code-id="${codeId}"]`) as HTMLElement | null;
-        if (copyBtn) {
-            const isLightMode = document.body.classList.contains('light-mode');
-            const accentColor = isLightMode ? '#2E7D32' : '#00C853';
-            const accentBg = isLightMode ? 'rgba(46, 125, 50, 0.2)' : 'rgba(0, 200, 83, 0.25)';
-            const accentBorder = isLightMode ? 'rgba(46, 125, 50, 0.35)' : 'rgba(0, 200, 83, 0.4)';
+        // Swap to check icon and add copied class
+        copyBtn.innerHTML = CHECK_ICON_SVG;
+        copyBtn.classList.add('copied');
 
-            // Store original styles
-            const originalStyle = copyBtn.getAttribute('style') || '';
-
-            // Force inline styles with setAttribute (highest priority)
-            copyBtn.setAttribute('style', `
-                color: ${accentColor} !important;
-                background: ${accentBg} !important;
-                background-color: ${accentBg} !important;
-                border: 2px solid ${accentBorder} !important;
-                box-shadow: 0 0 12px ${accentBorder} !important;
-                opacity: 1 !important;
-                transform: scale(1) !important;
-                filter: none !important;
-            `);
-
-            copyBtn.classList.add('copied');
-
-            // Force SVG color change directly
-            const svg = copyBtn.querySelector('svg');
-            if (svg) {
-                svg.querySelectorAll('rect, path, polyline, line, circle').forEach((shape) => {
-                    shape.setAttribute('stroke', accentColor);
-                    shape.setAttribute('fill', 'none');
-                });
-            }
-
-            // Remove after delay
-            setTimeout(() => {
-                copyBtn.setAttribute('style', originalStyle);
-
-                // Reset SVG to currentColor
-                if (svg) {
-                    svg.querySelectorAll('rect, path, polyline, line, circle').forEach((shape) => {
-                        shape.setAttribute('stroke', 'currentColor');
-                    });
-                }
-            }, 1200);
-        }
+        // Revert after delay
+        setTimeout(() => {
+            copyBtn.innerHTML = COPY_ICON_SVG;
+            copyBtn.classList.remove('copied');
+        }, 1500);
     } catch (_) {
-        // Removed console.error
+        // Silent fail
     }
 }
 

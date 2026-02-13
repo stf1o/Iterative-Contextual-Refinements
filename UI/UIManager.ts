@@ -1,14 +1,13 @@
 
 import { globalState } from '../Core/State';
 import { updateControlsState } from './Controls';
-import { renderReactModePipeline } from '../React/ReactUI';
 import { renderDeepthinkConfigPanelInContainer } from '../Deepthink/DeepthinkConfigPanel';
 import { renderAgenticMode } from '../Agentic/Agentic';
-import { renderGenerativeUIMode } from '../GenerativeUI/GenerativeUI';
 import { renderContextualMode } from '../Contextual/Contextual';
 import { renderAdaptiveDeepthinkMode } from '../AdaptiveDeepthink';
 import { activateTab, clearTabsContainer } from './Tabs';
 import { updatePipelineStatusUI, renderIteration, attachIterationEventListeners } from '../Refine/WebsiteUI';
+import { updateCodeExecutionToggleVisibility } from './setupCodeExecutionToggle';
 
 export function updateUIAfterModeChange() {
     const { currentMode } = globalState;
@@ -22,7 +21,7 @@ export function updateUIAfterModeChange() {
     });
 
     // Update body class for mode-specific styling
-    document.body.classList.remove('mode-website', 'mode-deepthink', 'mode-react', 'mode-agentic', 'mode-generativeui', 'mode-contextual', 'mode-adaptive-deepthink');
+    document.body.classList.remove('mode-website', 'mode-deepthink', 'mode-agentic', 'mode-contextual', 'mode-adaptive-deepthink');
     document.body.classList.add(`mode-${currentMode}`);
 
     // Update header title
@@ -31,9 +30,7 @@ export function updateUIAfterModeChange() {
         switch (currentMode) {
             case 'website': headerTitle.textContent = 'Iterative Studio'; break;
             case 'deepthink': headerTitle.textContent = 'Deepthink'; break;
-            case 'react': headerTitle.textContent = 'React Architect'; break;
             case 'agentic': headerTitle.textContent = 'Agentic Refinements'; break;
-            case 'generativeui': headerTitle.textContent = 'Generative UI'; break;
             case 'contextual': headerTitle.textContent = 'Contextual Refinements'; break;
             case 'adaptive-deepthink': headerTitle.textContent = 'Adaptive Deepthink'; break;
         }
@@ -42,18 +39,15 @@ export function updateUIAfterModeChange() {
     // Show/hide mode specific controls
     const websiteControls = document.getElementById('website-mode-controls');
     const deepthinkControls = document.getElementById('deepthink-mode-controls');
-    const reactControls = document.getElementById('react-mode-controls');
     const agenticControls = document.getElementById('agentic-mode-controls');
-    const generativeUIControls = document.getElementById('generativeui-mode-controls');
-    const contextualControls = document.getElementById('contextual-mode-controls');
     const adaptiveDeepthinkControls = document.getElementById('adaptive-deepthink-mode-controls');
 
     if (websiteControls) websiteControls.style.display = currentMode === 'website' ? 'block' : 'none';
     if (deepthinkControls) deepthinkControls.style.display = currentMode === 'deepthink' ? 'block' : 'none';
-    if (reactControls) reactControls.style.display = currentMode === 'react' ? 'block' : 'none';
     if (agenticControls) agenticControls.style.display = currentMode === 'agentic' ? 'block' : 'none';
-    if (generativeUIControls) generativeUIControls.style.display = currentMode === 'generativeui' ? 'block' : 'none';
-    if (contextualControls) contextualControls.style.display = currentMode === 'contextual' ? 'block' : 'none';
+    // Contextual mode controls visibility is handled by updateCodeExecutionToggleVisibility 
+    // (checks both mode AND provider for Gemini code execution toggle)
+    updateCodeExecutionToggleVisibility(currentMode);
     if (adaptiveDeepthinkControls) adaptiveDeepthinkControls.style.display = currentMode === 'adaptive-deepthink' ? 'block' : 'none';
 
     // Update main content area
@@ -62,13 +56,9 @@ export function updateUIAfterModeChange() {
 
     if (pipelinesContentContainer && tabsNavContainer) {
         if (currentMode === 'deepthink') {
-            renderDeepthinkConfigPanelInContainer();
-        } else if (currentMode === 'react') {
-            renderReactModePipeline();
+            renderDeepthinkConfigPanelInContainer(pipelinesContentContainer);
         } else if (currentMode === 'agentic') {
             renderAgenticMode();
-        } else if (currentMode === 'generativeui') {
-            renderGenerativeUIMode();
         } else if (currentMode === 'contextual') {
             renderContextualMode();
         } else if (currentMode === 'adaptive-deepthink') {

@@ -16,6 +16,8 @@ export interface DeepthinkConfigPanelProps {
     dissectedObservationsEnabled: boolean;
     iterativeCorrectionsEnabled: boolean;
     provideAllSolutionsEnabled: boolean;
+    codeExecutionEnabled: boolean;
+    isGeminiProvider: boolean;
     onStrategiesChange: (value: number) => void;
     onSubStrategiesChange: (value: number) => void;
     onHypothesisChange: (value: number) => void;
@@ -27,6 +29,7 @@ export interface DeepthinkConfigPanelProps {
     onDissectedObservationsToggle: (enabled: boolean) => void;
     onIterativeCorrectionsToggle: (enabled: boolean) => void;
     onProvideAllSolutionsToggle: (enabled: boolean) => void;
+    onCodeExecutionToggle: (enabled: boolean) => void;
 }
 
 export function renderDeepthinkConfigPanel(container: HTMLElement, props: DeepthinkConfigPanelProps): void {
@@ -180,6 +183,17 @@ export function renderDeepthinkConfigPanel(container: HTMLElement, props: Deepth
                                 Execution & Refinement Agents
                             </div>
                         </div>
+                        <!-- Code Execution Toggle (Gemini only) -->
+                        <div class="code-execution-toggle-container" id="dt-code-execution-container" style="display: ${props.isGeminiProvider ? 'flex' : 'none'};">
+                            <label class="code-execution-toggle-label">
+                                <input type="checkbox" id="dt-code-execution-toggle" class="code-execution-toggle-input" ${props.codeExecutionEnabled ? 'checked' : ''}>
+                                <span class="code-execution-toggle-slider"></span>
+                            </label>
+                            <div class="code-execution-toggle-info">
+                                <span class="code-execution-toggle-title">Code Execution</span>
+                                <span class="code-execution-toggle-subtitle">Python sandbox for agents</span>
+                            </div>
+                        </div>
                     </div>
                     <!-- Hypothesis Slider Card -->
                     <div class="hypothesis-slider-card">
@@ -295,7 +309,7 @@ function attachConfigPanelEventListeners(container: HTMLElement, props: Deepthin
         const initValue = parseInt(strategiesSlider.value);
         const initMax = parseInt(strategiesSlider.max);
         const initPercentage = ((initValue - 1) / (initMax - 1)) * 100;
-        strategiesSlider.style.background = `linear-gradient(to right, #e86b6b 0%, #e86b6b ${initPercentage}%, rgba(255, 255, 255, 0.1) ${initPercentage}%, rgba(255, 255, 255, 0.1) 100%)`;
+        strategiesSlider.style.background = `linear-gradient(to right, #e86b6b 0%, #e86b6b ${initPercentage}%, var(--slider-track-color) ${initPercentage}%, var(--slider-track-color) 100%)`;
 
         strategiesSlider.addEventListener('input', (e) => {
             const value = parseInt((e.target as HTMLInputElement).value);
@@ -304,7 +318,7 @@ function attachConfigPanelEventListeners(container: HTMLElement, props: Deepthin
             // Update slider fill (use current max attribute)
             const max = parseInt(strategiesSlider.max);
             const percentage = ((value - 1) / (max - 1)) * 100;
-            strategiesSlider.style.background = `linear-gradient(to right, #e86b6b 0%, #e86b6b ${percentage}%, rgba(255, 255, 255, 0.1) ${percentage}%, rgba(255, 255, 255, 0.1) 100%)`;
+            strategiesSlider.style.background = `linear-gradient(to right, #e86b6b 0%, #e86b6b ${percentage}%, var(--slider-track-color) ${percentage}%, var(--slider-track-color) 100%)`;
 
             props.onStrategiesChange(value);
         });
@@ -354,7 +368,7 @@ function attachConfigPanelEventListeners(container: HTMLElement, props: Deepthin
 
             // Update slider fill
             const percentage = (value / 10) * 100;
-            subStrategiesSlider.style.background = `linear-gradient(to right, #e86b6b 0%, #e86b6b ${percentage}%, rgba(255, 255, 255, 0.1) ${percentage}%, rgba(255, 255, 255, 0.1) 100%)`;
+            subStrategiesSlider.style.background = `linear-gradient(to right, #e86b6b 0%, #e86b6b ${percentage}%, var(--slider-track-color) ${percentage}%, var(--slider-track-color) 100%)`;
 
             // When value is 0, disable sub-strategies
             props.onSkipSubStrategiesToggle(value === 0);
@@ -372,7 +386,7 @@ function attachConfigPanelEventListeners(container: HTMLElement, props: Deepthin
 
         // Initialize fill
         const initPercentage = (initialValue / 10) * 100;
-        subStrategiesSlider.style.background = `linear-gradient(to right, #e86b6b 0%, #e86b6b ${initPercentage}%, rgba(255, 255, 255, 0.1) ${initPercentage}%, rgba(255, 255, 255, 0.1) 100%)`;
+        subStrategiesSlider.style.background = `linear-gradient(to right, #e86b6b 0%, #e86b6b ${initPercentage}%, var(--slider-track-color) ${initPercentage}%, var(--slider-track-color) 100%)`;
     }
 
     // Hypothesis toggle with collapse/expand
@@ -418,7 +432,7 @@ function attachConfigPanelEventListeners(container: HTMLElement, props: Deepthin
         // Initialize fill
         const initValue = parseInt(hypothesisSlider.value);
         const initPercentage = ((initValue - 1) / 5) * 100; // min=1, max=6, range=5
-        hypothesisSlider.style.background = `linear-gradient(to right, var(--accent-blue) 0%, var(--accent-blue) ${initPercentage}%, rgba(66, 133, 244, 0.1) ${initPercentage}%, rgba(66, 133, 244, 0.1) 100%)`;
+        hypothesisSlider.style.background = `linear-gradient(to right, var(--accent-blue) 0%, var(--accent-blue) ${initPercentage}%, var(--slider-track-color) ${initPercentage}%, var(--slider-track-color) 100%)`;
 
         hypothesisSlider.addEventListener('input', (e) => {
             const value = parseInt((e.target as HTMLInputElement).value);
@@ -426,7 +440,7 @@ function attachConfigPanelEventListeners(container: HTMLElement, props: Deepthin
 
             // Update slider fill
             const percentage = ((value - 1) / 5) * 100;
-            hypothesisSlider.style.background = `linear-gradient(to right, var(--accent-blue) 0%, var(--accent-blue) ${percentage}%, rgba(66, 133, 244, 0.1) ${percentage}%, rgba(66, 133, 244, 0.1) 100%)`;
+            hypothesisSlider.style.background = `linear-gradient(to right, var(--accent-blue) 0%, var(--accent-blue) ${percentage}%, var(--slider-track-color) ${percentage}%, var(--slider-track-color) 100%)`;
 
             props.onHypothesisChange(value);
         });
@@ -454,91 +468,13 @@ function attachConfigPanelEventListeners(container: HTMLElement, props: Deepthin
         });
     }
 
-    // Refinement toggle
+    // Refinement toggle - delegate to controller via props
     const refinementToggle = container.querySelector('#dt-refinement-toggle') as HTMLInputElement;
     if (refinementToggle) {
         refinementToggle.addEventListener('change', (e) => {
             const checked = (e.target as HTMLInputElement).checked;
             props.onRefinementToggle(checked);
-
-            // Update disabled state for all refinement method checkboxes and cards
-            const synthesisToggle = container.querySelector('#dt-dissected-observations-toggle') as HTMLInputElement;
-            const fullContextToggle = container.querySelector('#dt-provide-all-solutions-toggle') as HTMLInputElement;
-            const iterativeToggle = container.querySelector('#dt-iterative-corrections-toggle') as HTMLInputElement;
-            const postQualityFilter = container.querySelector('#dt-post-quality-filter-toggle') as HTMLInputElement;
-
-            const synthesisCard = container.querySelector('[data-method="synthesis"]') as HTMLElement;
-            const fullContextCard = container.querySelector('[data-method="fullcontext"]') as HTMLElement;
-            const iterativeCard = container.querySelector('[data-method="iterative"]') as HTMLElement;
-            const postQualityCard = container.querySelector('.post-quality-filter-card') as HTMLElement;
-
-            if (checked) {
-                // Enable all method cards (respecting iterative corrections rules)
-                const iterativeIsOn = iterativeToggle && iterativeToggle.checked;
-                if (synthesisToggle) synthesisToggle.disabled = iterativeIsOn;
-                if (fullContextToggle) fullContextToggle.disabled = iterativeIsOn;
-                if (iterativeToggle) iterativeToggle.disabled = false;
-                if (postQualityFilter) postQualityFilter.disabled = !iterativeIsOn; // Only enabled if iterative is on
-
-                // Remove disabled class from cards
-                if (synthesisCard) synthesisCard.classList.toggle('disabled', iterativeIsOn);
-                if (fullContextCard) fullContextCard.classList.toggle('disabled', iterativeIsOn);
-                if (iterativeCard) iterativeCard.classList.remove('disabled');
-                if (postQualityCard) postQualityCard.classList.toggle('disabled', !iterativeIsOn);
-            } else {
-                // Disable and uncheck all method cards when refinement is disabled
-                if (synthesisToggle) {
-                    synthesisToggle.checked = false;
-                    synthesisToggle.disabled = true;
-                    props.onDissectedObservationsToggle(false);
-                }
-                if (fullContextToggle) {
-                    fullContextToggle.checked = false;
-                    fullContextToggle.disabled = true;
-                    props.onProvideAllSolutionsToggle(false);
-                }
-                if (iterativeToggle) {
-                    iterativeToggle.checked = false;
-                    iterativeToggle.disabled = true;
-                    props.onIterativeCorrectionsToggle(false);
-                }
-                if (postQualityFilter) {
-                    postQualityFilter.checked = false;
-                    postQualityFilter.disabled = true;
-                    props.onPostQualityFilterToggle(false);
-                }
-
-                // Restore strategies max to 10 (since iterative corrections is being disabled)
-                const strategiesSlider = container.querySelector('#dt-strategies-slider') as HTMLInputElement;
-                if (strategiesSlider) {
-                    strategiesSlider.max = '10';
-                }
-
-                // Re-enable sub-strategies slider (since iterative corrections is being disabled)
-                const subStrategiesSlider = container.querySelector('#dt-sub-strategies-slider') as HTMLInputElement;
-                if (subStrategiesSlider) {
-                    subStrategiesSlider.disabled = false;
-
-                    // Remove dimmed state if value > 0
-                    const currentValue = parseInt(subStrategiesSlider.value);
-                    if (currentValue > 0) {
-                        const subStrategiesSection = subStrategiesSlider.closest('.strategy-execution-section') as HTMLElement;
-                        if (subStrategiesSection) {
-                            subStrategiesSection.classList.remove('dimmed');
-                            const disabledLabel = subStrategiesSection.querySelector('.disabled-label');
-                            if (disabledLabel) {
-                                disabledLabel.remove();
-                            }
-                        }
-                    }
-                }
-
-                // Add disabled class to all cards
-                if (synthesisCard) synthesisCard.classList.add('disabled');
-                if (fullContextCard) fullContextCard.classList.add('disabled');
-                if (iterativeCard) iterativeCard.classList.add('disabled');
-                if (postQualityCard) postQualityCard.classList.add('disabled');
-            }
+            // UI updates are handled by controller events -> updateConfigPanelUI
         });
     }
 
@@ -551,142 +487,14 @@ function attachConfigPanelEventListeners(container: HTMLElement, props: Deepthin
         });
     }
 
-    // Iterative corrections (with special logic)
+    // Iterative corrections - delegate to controller via props
+    // All side-effects (limiting strategies, disabling toggles) are handled by the controller
     const iterativeCorrectionsToggle = container.querySelector('#dt-iterative-corrections-toggle') as HTMLInputElement;
     if (iterativeCorrectionsToggle) {
         iterativeCorrectionsToggle.addEventListener('change', (e) => {
             const checked = (e.target as HTMLInputElement).checked;
             props.onIterativeCorrectionsToggle(checked);
-
-            if (checked) {
-                // When iterative corrections is ON:
-                // 0. Limit strategies to max 5
-                const strategiesSlider = container.querySelector('#dt-strategies-slider') as HTMLInputElement;
-                const strategiesValue = container.querySelector('#dt-strategies-value') as HTMLElement;
-                if (strategiesSlider && strategiesValue) {
-                    const currentStrategies = parseInt(strategiesSlider.value);
-                    strategiesSlider.max = '5';
-
-                    // If current value > 5, set it to 5
-                    if (currentStrategies > 5) {
-                        strategiesSlider.value = '5';
-                        strategiesValue.textContent = '5';
-                        props.onStrategiesChange(5);
-
-                        // Update slider fill
-                        const percentage = ((5 - 1) / 4) * 100; // min=1, max=5, range=4
-                        strategiesSlider.style.background = `linear-gradient(to right, #e86b6b 0%, #e86b6b ${percentage}%, rgba(255, 255, 255, 0.1) ${percentage}%, rgba(255, 255, 255, 0.1) 100%)`;
-                    }
-                }
-
-                // 1. Disable synthesis and full context
-                const synthesisToggle = container.querySelector('#dt-dissected-observations-toggle') as HTMLInputElement;
-                const fullContextToggle = container.querySelector('#dt-provide-all-solutions-toggle') as HTMLInputElement;
-                const synthesisCard = container.querySelector('[data-method="synthesis"]') as HTMLElement;
-                const fullContextCard = container.querySelector('[data-method="fullcontext"]') as HTMLElement;
-
-                if (synthesisToggle) {
-                    synthesisToggle.checked = false;
-                    synthesisToggle.disabled = true;
-                    props.onDissectedObservationsToggle(false);
-                }
-                if (fullContextToggle) {
-                    fullContextToggle.checked = false;
-                    fullContextToggle.disabled = true;
-                    props.onProvideAllSolutionsToggle(false);
-                }
-                if (synthesisCard) synthesisCard.classList.add('disabled');
-                if (fullContextCard) fullContextCard.classList.add('disabled');
-
-                // 2. Set sub-strategies to 0 (disable)
-                const subStrategiesSlider = container.querySelector('#dt-sub-strategies-slider') as HTMLInputElement;
-                if (subStrategiesSlider) {
-                    subStrategiesSlider.value = '0';
-                    subStrategiesSlider.disabled = true;
-                    const subStrategiesValue = container.querySelector('#dt-sub-strategies-value') as HTMLElement;
-                    if (subStrategiesValue) {
-                        subStrategiesValue.textContent = '0';
-                    }
-                    props.onSkipSubStrategiesToggle(true);
-
-                    // Update dots visual
-                    const dots = container.querySelectorAll('.slider-dot');
-                    dots.forEach(dot => dot.classList.remove('active'));
-
-                    // Add dimmed class and disabled label
-                    const subStrategiesSection = subStrategiesSlider.closest('.strategy-execution-section') as HTMLElement;
-                    if (subStrategiesSection) {
-                        subStrategiesSection.classList.add('dimmed');
-                        const label = subStrategiesSection.querySelector('.input-label');
-                        const existingDisabledLabel = label?.querySelector('.disabled-label');
-                        if (label && !existingDisabledLabel) {
-                            const disabledSpan = document.createElement('span');
-                            disabledSpan.className = 'disabled-label';
-                            disabledSpan.textContent = ' (Disabled)';
-                            label.appendChild(disabledSpan);
-                        }
-                    }
-                }
-
-                // 3. Enable post quality filter
-                const postQualityFilter = container.querySelector('#dt-post-quality-filter-toggle') as HTMLInputElement;
-                const postQualityCard = container.querySelector('.post-quality-filter-card') as HTMLElement;
-                if (postQualityFilter) {
-                    postQualityFilter.disabled = false;
-                }
-                if (postQualityCard) {
-                    postQualityCard.classList.remove('disabled');
-                }
-            } else {
-                // When iterative corrections is OFF:
-                // 0. Restore strategies max to 10
-                const strategiesSlider = container.querySelector('#dt-strategies-slider') as HTMLInputElement;
-                if (strategiesSlider) {
-                    strategiesSlider.max = '10';
-                }
-
-                // 1. Enable synthesis and full context
-                const synthesisToggle = container.querySelector('#dt-dissected-observations-toggle') as HTMLInputElement;
-                const fullContextToggle = container.querySelector('#dt-provide-all-solutions-toggle') as HTMLInputElement;
-                const synthesisCard = container.querySelector('[data-method="synthesis"]') as HTMLElement;
-                const fullContextCard = container.querySelector('[data-method="fullcontext"]') as HTMLElement;
-
-                if (synthesisToggle) synthesisToggle.disabled = false;
-                if (fullContextToggle) fullContextToggle.disabled = false;
-                if (synthesisCard) synthesisCard.classList.remove('disabled');
-                if (fullContextCard) fullContextCard.classList.remove('disabled');
-
-                // 2. Enable sub-strategies slider and remove dimmed state if needed
-                const subStrategiesSlider = container.querySelector('#dt-sub-strategies-slider') as HTMLInputElement;
-                if (subStrategiesSlider) {
-                    subStrategiesSlider.disabled = false;
-
-                    // If it was set to 0, user can now adjust it
-                    const currentValue = parseInt(subStrategiesSlider.value);
-                    if (currentValue > 0) {
-                        const subStrategiesSection = subStrategiesSlider.closest('.strategy-execution-section') as HTMLElement;
-                        if (subStrategiesSection) {
-                            subStrategiesSection.classList.remove('dimmed');
-                            const disabledLabel = subStrategiesSection.querySelector('.disabled-label');
-                            if (disabledLabel) {
-                                disabledLabel.remove();
-                            }
-                        }
-                    }
-                }
-
-                // 3. Disable and uncheck post quality filter
-                const postQualityFilter = container.querySelector('#dt-post-quality-filter-toggle') as HTMLInputElement;
-                const postQualityCard = container.querySelector('.post-quality-filter-card') as HTMLElement;
-                if (postQualityFilter) {
-                    postQualityFilter.checked = false;
-                    postQualityFilter.disabled = true;
-                    props.onPostQualityFilterToggle(false);
-                }
-                if (postQualityCard) {
-                    postQualityCard.classList.add('disabled');
-                }
-            }
+            // UI updates are handled by controller events -> updateConfigPanelUI
         });
     }
 
@@ -698,24 +506,32 @@ function attachConfigPanelEventListeners(container: HTMLElement, props: Deepthin
             props.onProvideAllSolutionsToggle(checked);
         });
     }
+
+    // Code execution toggle
+    const codeExecutionToggle = container.querySelector('#dt-code-execution-toggle') as HTMLInputElement;
+    if (codeExecutionToggle) {
+        codeExecutionToggle.addEventListener('change', (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            props.onCodeExecutionToggle(checked);
+        });
+    }
 }
 
 import {
-    getSelectedStrategiesCount,
-    getSelectedSubStrategiesCount,
-    getSelectedHypothesisCount,
-    getSkipSubStrategies,
-    getSelectedRedTeamAggressiveness,
-    getPostQualityFilterEnabled,
-    getRefinementEnabled,
-    getDissectedObservationsEnabled,
-    getIterativeCorrectionsEnabled,
-    getProvideAllSolutionsToCorrectors,
-    routingManager
+    getDeepthinkConfigController,
+    type DeepthinkConfigChangeEvent,
+    getProviderForCurrentModel
 } from '../Routing';
 
+/**
+ * Renders the Deepthink config panel and subscribes to controller state changes.
+ * This function now uses the centralized DeepthinkConfigController for all business logic.
+ */
 export function renderDeepthinkConfigPanelInContainer(pipelinesContentContainer: HTMLElement | null) {
     if (!pipelinesContentContainer) return;
+
+    const controller = getDeepthinkConfigController();
+    const state = controller.getState();
 
     // Hide main header for edge-to-edge config panel
     const mainHeaderContent = document.querySelector('.main-header-content') as HTMLElement;
@@ -732,121 +548,221 @@ export function renderDeepthinkConfigPanelInContainer(pipelinesContentContainer:
         sidebarCollapseButton.title = 'Sidebar collapse disabled in config view';
     }
 
-    // Get hypothesis enabled state from checkbox
-    const hypothesisToggle = document.getElementById('hypothesis-toggle') as HTMLInputElement;
-    const hypothesisEnabled = hypothesisToggle ? hypothesisToggle.checked : true;
-
-    // Clear any existing listeners
+    // Clear any existing panel
     const existingPanel = pipelinesContentContainer.querySelector('.deepthink-config-panel');
     if (existingPanel) {
         existingPanel.remove();
     }
 
+    // Render using state from controller
     renderDeepthinkConfigPanel(pipelinesContentContainer, {
-        strategiesCount: getSelectedStrategiesCount(),
-        subStrategiesCount: getSelectedSubStrategiesCount(),
-        hypothesisCount: getSelectedHypothesisCount(),
-        skipSubStrategies: getSkipSubStrategies(),
-        hypothesisEnabled: hypothesisEnabled,
-        redTeamMode: getSelectedRedTeamAggressiveness(),
-        postQualityFilterEnabled: getPostQualityFilterEnabled(),
-        refinementEnabled: getRefinementEnabled(),
-        dissectedObservationsEnabled: getDissectedObservationsEnabled(),
-        iterativeCorrectionsEnabled: getIterativeCorrectionsEnabled(),
-        provideAllSolutionsEnabled: getProvideAllSolutionsToCorrectors(),
+        strategiesCount: state.strategiesCount,
+        subStrategiesCount: state.subStrategiesCount,
+        hypothesisCount: state.hypothesisCount,
+        skipSubStrategies: state.skipSubStrategies,
+        hypothesisEnabled: state.hypothesisEnabled,
+        redTeamMode: state.redTeamMode,
+        postQualityFilterEnabled: state.postQualityFilterEnabled,
+        refinementEnabled: state.refinementEnabled,
+        dissectedObservationsEnabled: state.dissectedObservationsEnabled,
+        iterativeCorrectionsEnabled: state.iterativeCorrectionsEnabled,
+        provideAllSolutionsEnabled: state.provideAllSolutionsEnabled,
+        codeExecutionEnabled: state.codeExecutionEnabled,
+        isGeminiProvider: getProviderForCurrentModel() === 'gemini',
+
+        // === CALLBACKS: Delegate to controller ===
         onStrategiesChange: (value) => {
-            const slider = document.getElementById('strategies-slider') as HTMLInputElement;
-            if (slider) {
-                slider.value = value.toString();
-                slider.dispatchEvent(new Event('input', { bubbles: true }));
-            }
+            controller.setStrategiesCount(value);
         },
         onSubStrategiesChange: (value) => {
-            const slider = document.getElementById('sub-strategies-slider') as HTMLInputElement;
-            if (slider) {
-                slider.value = value.toString();
-                slider.dispatchEvent(new Event('input', { bubbles: true }));
-            }
+            controller.setSubStrategiesCount(value);
         },
         onHypothesisChange: (value) => {
-            // Special handling for 0 (disabled state)
-            if (value === 0) {
-                // Directly update the model config parameter instead of the slider
-                // since the slider has min="1" and can't be set to 0
-                const modelConfig = routingManager.getModelConfigManager();
-                if (modelConfig) {
-                    modelConfig.updateParameter('hypothesisCount', 0);
-                }
-            } else {
-                const slider = document.getElementById('hypothesis-slider') as HTMLInputElement;
-                if (slider) {
-                    slider.value = value.toString();
-                    slider.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-            }
+            controller.setHypothesisCount(value);
         },
-        onSkipSubStrategiesToggle: (enabled) => {
-            const toggle = document.getElementById('skip-sub-strategies-toggle') as HTMLInputElement;
-            if (toggle) {
-                toggle.checked = !enabled; // Inverted logic
-                toggle.dispatchEvent(new Event('change', { bubbles: true }));
-            }
+        onSkipSubStrategiesToggle: (skip) => {
+            controller.setSkipSubStrategies(skip);
         },
         onHypothesisToggle: (enabled) => {
-            const toggle = document.getElementById('hypothesis-toggle') as HTMLInputElement;
-            if (toggle) {
-                toggle.checked = enabled;
-                toggle.dispatchEvent(new Event('change', { bubbles: true }));
-            }
+            controller.setHypothesisEnabled(enabled);
         },
         onRedTeamModeChange: (mode) => {
-            const buttons = document.querySelectorAll('.red-team-button');
-            buttons.forEach(btn => {
-                btn.classList.remove('active');
-                if ((btn as HTMLElement).dataset.value === mode) {
-                    btn.classList.add('active');
-                }
-            });
-            // Trigger the change through the original button click
-            const targetButton = document.querySelector(`.red-team-button[data-value="${mode}"]`) as HTMLElement;
-            if (targetButton) {
-                targetButton.click();
-            }
+            controller.setRedTeamMode(mode);
         },
         onPostQualityFilterToggle: (enabled) => {
-            const toggle = document.getElementById('post-quality-filter-toggle') as HTMLInputElement;
-            if (toggle) {
-                toggle.checked = enabled;
-                toggle.dispatchEvent(new Event('change', { bubbles: true }));
-            }
+            controller.setPostQualityFilterEnabled(enabled);
         },
         onRefinementToggle: (enabled) => {
-            const toggle = document.getElementById('refinement-toggle') as HTMLInputElement;
-            if (toggle) {
-                toggle.checked = enabled;
-                toggle.dispatchEvent(new Event('change', { bubbles: true }));
-            }
+            controller.setRefinementEnabled(enabled);
         },
         onDissectedObservationsToggle: (enabled) => {
-            const toggle = document.getElementById('dissected-observations-toggle') as HTMLInputElement;
-            if (toggle) {
-                toggle.checked = enabled;
-                toggle.dispatchEvent(new Event('change', { bubbles: true }));
-            }
+            controller.setDissectedObservationsEnabled(enabled);
         },
         onIterativeCorrectionsToggle: (enabled) => {
-            const toggle = document.getElementById('iterative-corrections-toggle') as HTMLInputElement;
-            if (toggle) {
-                toggle.checked = enabled;
-                toggle.dispatchEvent(new Event('change', { bubbles: true }));
-            }
+            controller.setIterativeCorrectionsEnabled(enabled);
         },
         onProvideAllSolutionsToggle: (enabled) => {
-            const toggle = document.getElementById('provide-all-solutions-toggle') as HTMLInputElement;
-            if (toggle) {
-                toggle.checked = enabled;
-                toggle.dispatchEvent(new Event('change', { bubbles: true }));
-            }
+            controller.setProvideAllSolutionsEnabled(enabled);
+        },
+        onCodeExecutionToggle: (enabled) => {
+            controller.setCodeExecutionEnabled(enabled);
         }
     });
+
+    // Subscribe to controller state changes to refresh UI
+    const onConfigChange = (e: Event) => {
+        const event = e as DeepthinkConfigChangeEvent;
+        const newState = event.detail.state;
+
+        // Re-render the panel with new state
+        // This ensures both UIs stay in sync when ModelSelectionUI changes state
+        updateConfigPanelUI(pipelinesContentContainer, newState, controller);
+    };
+
+    controller.addEventListener('configchange', onConfigChange);
+
+    // Store cleanup function on the container for later removal
+    (pipelinesContentContainer as any).__deepthinkConfigCleanup = () => {
+        controller.removeEventListener('configchange', onConfigChange);
+    };
 }
+
+/**
+ * Updates the config panel UI elements to reflect the current state.
+ * This is called when the controller emits a state change event.
+ */
+function updateConfigPanelUI(
+    container: HTMLElement,
+    state: ReturnType<typeof getDeepthinkConfigController>['getState'] extends () => infer R ? R : never,
+    controller: ReturnType<typeof getDeepthinkConfigController>
+) {
+    // Update strategies slider
+    const strategiesSlider = container.querySelector('#dt-strategies-slider') as HTMLInputElement;
+    const strategiesValue = container.querySelector('#dt-strategies-value') as HTMLElement;
+    if (strategiesSlider && strategiesValue) {
+        strategiesSlider.value = state.strategiesCount.toString();
+        strategiesSlider.max = controller.getMaxStrategies().toString();
+        strategiesValue.textContent = state.strategiesCount.toString();
+
+        // Update fill
+        const max = controller.getMaxStrategies();
+        const percentage = ((state.strategiesCount - 1) / (max - 1)) * 100;
+        strategiesSlider.style.background = `linear-gradient(to right, #e86b6b 0%, #e86b6b ${percentage}%, var(--slider-track-color) ${percentage}%, var(--slider-track-color) 100%)`;
+    }
+
+    // Update sub-strategies slider
+    const subStrategiesSlider = container.querySelector('#dt-sub-strategies-slider') as HTMLInputElement;
+    const subStrategiesValue = container.querySelector('#dt-sub-strategies-value') as HTMLElement;
+    const subStrategiesSection = subStrategiesSlider?.closest('.strategy-execution-section') as HTMLElement;
+    if (subStrategiesSlider && subStrategiesValue) {
+        subStrategiesSlider.value = state.subStrategiesCount.toString();
+        subStrategiesSlider.disabled = state.iterativeCorrectionsEnabled;
+        subStrategiesValue.textContent = state.subStrategiesCount.toString();
+
+        // Update dimmed state
+        if (subStrategiesSection) {
+            if (state.subStrategiesCount === 0 || state.iterativeCorrectionsEnabled) {
+                subStrategiesSection.classList.add('dimmed');
+            } else {
+                subStrategiesSection.classList.remove('dimmed');
+            }
+        }
+    }
+
+    // Update hypothesis toggle and slider
+    const hypothesisToggle = container.querySelector('#dt-hypothesis-toggle') as HTMLInputElement;
+    const hypothesisSlider = container.querySelector('#dt-hypothesis-slider') as HTMLInputElement;
+    const hypothesisValueElem = container.querySelector('#dt-hypothesis-value') as HTMLElement;
+    const infoPacketWindow = container.querySelector('#dt-information-packet-window') as HTMLElement;
+    if (hypothesisToggle) {
+        hypothesisToggle.checked = state.hypothesisEnabled;
+    }
+    if (hypothesisSlider && hypothesisValueElem) {
+        hypothesisSlider.value = (state.hypothesisCount > 0 ? state.hypothesisCount : 1).toString();
+        hypothesisSlider.disabled = !state.hypothesisEnabled;
+        hypothesisValueElem.textContent = state.hypothesisCount.toString();
+    }
+    if (infoPacketWindow) {
+        if (state.hypothesisEnabled) {
+            infoPacketWindow.classList.remove('collapsed');
+        } else {
+            infoPacketWindow.classList.add('collapsed');
+        }
+    }
+
+    // Update red team buttons
+    const redTeamButtons = container.querySelectorAll('.red-team-button[data-value]');
+    redTeamButtons.forEach(btn => {
+        const value = (btn as HTMLElement).dataset.value;
+        if (value === state.redTeamMode) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    // Update refinement toggle
+    const refinementToggle = container.querySelector('#dt-refinement-toggle') as HTMLInputElement;
+    if (refinementToggle) {
+        refinementToggle.checked = state.refinementEnabled;
+    }
+
+    // Update refinement method cards and checkboxes
+    const synthesisToggle = container.querySelector('#dt-dissected-observations-toggle') as HTMLInputElement;
+    const fullContextToggle = container.querySelector('#dt-provide-all-solutions-toggle') as HTMLInputElement;
+    const iterativeToggle = container.querySelector('#dt-iterative-corrections-toggle') as HTMLInputElement;
+    const postQualityToggle = container.querySelector('#dt-post-quality-filter-toggle') as HTMLInputElement;
+
+    const synthesisCard = container.querySelector('[data-method="synthesis"]') as HTMLElement;
+    const fullContextCard = container.querySelector('[data-method="fullcontext"]') as HTMLElement;
+    const iterativeCard = container.querySelector('[data-method="iterative"]') as HTMLElement;
+    const postQualityCard = container.querySelector('.post-quality-filter-card') as HTMLElement;
+
+    // Synthesis (Dissected Observations)
+    if (synthesisToggle) {
+        synthesisToggle.checked = state.dissectedObservationsEnabled;
+        synthesisToggle.disabled = !state.refinementEnabled || state.iterativeCorrectionsEnabled;
+    }
+    if (synthesisCard) {
+        synthesisCard.classList.toggle('disabled', !state.refinementEnabled || state.iterativeCorrectionsEnabled);
+    }
+
+    // Full Context (Provide All Solutions)
+    if (fullContextToggle) {
+        fullContextToggle.checked = state.provideAllSolutionsEnabled;
+        fullContextToggle.disabled = !state.refinementEnabled || state.iterativeCorrectionsEnabled;
+    }
+    if (fullContextCard) {
+        fullContextCard.classList.toggle('disabled', !state.refinementEnabled || state.iterativeCorrectionsEnabled);
+    }
+
+    // Iterative Corrections
+    if (iterativeToggle) {
+        iterativeToggle.checked = state.iterativeCorrectionsEnabled;
+        iterativeToggle.disabled = !state.refinementEnabled;
+    }
+    if (iterativeCard) {
+        iterativeCard.classList.toggle('disabled', !state.refinementEnabled);
+    }
+
+    // Post Quality Filter
+    if (postQualityToggle) {
+        postQualityToggle.checked = state.postQualityFilterEnabled;
+        postQualityToggle.disabled = !state.iterativeCorrectionsEnabled;
+    }
+    if (postQualityCard) {
+        postQualityCard.classList.toggle('disabled', !state.iterativeCorrectionsEnabled);
+    }
+
+    // Code Execution Toggle
+    const codeExecutionToggle = container.querySelector('#dt-code-execution-toggle') as HTMLInputElement;
+    const codeExecutionContainer = container.querySelector('#dt-code-execution-container') as HTMLElement;
+    if (codeExecutionToggle) {
+        codeExecutionToggle.checked = state.codeExecutionEnabled;
+    }
+    if (codeExecutionContainer) {
+        const isGemini = getProviderForCurrentModel() === 'gemini';
+        codeExecutionContainer.style.display = isGemini ? 'flex' : 'none';
+    }
+}
+

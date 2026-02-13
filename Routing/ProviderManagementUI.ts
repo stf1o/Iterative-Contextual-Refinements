@@ -488,7 +488,7 @@ export class ProviderManagementUI {
 
     private getDefaultModels(providerName: string): string[] {
         const defaultModels: Record<string, string[]> = {
-            gemini: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+            gemini: ['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
             openrouter: ['deepseek/deepseek-chat-v3.1:free', 'deepseek/deepseek-r1-0528:free', 'qwen/qwen3-coder:free', 'z-ai/glm-4.5-air:free'],
             anthropic: ['claude-opus-4-1-20250805', 'claude-sonnet-4-20250514'],
             openai: ['o3-2025-04-16', 'gpt-5-2025-08-07', 'gpt-4.1-2025-04-14', 'gpt-5-mini-2025-08-07']

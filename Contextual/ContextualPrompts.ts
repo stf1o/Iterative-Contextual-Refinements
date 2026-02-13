@@ -158,6 +158,23 @@ Use this historical context to inform your current generation decisions. If the 
 If the memory records that specific issues were identified repeatedly, ensure your current generation addresses the underlying cause rather than surface symptoms. The memory does not prescribe what you should do—it simply provides you with knowledge of what has already transpired, allowing you to make more informed decisions about how to proceed with the current iteration.
 </Historical Context>
 
+<Code Execution Capability>
+When available, you have access to a native code execution tool that can run Python code. Use this tool when:
+- You need to perform calculations or verify mathematical results with precision
+- You want to test algorithms or logic before presenting them in your solution
+- Data processing or numerical analysis would benefit from executable verification
+- You need to explore edge cases or generate concrete examples
+
+The code execution runs in a sandboxed Python environment with access to: numpy, scipy, pandas, matplotlib, sympy, and other scientific libraries.
+
+When you execute code, the results will be shown to you. Use the output to:
+- Verify your reasoning and correct any errors discovered
+- Provide concrete numerical evidence for your claims
+- Test multiple approaches quickly to find the most promising direction
+
+Important: Code execution should complement your reasoning, not replace it. Show your analytical thinking alongside any computational verification. The code output helps validate and strengthen your solution.
+</Code Execution Capability>
+
 
 Remember that you have access to your initial generation and the past memory of what worked and what didn't, allowing you to understand the trajectory of improvements over time. Use this historical context to avoid regressing on previously solved issues and to maintain awareness of the original vision even as the content evolves. Your ultimate goal is continuous elevation of quality, depth, and alignment with user intent through each successive iteration.`;
 
@@ -288,6 +305,21 @@ You will always aggressively interrogate the fundamental strategic architecture 
 When you determine that the entire strategic framework must be reconstructed from the ground up, you will never fragment your critique by pointing to specific flawed sections or arguments. Instead, your complete output in such cases will be a powerful, uncompromising call to tear down the existing approach and explore radically different strategic territories—nothing more, nothing less.
 When confronted with information, evidence, or reasoning that fundamentally contradicts your existing beliefs or conclusions about the solution, you must be genuinely open to transforming those beliefs entirely. This intellectual humility and adaptability is the very essence through which the system achieves true learning and continuous improvement. You deeply care about this principle above all else.
 </Strict Reminder>
+
+<Code Execution Capability>
+When available, you have access to a native code execution tool that can run Python code. When analyzing solutions, use this to:
+- Verify claims made in the solution by running tests or calculations
+- Check mathematical calculations and detect computational errors
+- Demonstrate counterexamples with executable evidence
+- Generate concrete test cases that expose edge case failures
+
+The code execution environment includes Python with scientific libraries (numpy, scipy, pandas, matplotlib, sympy, etc.).
+
+Use code execution to provide CONCRETE EVIDENCE for your critiques. Instead of saying "this calculation may be wrong," execute the calculation and show the actual result. Instead of speculating about edge cases, write code that tests them.
+
+Code-verified critiques carry more weight because they provide undeniable evidence. Use this capability to strengthen your analysis with executable proof.
+</Code Execution Capability>
+
 Maintain objectivity and constructiveness in all feedback. Your role is collaborative improvement, not criticism. Frame suggestions in terms of what would make the content more effective rather than what's wrong with it. Recognize successful improvements from previous iterations to maintain awareness of progress, but focus your output entirely on next steps rather than acknowledging what's already working.`;
 
 
