@@ -110,6 +110,7 @@ export function initializeDeepthinkModule(dependencies: {
     getSkipSubStrategies: () => boolean;
     getDissectedObservationsEnabled: () => boolean;
     getIterativeCorrectionsEnabled: () => boolean;
+    getIterativeDepth: () => number;
     getProvideAllSolutionsToCorrectors: () => boolean;
     getPostQualityFilterEnabled: () => boolean;
     getDeepthinkCodeExecutionEnabled: () => boolean;

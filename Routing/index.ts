@@ -94,6 +94,10 @@ export function getIterativeCorrectionsEnabled(): boolean {
     return getRoutingManager().isIterativeCorrectionsEnabled();
 }
 
+export function getIterativeDepth(): number {
+    return getRoutingManager().getIterativeDepth();
+}
+
 export function getProvideAllSolutionsToCorrectors(): boolean {
     return getRoutingManager().isProvideAllSolutionsToCorrectors();
 }

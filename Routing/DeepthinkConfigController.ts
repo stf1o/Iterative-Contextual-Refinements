@@ -23,6 +23,7 @@ export interface DeepthinkConfigState {
     refinementEnabled: boolean;
     dissectedObservationsEnabled: boolean;
     iterativeCorrectionsEnabled: boolean;
+    iterativeDepth: number;
     provideAllSolutionsEnabled: boolean;
     temperature: number;
     topP: number;
@@ -63,6 +64,7 @@ export class DeepthinkConfigController extends EventTarget {
             refinementEnabled: params.refinementEnabled,
             dissectedObservationsEnabled: params.dissectedObservationsEnabled,
             iterativeCorrectionsEnabled: params.iterativeCorrectionsEnabled,
+            iterativeDepth: params.iterativeDepth,
             provideAllSolutionsEnabled: params.provideAllSolutionsToCorrectors,
             temperature: params.temperature,
             topP: params.topP,
@@ -116,6 +118,10 @@ export class DeepthinkConfigController extends EventTarget {
 
     public getMaxStrategies(): number {
         return this.isIterativeCorrectionsEnabled() ? MAX_STRATEGIES_WITH_ITERATIVE : MAX_STRATEGIES_DEFAULT;
+    }
+
+    public getIterativeDepth(): number {
+        return this.modelConfig.getIterativeDepth();
     }
 
     public isCodeExecutionEnabled(): boolean {
@@ -282,6 +288,16 @@ export class DeepthinkConfigController extends EventTarget {
         }
 
         this.emitChange('iterativeCorrectionsEnabled');
+    }
+
+    /**
+     * Set iterative depth (number of correction iterations).
+     * Range: 1-10, default 3.
+     */
+    public setIterativeDepth(depth: number): void {
+        const clampedDepth = Math.max(1, Math.min(depth, 10));
+        this.modelConfig.updateParameter('iterativeDepth', clampedDepth);
+        this.emitChange('iterativeDepth');
     }
 
     /**

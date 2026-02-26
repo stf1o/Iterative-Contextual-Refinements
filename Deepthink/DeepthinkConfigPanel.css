@@ -1167,7 +1167,7 @@ body.light-mode .refinement-master-description {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(var(--text-secondary-color-rgb), 0.3);
+    background-color: rgba(var(--accent-purple-rgb), 0.25);
     transition: 0.3s;
     border-radius: 20px;
 }
@@ -1214,4 +1214,59 @@ body.light-mode .refinement-master-description {
 body.light-mode .code-execution-toggle-container {
     background: rgba(var(--accent-purple-rgb), 0.06);
     border-color: rgba(var(--accent-purple-rgb), 0.25);
+}
+
+body.light-mode .code-execution-toggle-slider {
+    background-color: rgba(var(--accent-purple-rgb), 0.2);
+}
+
+/* ========================================================================== */
+/* == ITERATION DEPTH SLIDER STYLES ======================================== */
+/* ========================================================================== */
+
+.iteration-depth-container .slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+    transition: all var(--transition-speed) var(--easing-curve);
+}
+
+.iteration-depth-container .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--card-bg-color);
+    border: 2.5px solid var(--accent-purple);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(var(--accent-purple-rgb), 0.35);
+    transition: all var(--transition-speed) var(--easing-curve);
+}
+
+.iteration-depth-container .slider::-webkit-slider-thumb:hover {
+    background: var(--card-bg-hover-color);
+    box-shadow: 0 0 16px rgba(var(--accent-purple-rgb), 0.5);
+    transform: scale(1.1);
+}
+
+.iteration-depth-container .slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: var(--card-bg-color);
+    border: 2.5px solid var(--accent-purple);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(var(--accent-purple-rgb), 0.35);
+    transition: all var(--transition-speed) var(--easing-curve);
+}
+
+.iteration-depth-container .slider::-moz-range-thumb:hover {
+    background: var(--card-bg-hover-color);
+    box-shadow: 0 0 16px rgba(var(--accent-purple-rgb), 0.5);
+    transform: scale(1.1);
 }

@@ -15,6 +15,7 @@ export interface DeepthinkConfigPanelProps {
     refinementEnabled: boolean;
     dissectedObservationsEnabled: boolean;
     iterativeCorrectionsEnabled: boolean;
+    iterativeDepth: number;
     provideAllSolutionsEnabled: boolean;
     codeExecutionEnabled: boolean;
     isGeminiProvider: boolean;
@@ -28,6 +29,7 @@ export interface DeepthinkConfigPanelProps {
     onRefinementToggle: (enabled: boolean) => void;
     onDissectedObservationsToggle: (enabled: boolean) => void;
     onIterativeCorrectionsToggle: (enabled: boolean) => void;
+    onIterativeDepthChange: (value: number) => void;
     onProvideAllSolutionsToggle: (enabled: boolean) => void;
     onCodeExecutionToggle: (enabled: boolean) => void;
 }
@@ -183,17 +185,7 @@ export function renderDeepthinkConfigPanel(container: HTMLElement, props: Deepth
                                 Execution & Refinement Agents
                             </div>
                         </div>
-                        <!-- Code Execution Toggle (Gemini only) -->
-                        <div class="code-execution-toggle-container" id="dt-code-execution-container" style="display: ${props.isGeminiProvider ? 'flex' : 'none'};">
-                            <label class="code-execution-toggle-label">
-                                <input type="checkbox" id="dt-code-execution-toggle" class="code-execution-toggle-input" ${props.codeExecutionEnabled ? 'checked' : ''}>
-                                <span class="code-execution-toggle-slider"></span>
-                            </label>
-                            <div class="code-execution-toggle-info">
-                                <span class="code-execution-toggle-title">Code Execution</span>
-                                <span class="code-execution-toggle-subtitle">Python sandbox for agents</span>
-                            </div>
-                        </div>
+                        <!-- Code Execution Toggle has been moved to Solution Refinement panel -->
                     </div>
                     <!-- Hypothesis Slider Card -->
                     <div class="hypothesis-slider-card">
@@ -281,12 +273,30 @@ export function renderDeepthinkConfigPanel(container: HTMLElement, props: Deepth
                                 </div>
                                 <div class="method-card-title">
                                     <div class="method-name">Iterative Corrections</div>
-                                    <div class="method-type">3 Refinement Loops</div>
+                                    <div class="method-type">${props.iterativeDepth} Refinement Loop${props.iterativeDepth !== 1 ? 's' : ''}</div>
                                 </div>
                             </div>
                             <div class="method-card-description">
                                 Iterative loop of Corrector & Critique. Disables Synthesis & Full Context options.
                             </div>
+                            <div class="iteration-depth-container" style="display: ${props.iterativeCorrectionsEnabled ? 'block' : 'none'}; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06);">
+                                <div class="input-group-tight">
+                                    <label for="dt-iteration-depth-slider" class="input-label">Iteration Depth: <span id="dt-iteration-depth-value">${props.iterativeDepth}</span></label>
+                                    <input type="range" id="dt-iteration-depth-slider" class="slider" min="1" max="10" step="1" value="${props.iterativeDepth}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Code Execution Toggle (Gemini only) - inside Solution Refinement panel -->
+                    <div class="code-execution-toggle-container" id="dt-code-execution-container" style="display: ${props.isGeminiProvider ? 'flex' : 'none'}; margin-top: 12px;">
+                        <label class="code-execution-toggle-label">
+                            <input type="checkbox" id="dt-code-execution-toggle" class="code-execution-toggle-input" ${props.codeExecutionEnabled ? 'checked' : ''}>
+                            <span class="code-execution-toggle-slider"></span>
+                        </label>
+                        <div class="code-execution-toggle-info">
+                            <span class="code-execution-toggle-title">Code Execution</span>
+                            <span class="code-execution-toggle-subtitle">Python sandbox for agents</span>
                         </div>
                     </div>
                     </div>
@@ -498,6 +508,33 @@ function attachConfigPanelEventListeners(container: HTMLElement, props: Deepthin
         });
     }
 
+    // Iteration depth slider
+    const iterationDepthSlider = container.querySelector('#dt-iteration-depth-slider') as HTMLInputElement;
+    const iterationDepthValue = container.querySelector('#dt-iteration-depth-value') as HTMLElement;
+    if (iterationDepthSlider && iterationDepthValue) {
+        // Initialize fill
+        const initValue = parseInt(iterationDepthSlider.value);
+        const initPercentage = ((initValue - 1) / 9) * 100; // min=1, max=10, range=9
+        iterationDepthSlider.style.background = `linear-gradient(to right, var(--accent-purple) 0%, var(--accent-purple) ${initPercentage}%, var(--slider-track-color) ${initPercentage}%, var(--slider-track-color) 100%)`;
+
+        iterationDepthSlider.addEventListener('input', (e) => {
+            const value = parseInt((e.target as HTMLInputElement).value);
+            iterationDepthValue.textContent = value.toString();
+
+            // Update slider fill
+            const percentage = ((value - 1) / 9) * 100;
+            iterationDepthSlider.style.background = `linear-gradient(to right, var(--accent-purple) 0%, var(--accent-purple) ${percentage}%, var(--slider-track-color) ${percentage}%, var(--slider-track-color) 100%)`;
+
+            // Update the method-type label
+            const methodType = container.querySelector('[data-method="iterative"] .method-type') as HTMLElement;
+            if (methodType) {
+                methodType.textContent = `${value} Refinement Loop${value !== 1 ? 's' : ''}`;
+            }
+
+            props.onIterativeDepthChange(value);
+        });
+    }
+
     // Provide all solutions
     const provideAllSolutionsToggle = container.querySelector('#dt-provide-all-solutions-toggle') as HTMLInputElement;
     if (provideAllSolutionsToggle) {
@@ -566,6 +603,7 @@ export function renderDeepthinkConfigPanelInContainer(pipelinesContentContainer:
         refinementEnabled: state.refinementEnabled,
         dissectedObservationsEnabled: state.dissectedObservationsEnabled,
         iterativeCorrectionsEnabled: state.iterativeCorrectionsEnabled,
+        iterativeDepth: state.iterativeDepth,
         provideAllSolutionsEnabled: state.provideAllSolutionsEnabled,
         codeExecutionEnabled: state.codeExecutionEnabled,
         isGeminiProvider: getProviderForCurrentModel() === 'gemini',
@@ -600,6 +638,9 @@ export function renderDeepthinkConfigPanelInContainer(pipelinesContentContainer:
         },
         onIterativeCorrectionsToggle: (enabled) => {
             controller.setIterativeCorrectionsEnabled(enabled);
+        },
+        onIterativeDepthChange: (value) => {
+            controller.setIterativeDepth(value);
         },
         onProvideAllSolutionsToggle: (enabled) => {
             controller.setProvideAllSolutionsEnabled(enabled);
@@ -743,6 +784,27 @@ function updateConfigPanelUI(
     }
     if (iterativeCard) {
         iterativeCard.classList.toggle('disabled', !state.refinementEnabled);
+    }
+
+    // Iteration Depth Slider
+    const iterationDepthSlider = container.querySelector('#dt-iteration-depth-slider') as HTMLInputElement;
+    const iterationDepthValue = container.querySelector('#dt-iteration-depth-value') as HTMLElement;
+    const iterationDepthContainer = container.querySelector('.iteration-depth-container') as HTMLElement;
+    if (iterationDepthSlider && iterationDepthValue) {
+        iterationDepthSlider.value = state.iterativeDepth.toString();
+        iterationDepthValue.textContent = state.iterativeDepth.toString();
+
+        // Update fill
+        const percentage = ((state.iterativeDepth - 1) / 9) * 100;
+        iterationDepthSlider.style.background = `linear-gradient(to right, var(--accent-purple) 0%, var(--accent-purple) ${percentage}%, var(--slider-track-color) ${percentage}%, var(--slider-track-color) 100%)`;
+    }
+    if (iterationDepthContainer) {
+        iterationDepthContainer.style.display = state.iterativeCorrectionsEnabled ? 'block' : 'none';
+    }
+    // Update method-type label
+    const methodTypeLabel = container.querySelector('[data-method="iterative"] .method-type') as HTMLElement;
+    if (methodTypeLabel) {
+        methodTypeLabel.textContent = `${state.iterativeDepth} Refinement Loop${state.iterativeDepth !== 1 ? 's' : ''}`;
     }
 
     // Post Quality Filter

@@ -274,6 +274,8 @@ Generate EXACTLY 5 genuinely diverse, completely orthogonal solutions that:
 3. Learn from ALL critiques and solutions across ALL strategies in the pool
 4. Address all issues identified in the latest critique (found in the "latest_critique" field or in the last iteration's "critique" field)
 5. ${iterationNumber > 1 ? 'Build upon and improve your previous solutions (visible in the "solution_pool" field of your strategy entry)' : 'Explore different corners of your strategy\'s solution space'}
+6. Include a mandatory "atomic_reconstruction" field for each solution — a 4-5 sentence standalone summary that fully captures the solution approach and conclusion
+${iterationNumber > 3 ? '\nNote: Older iterations may have been compressed for context efficiency. Use the atomic_reconstruction fields in your previous solution_pool outputs to recall earlier approaches.' : ''}
 
 Output ONLY the valid JSON object as specified in your system instructions.
 No introduction, no meta-commentary, no suggestions—just the JSON with 5 complete solution attempts.

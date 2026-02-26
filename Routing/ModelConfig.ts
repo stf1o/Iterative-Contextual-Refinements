@@ -22,6 +22,7 @@ export interface ModelParameters {
     skipSubStrategies: boolean;
     dissectedObservationsEnabled: boolean;
     iterativeCorrectionsEnabled: boolean;
+    iterativeDepth: number;
     provideAllSolutionsToCorrectors: boolean;
     postQualityFilterEnabled: boolean;
     deepthinkCodeExecutionEnabled: boolean;
@@ -45,6 +46,7 @@ export const DEFAULT_MODEL_PARAMETERS: ModelParameters = {
     skipSubStrategies: false,
     dissectedObservationsEnabled: false,
     iterativeCorrectionsEnabled: false,
+    iterativeDepth: 3,
     provideAllSolutionsToCorrectors: false,
     postQualityFilterEnabled: false,
     deepthinkCodeExecutionEnabled: false
@@ -123,6 +125,10 @@ export class ModelConfigManager {
     public isIterativeCorrectionsEnabled(): boolean {
         // Iterative corrections can only be enabled if refinement is enabled
         return this.parameters.refinementEnabled && this.parameters.iterativeCorrectionsEnabled;
+    }
+
+    public getIterativeDepth(): number {
+        return Math.max(1, Math.min(10, this.parameters.iterativeDepth));
     }
 
     public isProvideAllSolutionsToCorrectors(): boolean {

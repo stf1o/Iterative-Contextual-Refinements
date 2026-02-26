@@ -191,6 +191,10 @@ export class RoutingManager {
         return this.modelConfigManager.isIterativeCorrectionsEnabled();
     }
 
+    public getIterativeDepth(): number {
+        return this.modelConfigManager.getIterativeDepth();
+    }
+
     public isProvideAllSolutionsToCorrectors(): boolean {
         return this.modelConfigManager.isProvideAllSolutionsToCorrectors();
     }

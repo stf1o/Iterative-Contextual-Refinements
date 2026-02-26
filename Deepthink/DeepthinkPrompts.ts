@@ -2148,9 +2148,11 @@ However, you NEVER copy solutions from other strategies, switch to other strateg
 </Cross-Strategy Learning While Maintaining Framework Fidelity>
 
 <Output Format and Presentation Protocol>
-Your output must be EXCLUSIVELY a valid JSON object containing exactly 5 complete solution attempts with zero meta-commentary, zero discussion of your reasoning process, zero comparison of solutions, and zero strategic analysis. Each solution must include a brief descriptive title, short approach summary, the complete solution content, a confidence score, and your internal critique. Solutions should be information-dense and concise, targeting approximately 5000 tokens or less per solution content to maintain system efficiency as the pool grows across iterations. Each solution must be independently understandable without requiring reference to other solutions in your pool. 
+Your output must be EXCLUSIVELY a valid JSON object containing exactly 5 complete solution attempts with zero meta-commentary, zero discussion of your reasoning process, zero comparison of solutions, and zero strategic analysis. Each solution must include a brief descriptive title, short approach summary, the complete solution content, a confidence score, your internal critique, and an atomic reconstruction. Solutions should be information-dense and concise, targeting approximately 5000 tokens or less per solution content to maintain system efficiency as the pool grows across iterations. Each solution must be independently understandable without requiring reference to other solutions in your pool. 
 
 **MANDATORY INTERNAL CRITIQUE IN OUTPUT**: Unlike previous versions where internal critique was invisible, you now MUST include your internal critique for EACH solution in the output JSON. This critique must examine the solution's assumptions, edge cases, vulnerabilities, and logical foundations. Your confidence scores must be derived from these internal critiques, not from superficial impressions.
+
+**MANDATORY ATOMIC RECONSTRUCTION**: Each solution MUST include an "atomic_reconstruction" field — a concise 4-5 sentence standalone summary that captures the complete solution strategy, key reasoning steps, methodology, and final conclusion. This field serves as a compressed representation: any LLM or human reading ONLY the atomic_reconstruction should be able to fully reconstruct the solution approach and result without needing the full content. When older iterations are compressed for context efficiency, these atomic reconstructions are the primary surviving record. Write them with extreme care and precision.
 
 You present solutions without ranking them by confidence—the confidence scores exist for calibration and learning, not for creating false hierarchies that bias downstream selection. Your role is to expose the full diversity of your strategic framework's solution space, not to pre-filter or editorialize which solutions deserve attention.
 </Output Format and Presentation Protocol>
@@ -2190,7 +2192,8 @@ Your response must be EXCLUSIVELY a valid JSON object. No additional text, comme
       "approach_summary": "[1-2 sentence summary of what makes this approach distinct and how it executes the strategy]",
       "content": "[Complete solution attempt — the full, rigorous solution execution. Must be independently understandable. Target ~5000 tokens max.]",
       "confidence": 0.0,
-      "internal_critique": "[Your rigorous internal critique of this solution: assumptions it depends on, edge cases, vulnerabilities, counterexamples, logical foundations, and why the confidence score is what it is]"
+      "internal_critique": "[Your rigorous internal critique of this solution: assumptions it depends on, edge cases, vulnerabilities, counterexamples, logical foundations, and why the confidence score is what it is]",
+      "atomic_reconstruction": "[4-5 sentence standalone summary that captures the complete solution strategy, key reasoning steps, methodology, and final conclusion. Must be self-contained — any reader should be able to fully reconstruct the solution approach and result from this field alone.]"
     }
   ]
 }
@@ -2202,6 +2205,7 @@ Your response must be EXCLUSIVELY a valid JSON object. No additional text, comme
 - The "confidence" field must be a float between 0.0 and 1.0, derived from your internal critique
 - The "content" field contains the complete solution text — this is the core deliverable
 - The "internal_critique" field is mandatory and must be thorough, not perfunctory
+- The "atomic_reconstruction" field is mandatory — a 4-5 sentence self-contained summary of the full solution approach and conclusion
 - All string values must use proper JSON escaping (newlines as \\n, quotes as \\", etc.)
 - NO markdown code fences around the JSON — output raw JSON only
 - Ensure valid JSON syntax — proper commas, brackets, and quote characters

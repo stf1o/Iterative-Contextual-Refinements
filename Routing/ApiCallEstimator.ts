@@ -92,10 +92,11 @@ export class ApiCallEstimator {
                     }
                 }
 
-                // For each solution: 3 iterations × (1 critique + 1 correction + 1 solution pool) = 9 calls per solution
-                // Note: Solution pool calls = critique calls (1 per iteration)
-                minCalls += solutionCount * 9;
-                maxCalls += solutionCount * 9;
+                // For each solution: iterativeDepth iterations × (1 critique + 1 correction + 1 solution pool) = 3*depth calls per solution
+                const iterativeDepth = params.iterativeDepth;
+                const callsPerSolution = iterativeDepth * 3;
+                minCalls += solutionCount * callsPerSolution;
+                maxCalls += solutionCount * callsPerSolution;
             } else {
                 // Standard Refinement Mode:
                 // 7. Solution Critique (N calls - one per main strategy)
@@ -172,7 +173,8 @@ export class ApiCallEstimator {
         const sliders = [
             'strategies-slider',
             'sub-strategies-slider',
-            'hypothesis-slider'
+            'hypothesis-slider',
+            'dt-iteration-depth-slider'
         ];
 
         sliders.forEach(id => {

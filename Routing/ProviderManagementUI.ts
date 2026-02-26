@@ -309,7 +309,8 @@ export class ProviderManagementUI {
     }
 
     private attachProviderCardListeners(provider: ProviderConfig): void {
-        const card = document.querySelector(`[data-provider="${provider.name}"]`);
+        if (!this.elements.content) return;
+        const card = this.elements.content.querySelector(`.provider-card[data-provider="${provider.name}"]`);
         if (!card) return;
 
         // Configure provider button
@@ -353,7 +354,8 @@ export class ProviderManagementUI {
     }
 
     private handleConfigureProvider(providerName: string): void {
-        const card = document.querySelector(`[data-provider="${providerName}"]`);
+        if (!this.elements.content) return;
+        const card = this.elements.content.querySelector(`.provider-card[data-provider="${providerName}"]`);
         if (!card) return;
 
         const apiKeyInput = card.querySelector('.api-key-input') as HTMLInputElement;
@@ -425,7 +427,8 @@ export class ProviderManagementUI {
     }
 
     private handleAddModel(providerName: string): void {
-        const card = document.querySelector(`[data-provider="${providerName}"]`);
+        if (!this.elements.content) return;
+        const card = this.elements.content.querySelector(`.provider-card[data-provider="${providerName}"]`);
         if (!card) return;
 
         const input = card.querySelector('.add-model-input') as HTMLInputElement;

@@ -237,6 +237,7 @@ let getSelectedRedTeamAggressiveness: () => string;
 let getSkipSubStrategies: () => boolean;
 let getDissectedObservationsEnabled: () => boolean;
 let getIterativeCorrectionsEnabled: () => boolean;
+let getIterativeDepth: () => number;
 let getProvideAllSolutionsToCorrectors: () => boolean;
 let getPostQualityFilterEnabled: () => boolean;
 let getDeepthinkCodeExecutionEnabled: () => boolean;
@@ -274,6 +275,7 @@ export function initializeDeepthinkCore(dependencies: {
     getSkipSubStrategies: () => boolean;
     getDissectedObservationsEnabled: () => boolean;
     getIterativeCorrectionsEnabled: () => boolean;
+    getIterativeDepth: () => number;
     getProvideAllSolutionsToCorrectors: () => boolean;
     getPostQualityFilterEnabled: () => boolean;
     getDeepthinkCodeExecutionEnabled: () => boolean;
@@ -301,6 +303,7 @@ export function initializeDeepthinkCore(dependencies: {
     getSkipSubStrategies = dependencies.getSkipSubStrategies;
     getDissectedObservationsEnabled = dependencies.getDissectedObservationsEnabled;
     getIterativeCorrectionsEnabled = dependencies.getIterativeCorrectionsEnabled;
+    getIterativeDepth = dependencies.getIterativeDepth;
     getProvideAllSolutionsToCorrectors = dependencies.getProvideAllSolutionsToCorrectors;
     getPostQualityFilterEnabled = dependencies.getPostQualityFilterEnabled;
     getDeepthinkCodeExecutionEnabled = dependencies.getDeepthinkCodeExecutionEnabled;
@@ -1539,13 +1542,22 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                 };
 
                                 // Add critiques and corrected solutions from COMPLETED iterations
+                                // History compression: only keep the last 3 iterations in full detail
                                 const iterations = (directSub as any).iterativeCorrections?.iterations || [];
+                                const compressionThreshold = 3;
+                                const totalIterations = iterations.length;
+                                if (totalIterations > compressionThreshold) {
+                                    strategyEntry.compressed_iterations_note = `Iterations 1-${totalIterations - compressionThreshold} completed and compressed. See atomic_reconstruction in solution_pool for summaries.`;
+                                }
+                                const startIdx = Math.max(0, totalIterations - compressionThreshold);
                                 iterations.forEach((iter: any, idx: number) => {
-                                    strategyEntry.iterations.push({
-                                        iteration_number: idx + 1,
-                                        critique: iter.critique,
-                                        corrected_solution: iter.correctedSolution
-                                    });
+                                    if (idx >= startIdx) {
+                                        strategyEntry.iterations.push({
+                                            iteration_number: idx + 1,
+                                            critique: iter.critique,
+                                            corrected_solution: iter.correctedSolution
+                                        });
+                                    }
                                 });
 
                                 // CRITICAL FIX: Add the LATEST critique if it exists but isn't in the iterations array yet
@@ -1641,8 +1653,9 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                             );
                         });
 
-                        // Main iteration loop (3 iterations)
-                        for (let iterNum = 1; iterNum <= 3; iterNum++) {
+                        // Main iteration loop (configurable depth)
+                        const iterativeDepth = getIterativeDepth();
+                        for (let iterNum = 1; iterNum <= iterativeDepth; iterNum++) {
                             if (currentProcess.isStopRequested) break;
                             console.log(`[Deepthink] Starting StructuredSolutionPool iteration ${iterNum}...`);
 
@@ -1800,7 +1813,8 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                                     approach_summary: s.approach_summary || '',
                                                     content: s.content || '',
                                                     confidence: typeof s.confidence === 'number' ? s.confidence : 0.5,
-                                                    internal_critique: s.internal_critique || ''
+                                                    internal_critique: s.internal_critique || '',
+                                                    atomic_reconstruction: s.atomic_reconstruction || ''
                                                 }))
                                             };
                                         }
