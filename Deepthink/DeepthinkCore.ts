@@ -13,6 +13,7 @@ import { renderMathContent } from '../Styles/Components/RenderMathMarkdown';
 import { SolutionCritiqueHistoryManager, SolutionCorrectionHistoryManager, StructuredSolutionPoolHistoryManager, PostQualityFilterHistoryManager, StrategiesGeneratorHistoryManager } from './DeepthinkIterativeHistory';
 import { addSolutionPoolVersion } from './SolutionPool';
 import { extractPartsInOrder, formatPartsForDisplay } from '../Contextual/Contextual';
+import { nanoid } from 'nanoid';
 
 // ========== TYPE DEFINITIONS ==========
 
@@ -219,52 +220,17 @@ export class PipelineStopRequestedError extends Error {
 
 export let activeDeepthinkPipeline: DeepthinkPipelineState | null = null;
 let setActiveDeepthinkPipeline: ((pipeline: DeepthinkPipelineState | null) => void) | null = null;
-let renderActiveDeepthinkPipeline: (() => void) | null = null;
 
-// Dependency references
-let getAIProvider: (() => AIProvider | null) | null = null;
-let callGemini: (parts: Part[], temperature: number, modelToUse: string, systemInstruction?: string, isJson?: boolean, topP?: number, thinkingConfig?: ThinkingConfig) => Promise<GenerateContentResponse>;
-let cleanOutputByType: (rawOutput: string, type?: string) => string;
-let parseJsonSuggestions: (rawJsonString: string, suggestionKey?: string, expectedCount?: number) => string[];
-let parseJsonSafe: (raw: string, context: string) => any;
-let getSelectedTemperature: () => number;
-let getSelectedModel: () => string;
-let getSelectedTopP: () => number;
-let getSelectedStrategiesCount: () => number;
-let getSelectedSubStrategiesCount: () => number;
-let getRefinementEnabled: () => boolean;
-let getSelectedHypothesisCount: () => number;
-let getSelectedRedTeamAggressiveness: () => string;
-let getSkipSubStrategies: () => boolean;
-let getDissectedObservationsEnabled: () => boolean;
-let getIterativeCorrectionsEnabled: () => boolean;
-let getIterativeDepth: () => number;
-let getProvideAllSolutionsToCorrectors: () => boolean;
-let getPostQualityFilterEnabled: () => boolean;
-let getDeepthinkCodeExecutionEnabled: () => boolean;
-let getModelProvider: () => string;
-let escapeHtml: (unsafe: string) => string;
-let cleanTextOutput: (text: string) => string;
-let updateControlsState: (newState: any) => void;
-let customPromptsDeepthinkState: CustomizablePromptsDeepthink;
+/** No-op default so call sites never need null-checks */
+let render: () => void = () => { };
 
-// ========== CONSTANTS ==========
-
-const MAX_RETRIES = 3;
-const INITIAL_DELAY_MS = 20000; // 20 seconds
-const BACKOFF_FACTOR = 2;
-const STRUCTURED_SOLUTION_POOL_TIMEOUT_MS = 900000; // 15 minutes
-
-// ========== INITIALIZATION ==========
-
-export function initializeDeepthinkCore(dependencies: {
+// Dependency references stored as a single object after initialization
+export interface DeepthinkCoreDeps {
     getAIProvider: () => AIProvider | null;
-    callGemini: typeof callGemini;
-    cleanOutputByType: typeof cleanOutputByType;
-    parseJsonSuggestions: typeof parseJsonSuggestions;
-    parseJsonSafe: typeof parseJsonSafe;
-    updateControlsState: (newState: any) => void;
-    escapeHtml: typeof escapeHtml;
+    callGemini: (parts: Part[], temperature: number, modelToUse: string, systemInstruction?: string, isJson?: boolean, topP?: number, thinkingConfig?: ThinkingConfig) => Promise<GenerateContentResponse>;
+    cleanOutputByType: (rawOutput: string, type?: string) => string;
+    parseJsonSuggestions: (rawJsonString: string, suggestionKey?: 'features' | 'suggestions' | 'strategies' | 'sub_strategies', expectedCount?: number) => string[];
+    parseJsonSafe: (raw: string, context: string) => any;
     getSelectedTemperature: () => number;
     getSelectedModel: () => string;
     getSelectedTopP: () => number;
@@ -281,38 +247,63 @@ export function initializeDeepthinkCore(dependencies: {
     getPostQualityFilterEnabled: () => boolean;
     getDeepthinkCodeExecutionEnabled: () => boolean;
     getModelProvider: () => string;
+    escapeHtml: (unsafe: string) => string;
     cleanTextOutput: (text: string) => string;
+    updateControlsState: (newState: any) => void;
     customPromptsDeepthinkState: CustomizablePromptsDeepthink;
+}
+
+let deps: DeepthinkCoreDeps = null!;
+
+// ========== CONSTANTS ==========
+
+const MAX_RETRIES = 3;
+const INITIAL_DELAY_MS = 20000;
+const BACKOFF_FACTOR = 2;
+const STRUCTURED_SOLUTION_POOL_TIMEOUT_MS = 900000;
+
+/** Model routing: maps step description keywords to prompt-state model keys */
+const MODEL_MAP: [string, keyof CustomizablePromptsDeepthink][] = [
+    ['Initial Strategy Generation', 'model_initialStrategy'],
+    ['Sub-Strategy Generation', 'model_subStrategy'],
+    ['Solution Attempt', 'model_solutionAttempt'],
+    ['Solution Critique', 'model_solutionCritique'],
+    ['Dissected Observations Synthesis', 'model_dissectedSynthesis'],
+    ['Self-Improvement', 'model_selfImprovement'],
+    ['Self Improvement', 'model_selfImprovement'],
+    ['Hypothesis Generation', 'model_hypothesisGeneration'],
+    ['Hypothesis Testing', 'model_hypothesisTester'],
+    ['Red Team', 'model_redTeam'],
+    ['PostQualityFilter', 'model_postQualityFilter'],
+    ['Final Judge', 'model_finalJudge'],
+];
+
+/** Agents eligible for code execution */
+const CODE_EXEC_AGENTS = new Set([
+    'Hypothesis Testing', 'Solution Attempt', 'Solution Critique',
+    'Self-Improvement', 'Self Improvement', 'Structured Solution Pool',
+]);
+
+// ========== UTILITY HELPERS ==========
+
+/** Build image inline data parts from optional base64 + mimeType */
+function buildImageParts(imageBase64?: string | null, imageMimeType?: string | null): Part[] {
+    return (imageBase64 && imageMimeType)
+        ? [{ inlineData: { mimeType: imageMimeType, data: imageBase64 } }]
+        : [];
+}
+
+
+// ========== INITIALIZATION ==========
+
+export function initializeDeepthinkCore(dependencies: DeepthinkCoreDeps & {
     setActiveDeepthinkPipeline: (pipeline: DeepthinkPipelineState | null) => void;
     renderActiveDeepthinkPipeline: () => void;
 }) {
-    getAIProvider = dependencies.getAIProvider;
-    customPromptsDeepthinkState = dependencies.customPromptsDeepthinkState;
-    callGemini = dependencies.callGemini;
-    cleanOutputByType = dependencies.cleanOutputByType;
-    parseJsonSuggestions = dependencies.parseJsonSuggestions;
-    parseJsonSafe = dependencies.parseJsonSafe;
-    updateControlsState = dependencies.updateControlsState;
-    getSelectedTemperature = dependencies.getSelectedTemperature;
-    getSelectedModel = dependencies.getSelectedModel;
-    getSelectedTopP = dependencies.getSelectedTopP;
-    getSelectedStrategiesCount = dependencies.getSelectedStrategiesCount;
-    getSelectedSubStrategiesCount = dependencies.getSelectedSubStrategiesCount;
-    getRefinementEnabled = dependencies.getRefinementEnabled;
-    getSelectedHypothesisCount = dependencies.getSelectedHypothesisCount;
-    getSelectedRedTeamAggressiveness = dependencies.getSelectedRedTeamAggressiveness;
-    getSkipSubStrategies = dependencies.getSkipSubStrategies;
-    getDissectedObservationsEnabled = dependencies.getDissectedObservationsEnabled;
-    getIterativeCorrectionsEnabled = dependencies.getIterativeCorrectionsEnabled;
-    getIterativeDepth = dependencies.getIterativeDepth;
-    getProvideAllSolutionsToCorrectors = dependencies.getProvideAllSolutionsToCorrectors;
-    getPostQualityFilterEnabled = dependencies.getPostQualityFilterEnabled;
-    getDeepthinkCodeExecutionEnabled = dependencies.getDeepthinkCodeExecutionEnabled;
-    getModelProvider = dependencies.getModelProvider;
-    cleanTextOutput = dependencies.cleanTextOutput;
-    escapeHtml = dependencies.escapeHtml;
-    setActiveDeepthinkPipeline = dependencies.setActiveDeepthinkPipeline;
-    renderActiveDeepthinkPipeline = dependencies.renderActiveDeepthinkPipeline;
+    const { setActiveDeepthinkPipeline: setFn, renderActiveDeepthinkPipeline: renderFn, ...coreDeps } = dependencies;
+    deps = coreDeps as DeepthinkCoreDeps;
+    setActiveDeepthinkPipeline = setFn;
+    render = renderFn;
 }
 
 // Export for external use
@@ -422,7 +413,7 @@ export async function runConsolidatedRedTeamAnalysis(
         isDetailsOpen: true
     };
     currentProcess.redTeamEvaluations = [redTeamAgent];
-    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+    render();
 
     if (currentProcess.isStopRequested) {
         redTeamAgent.status = 'cancelled';
@@ -431,7 +422,7 @@ export async function runConsolidatedRedTeamAnalysis(
 
     try {
         redTeamAgent.status = 'processing';
-        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+        render();
 
         const allStrategiesText = strategies.map(mainStrategy => {
             const subStrategiesText = mainStrategy.subStrategies
@@ -440,32 +431,28 @@ export async function runConsolidatedRedTeamAnalysis(
             return `Main Strategy [ID: ${mainStrategy.id}]:\n${mainStrategy.strategyText}\nSub-Strategies:\n${subStrategiesText}`;
         }).join('\n\n' + '='.repeat(40) + '\n\n');
 
-        const redTeamPrompt = customPromptsDeepthinkState.user_deepthink_redTeam
+        const redTeamPrompt = deps.customPromptsDeepthinkState.user_deepthink_redTeam
             .replace('{{originalProblemText}}', problemText)
             .replace('{{allStrategies}}', allStrategiesText);
 
-        const redTeamPromptParts: Part[] = [{ text: redTeamPrompt }];
-        if (imageBase64 && imageMimeType) {
-            redTeamPromptParts.unshift({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-        }
+        const redTeamPromptParts: Part[] = [...buildImageParts(imageBase64, imageMimeType), { text: redTeamPrompt }];
         redTeamAgent.requestPrompt = redTeamPrompt + (imageBase64 ? "\n[Image Provided]" : "");
 
         const redTeamResponse = await makeDeepthinkApiCall(
             redTeamPromptParts,
-            customPromptsDeepthinkState.sys_deepthink_redTeam,
+            deps.customPromptsDeepthinkState.sys_deepthink_redTeam,
             true,
             `Red Team Evaluation`,
             redTeamAgent,
             'retryAttempt'
         );
 
-        redTeamAgent.evaluationResponse = cleanTextOutput(redTeamResponse);
+        redTeamAgent.evaluationResponse = deps.cleanTextOutput(redTeamResponse);
         redTeamAgent.rawResponse = redTeamResponse;
 
         try {
             let cleanedResponse = redTeamResponse.trim();
             cleanedResponse = cleanedResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-            cleanedResponse = cleanedResponse.replace(/^[^{]*/, '').replace(/[^}]*$/, '');
 
             const jsonStart = cleanedResponse.indexOf('{');
             const jsonEnd = cleanedResponse.lastIndexOf('}');
@@ -531,32 +518,32 @@ export async function runConsolidatedRedTeamAnalysis(
             redTeamAgent.killedSubStrategyIds = killedSubStrategyIds;
             (redTeamAgent as any).killedReasonMap = reasonMap;
             redTeamAgent.status = 'completed';
-            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+            render();
 
         } catch (e: any) {
             console.error("Error parsing Red Team JSON:", e);
             redTeamAgent.status = 'error';
             redTeamAgent.error = "Failed to parse Red Team response: " + e.message;
-            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+            render();
         }
     } catch (error: any) {
         redTeamAgent.status = 'error';
         redTeamAgent.error = error.message || "Red Team evaluation failed";
-        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+        render();
     }
 }
 
 // ========== MAIN PIPELINE FUNCTION ==========
 
 export async function startDeepthinkAnalysisProcess(challengeText: string, imageBase64?: string | null, imageMimeType?: string | null) {
-    const currentAIProvider = getAIProvider ? getAIProvider() : null;
+    const currentAIProvider = deps.getAIProvider();
     if (!currentAIProvider) {
         alert("AI provider not initialized. Please check your API key configuration.");
         return;
     }
 
     activeDeepthinkPipeline = {
-        id: `deepthink-process-${Date.now()}`,
+        id: `deepthink-${nanoid(12)}`,
         challenge: challengeText,
         challengeText: challengeText,
         initialStrategies: [],
@@ -581,10 +568,10 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
         setActiveDeepthinkPipeline(activeDeepthinkPipeline);
     }
 
-    updateControlsState({ isGenerating: true });
-    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+    deps.updateControlsState({ isGenerating: true });
+    render();
 
-    const currentProcess = activeDeepthinkPipeline as DeepthinkPipelineState;
+    const currentProcess = activeDeepthinkPipeline!;
 
     const makeDeepthinkApiCall = async (
         parts: Part[],
@@ -602,54 +589,24 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
             try {
                 (targetStatusField as any)[retryAttemptField] = attempt;
-                if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                render();
 
-                let agentModel = getSelectedModel();
+                // Route to per-agent model via MODEL_MAP lookup
+                const matched = MODEL_MAP.find(([key]) => stepDescription.includes(key));
+                const agentModel = matched
+                    ? (deps.customPromptsDeepthinkState[matched[1]] as string) || deps.getSelectedModel()
+                    : deps.getSelectedModel();
 
-                if (stepDescription.includes('Initial Strategy Generation')) {
-                    agentModel = customPromptsDeepthinkState.model_initialStrategy || getSelectedModel();
-                } else if (stepDescription.includes('Sub-Strategy Generation')) {
-                    agentModel = customPromptsDeepthinkState.model_subStrategy || getSelectedModel();
-                } else if (stepDescription.includes('Solution Attempt')) {
-                    agentModel = customPromptsDeepthinkState.model_solutionAttempt || getSelectedModel();
-                } else if (stepDescription.includes('Solution Critique')) {
-                    agentModel = customPromptsDeepthinkState.model_solutionCritique || getSelectedModel();
-                } else if (stepDescription.includes('Dissected Observations Synthesis')) {
-                    agentModel = customPromptsDeepthinkState.model_dissectedSynthesis || getSelectedModel();
-                } else if (stepDescription.includes('Self-Improvement') || stepDescription.includes('Self Improvement')) {
-                    agentModel = customPromptsDeepthinkState.model_selfImprovement || getSelectedModel();
-                } else if (stepDescription.includes('Hypothesis Generation')) {
-                    agentModel = customPromptsDeepthinkState.model_hypothesisGeneration || getSelectedModel();
-                } else if (stepDescription.includes('Hypothesis Testing')) {
-                    agentModel = customPromptsDeepthinkState.model_hypothesisTester || getSelectedModel();
-                } else if (stepDescription.includes('Red Team')) {
-                    agentModel = customPromptsDeepthinkState.model_redTeam || getSelectedModel();
-                } else if (stepDescription.includes('PostQualityFilter')) {
-                    agentModel = customPromptsDeepthinkState.model_postQualityFilter || getSelectedModel();
-                } else if (stepDescription.includes('Final Judge')) {
-                    agentModel = customPromptsDeepthinkState.model_finalJudge || getSelectedModel();
-                }
-
-                // Determine if this agent should use code execution
-                // Target agents: Hypothesis Testing, Solution Attempt, Solution Critique, Self-Improvement, Structured Solution Pool
-                const codeExecutionTargetAgents = [
-                    'Hypothesis Testing',
-                    'Solution Attempt',
-                    'Solution Critique',
-                    'Self-Improvement',
-                    'Self Improvement',
-                    'Structured Solution Pool'
-                ];
-
-                const isCodeExecutionAgent = codeExecutionTargetAgents.some(agent => stepDescription.includes(agent));
-                const isGeminiProvider = getModelProvider() === 'gemini';
-                const shouldEnableCodeExecution = isCodeExecutionAgent && isGeminiProvider && getDeepthinkCodeExecutionEnabled();
+                // Check code execution eligibility
+                const isCodeExecutionAgent = [...CODE_EXEC_AGENTS].some(agent => stepDescription.includes(agent));
+                const isGeminiProvider = deps.getModelProvider() === 'gemini';
+                const shouldEnableCodeExecution = isCodeExecutionAgent && isGeminiProvider && deps.getDeepthinkCodeExecutionEnabled();
 
                 const thinkingConfig: ThinkingConfig | undefined = shouldEnableCodeExecution
                     ? { codeExecution: true }
                     : undefined;
 
-                const strategyResponse = await callGemini(parts, getSelectedTemperature(), agentModel, systemInstruction, isJson, getSelectedTopP(), thinkingConfig);
+                const strategyResponse = await deps.callGemini(parts, deps.getSelectedTemperature(), agentModel, systemInstruction, isJson, deps.getSelectedTopP(), thinkingConfig);
 
                 // Handle code execution responses specially to preserve code blocks and output
                 if (shouldEnableCodeExecution && strategyResponse?.candidates?.[0]?.content?.parts) {
@@ -672,7 +629,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                         (targetStatusField as any).status = 'retrying';
                     }
                     (targetStatusField as any)[retryAttemptField] = attempt + 1;
-                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                    render();
 
                     const delay = INITIAL_DELAY_MS * Math.pow(BACKOFF_FACTOR, attempt);
                     console.log(`[Deepthink] ${stepDescription} failed (attempt ${attempt + 1}/${MAX_RETRIES + 1}). Retrying in ${delay / 1000}s...`);
@@ -688,7 +645,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                     if ('status' in targetStatusField) {
                         (targetStatusField as any).status = 'processing';
                     }
-                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                    render();
                 }
             }
         }
@@ -700,42 +657,34 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
         // Track B: Hypothesis Explorer
         const trackBPromise = (async () => {
             try {
-                const currentHypothesisCount = getSelectedHypothesisCount();
+                const currentHypothesisCount = deps.getSelectedHypothesisCount();
 
                 if (currentHypothesisCount === 0) {
                     currentProcess.hypothesisGenStatus = 'completed';
                     currentProcess.hypotheses = [];
                     currentProcess.knowledgePacket = "<Full Information Packet>\nHYPOTHESIS EXPLORATION: Disabled - No hypotheses generated.\n</Full Information Packet>";
                     currentProcess.hypothesisExplorerComplete = true;
-                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                    render();
                     return;
                 }
 
-                const hypothesisPrompt = customPromptsDeepthinkState.user_deepthink_hypothesisGeneration.replace('{{originalProblemText}}', challengeText);
+                const hypothesisPrompt = deps.customPromptsDeepthinkState.user_deepthink_hypothesisGeneration.replace('{{originalProblemText}}', challengeText);
                 currentProcess.requestPromptHypothesisGen = hypothesisPrompt;
                 currentProcess.hypothesisGenStatus = 'processing';
-                if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                render();
 
-                const parts: Part[] = [];
-                if (imageBase64 && imageMimeType) {
-                    parts.push({
-                        inlineData: {
-                            data: imageBase64,
-                            mimeType: imageMimeType
-                        }
-                    });
-                }
+                const parts: Part[] = buildImageParts(imageBase64, imageMimeType);
 
                 const hypothesisResponse = await makeDeepthinkApiCall(
                     parts.concat([{ text: hypothesisPrompt }]),
-                    customPromptsDeepthinkState.sys_deepthink_hypothesisGeneration,
+                    deps.customPromptsDeepthinkState.sys_deepthink_hypothesisGeneration,
                     true,
                     "Hypothesis Generation",
                     currentProcess,
                     'hypothesisGenRetryAttempt'
                 );
 
-                const hypothesisData = parseJsonSafe(hypothesisResponse, 'Hypothesis Generation');
+                const hypothesisData = deps.parseJsonSafe(hypothesisResponse, 'Hypothesis Generation');
                 const hypotheses = hypothesisData.hypotheses || [];
 
                 for (let i = 0; i < hypotheses.length; i++) {
@@ -749,7 +698,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                 }
 
                 currentProcess.hypothesisGenStatus = 'completed';
-                if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                render();
 
                 const hypothesisTestingPromises = currentProcess.hypotheses.map(async (hypothesis) => {
                     if (currentProcess.isStopRequested) {
@@ -758,10 +707,10 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                     }
 
                     hypothesis.testerStatus = 'processing';
-                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                    render();
 
                     try {
-                        const testerPrompt = customPromptsDeepthinkState.user_deepthink_hypothesisTester
+                        const testerPrompt = deps.customPromptsDeepthinkState.user_deepthink_hypothesisTester
                             .replace('{{originalProblemText}}', challengeText)
                             .replace('{{hypothesisText}}', hypothesis.hypothesisText);
 
@@ -769,7 +718,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                         const testerResponse = await makeDeepthinkApiCall(
                             parts.concat([{ text: testerPrompt }]),
-                            customPromptsDeepthinkState.sys_deepthink_hypothesisTester,
+                            deps.customPromptsDeepthinkState.sys_deepthink_hypothesisTester,
                             false,
                             `Hypothesis Testing for ${hypothesis.id}`,
                             hypothesis,
@@ -779,11 +728,11 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                         hypothesis.testerAttempt = testerResponse;
                         hypothesis.testerStatus = 'completed';
 
-                        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                        render();
                     } catch (error: any) {
                         hypothesis.testerStatus = 'error';
                         hypothesis.testerError = error.message || "Hypothesis testing failed";
-                        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                        render();
                     }
                 });
 
@@ -802,13 +751,13 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                 currentProcess.knowledgePacket = knowledgePacket;
                 currentProcess.hypothesisExplorerComplete = true;
-                if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                render();
 
             } catch (error: any) {
                 if (!(error instanceof PipelineStopRequestedError)) {
                     currentProcess.hypothesisGenStatus = 'error';
                     currentProcess.hypothesisGenError = `Hypothesis exploration failed: ${error.message}`;
-                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                    render();
                 }
                 throw error;
             }
@@ -818,31 +767,23 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
         const trackAPromise = (async () => {
             try {
                 currentProcess.status = 'processing';
-                if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                render();
 
-                const parts: Part[] = [];
-                if (imageBase64 && imageMimeType) {
-                    parts.push({
-                        inlineData: {
-                            data: imageBase64,
-                            mimeType: imageMimeType
-                        }
-                    });
-                }
+                const parts: Part[] = buildImageParts(imageBase64, imageMimeType);
 
-                const strategiesPrompt = customPromptsDeepthinkState.user_deepthink_initialStrategy.replace('{{originalProblemText}}', challengeText);
+                const strategiesPrompt = deps.customPromptsDeepthinkState.user_deepthink_initialStrategy.replace('{{originalProblemText}}', challengeText);
                 currentProcess.requestPromptInitialStrategyGen = strategiesPrompt;
 
                 const strategiesResponse = await makeDeepthinkApiCall(
                     parts.concat([{ text: strategiesPrompt }]),
-                    customPromptsDeepthinkState.sys_deepthink_initialStrategy,
+                    deps.customPromptsDeepthinkState.sys_deepthink_initialStrategy,
                     true,
                     "Initial Strategy Generation",
                     currentProcess,
                     'retryAttempt'
                 );
 
-                const strategies = parseJsonSuggestions(strategiesResponse, 'strategies', getSelectedStrategiesCount());
+                const strategies = deps.parseJsonSuggestions(strategiesResponse, 'strategies', deps.getSelectedStrategiesCount());
 
                 for (let i = 0; i < strategies.length; i++) {
                     const strategy: DeepthinkMainStrategyData = {
@@ -856,20 +797,19 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                     currentProcess.initialStrategies.push(strategy);
                 }
 
-                if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                render();
 
-                const skipSubStrategies = getSkipSubStrategies();
-                const currentRedTeamAggressiveness = getSelectedRedTeamAggressiveness();
+                const skipSubStrategies = deps.getSkipSubStrategies();
+                const currentRedTeamAggressiveness = deps.getSelectedRedTeamAggressiveness();
 
+                currentProcess.redTeamEvaluations = [];
                 if (currentRedTeamAggressiveness !== 'off') {
                     currentProcess.redTeamStatus = 'processing';
-                    currentProcess.redTeamEvaluations = [];
                 } else {
                     currentProcess.redTeamStatus = 'completed';
                     currentProcess.redTeamComplete = true;
-                    currentProcess.redTeamEvaluations = [];
                 }
-                if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                render();
 
                 if (skipSubStrategies) {
                     currentProcess.initialStrategies.forEach((mainStrategy) => {
@@ -882,7 +822,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                         };
                         mainStrategy.subStrategies.push(subStrategy);
                     });
-                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                    render();
                 } else {
                     await Promise.allSettled(currentProcess.initialStrategies.map(async (mainStrategy) => {
                         if (currentProcess.isStopRequested) {
@@ -893,7 +833,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                         try {
                             mainStrategy.status = 'processing';
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
 
                             const otherStrategies = currentProcess.initialStrategies
                                 .filter(s => s.id !== mainStrategy.id)
@@ -902,7 +842,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                 ? otherStrategies.map((s, idx) => `Strategy ${idx + 1}: ${s}`).join('\n\n')
                                 : "No other strategies.";
 
-                            const subStrategyPrompt = customPromptsDeepthinkState.user_deepthink_subStrategy
+                            const subStrategyPrompt = deps.customPromptsDeepthinkState.user_deepthink_subStrategy
                                 .replace('{{originalProblemText}}', challengeText)
                                 .replace('{{currentMainStrategy}}', mainStrategy.strategyText)
                                 .replace('{{otherMainStrategiesStr}}', otherMainStrategiesStr);
@@ -911,14 +851,14 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                             const subStrategyResponse = await makeDeepthinkApiCall(
                                 parts.concat([{ text: subStrategyPrompt }]),
-                                customPromptsDeepthinkState.sys_deepthink_subStrategy,
+                                deps.customPromptsDeepthinkState.sys_deepthink_subStrategy,
                                 true,
                                 `Sub-Strategy Generation for ${mainStrategy.id}`,
                                 mainStrategy,
                                 'retryAttempt'
                             );
 
-                            const subStrategies = parseJsonSuggestions(subStrategyResponse, 'sub_strategies', getSelectedSubStrategiesCount());
+                            const subStrategies = deps.parseJsonSuggestions(subStrategyResponse, 'sub_strategies', deps.getSelectedSubStrategiesCount());
 
                             for (let j = 0; j < subStrategies.length; j++) {
                                 const subStrategy: DeepthinkSubStrategyData = {
@@ -934,7 +874,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                         } catch (error: any) {
                             mainStrategy.status = 'error';
                             mainStrategy.error = error.message || "Sub-strategy generation failed";
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
                         }
                     }));
                 }
@@ -953,28 +893,28 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                     );
                     currentProcess.redTeamComplete = true;
                     currentProcess.redTeamStatus = 'completed';
-                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                    render();
 
                     applyRedTeamResults(currentProcess);
-                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                    render();
 
                     const remainingStrategies = currentProcess.initialStrategies.filter(s => !s.isKilledByRedTeam);
                     const remainingSubStrategies = currentProcess.initialStrategies.flatMap(s => s.subStrategies.filter(sub => !sub.isKilledByRedTeam));
                     if (remainingStrategies.length === 0) {
                         currentProcess.status = 'completed';
                         currentProcess.error = "All strategies were eliminated by Red Team evaluation. No solution attempts can be made.";
-                        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                        render();
                         return;
                     }
                     if (remainingSubStrategies.length === 0) {
                         currentProcess.status = 'completed';
                         currentProcess.error = "All sub-strategies were eliminated by Red Team evaluation. No solution attempts can be made.";
-                        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                        render();
                         return;
                     }
                 }
 
-                const hypothesisCount = getSelectedHypothesisCount();
+                const hypothesisCount = deps.getSelectedHypothesisCount();
                 if (hypothesisCount > 0) {
                     console.log('[Deepthink] Waiting for hypothesis exploration to complete before executing solutions...');
                     await trackBPromise;
@@ -985,9 +925,9 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                     throw new PipelineStopRequestedError("Stopped while waiting for hypothesis exploration.");
                 }
 
-                const refinementEnabled = getRefinementEnabled();
-                const iterativeCorrectionsEnabled = getIterativeCorrectionsEnabled();
-                const dissectedObservationsEnabled = getDissectedObservationsEnabled();
+                const refinementEnabled = deps.getRefinementEnabled();
+                const iterativeCorrectionsEnabled = deps.getIterativeCorrectionsEnabled();
+                const dissectedObservationsEnabled = deps.getDissectedObservationsEnabled();
 
                 currentProcess.solutionCritiques = [];
                 if (!iterativeCorrectionsEnabled && refinementEnabled) {
@@ -1009,9 +949,9 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                         try {
                             subStrategy.status = 'processing';
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
 
-                            const solutionPrompt = customPromptsDeepthinkState.user_deepthink_solutionAttempt
+                            const solutionPrompt = deps.customPromptsDeepthinkState.user_deepthink_solutionAttempt
                                 .replace('{{originalProblemText}}', challengeText)
                                 .replace('{{currentMainStrategy}}', mainStrategy.strategyText)
                                 .replace('{{currentSubStrategy}}', subStrategy.subStrategyText)
@@ -1021,7 +961,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                             const solutionResponse = await makeDeepthinkApiCall(
                                 parts.concat([{ text: solutionPrompt }]),
-                                customPromptsDeepthinkState.sys_deepthink_solutionAttempt,
+                                deps.customPromptsDeepthinkState.sys_deepthink_solutionAttempt,
                                 false,
                                 `Solution Attempt for ${subStrategy.id}`,
                                 subStrategy,
@@ -1030,11 +970,11 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                             subStrategy.solutionAttempt = solutionResponse;
                             subStrategy.status = 'completed';
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
                         } catch (error: any) {
                             subStrategy.status = 'error';
                             subStrategy.error = error.message || "Solution attempt failed";
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
                         }
                     });
 
@@ -1055,7 +995,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                     isDetailsOpen: true
                                 };
                                 currentProcess.solutionCritiques.push(critiqueData);
-                                if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                render();
 
                                 if (currentProcess.isStopRequested) {
                                     critiqueData.status = 'cancelled';
@@ -1065,13 +1005,13 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                 try {
                                     critiqueData.status = 'processing';
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
                                     const solutionsText = completedSubStrategies.map(sub =>
                                         `${sub.id}:\nSub-Strategy: ${sub.subStrategyText}\n\nSolution Attempt:\n${sub.solutionAttempt}`
                                     ).join('\n\n---\n\n');
 
-                                    const critiquePrompt = customPromptsDeepthinkState.user_deepthink_solutionCritique
+                                    const critiquePrompt = deps.customPromptsDeepthinkState.user_deepthink_solutionCritique
                                         .replace('{{originalProblemText}}', challengeText)
                                         .replace('{{currentMainStrategy}}', mainStrategy.strategyText)
                                         .replace('{{allSubStrategiesAndSolutions}}', solutionsText);
@@ -1080,7 +1020,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                     const critiqueResponse = await makeDeepthinkApiCall(
                                         parts.concat([{ text: critiquePrompt }]),
-                                        customPromptsDeepthinkState.sys_deepthink_solutionCritique,
+                                        deps.customPromptsDeepthinkState.sys_deepthink_solutionCritique,
                                         false,
                                         `Solution Critique for ${mainStrategy.id}`,
                                         critiqueData,
@@ -1095,7 +1035,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                     });
 
                                     critiqueData.status = 'completed';
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
                                 } catch (error: any) {
                                     critiqueData.status = 'error';
                                     critiqueData.error = error.message || "Solution critique failed";
@@ -1105,7 +1045,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                         sub.solutionCritiqueError = error.message || "Solution critique failed";
                                     });
 
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
                                 }
                             })();
 
@@ -1122,7 +1062,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                     console.log('[Deepthink] Dissected observations enabled - waiting for all critiques to complete...');
                     await Promise.allSettled(critiquePromisesPerStrategy);
                     currentProcess.solutionCritiquesStatus = 'completed';
-                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                    render();
                     console.log('[Deepthink] All critiques complete.');
                 } else if (!iterativeCorrectionsEnabled && refinementEnabled && !dissectedObservationsEnabled) {
                     console.log('[Deepthink] Dissected observations disabled - critiques running in background, correctors starting immediately.');
@@ -1138,11 +1078,11 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                             subStrategy.selfImprovementStatus = 'completed';
                         });
                     });
-                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                    render();
                 } else if (iterativeCorrectionsEnabled) {
                     // PostQualityFilter workflow - only when sub-strategies are disabled
-                    const skipSubStrategies = getSkipSubStrategies();
-                    const postQualityFilterEnabled = getPostQualityFilterEnabled();
+                    const skipSubStrategies = deps.getSkipSubStrategies();
+                    const postQualityFilterEnabled = deps.getPostQualityFilterEnabled();
                     if (skipSubStrategies) {
                         console.log('[Deepthink] Generating initial critiques...');
 
@@ -1156,32 +1096,32 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                             const critiquePromise = (async () => {
                                 try {
                                     directSub.solutionCritiqueStatus = 'processing';
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
                                     const solutionsText = `${directSub.id}:\nSub-Strategy: ${directSub.subStrategyText}\n\nSolution Attempt:\n${directSub.solutionAttempt}`;
 
-                                    const critiquePrompt = customPromptsDeepthinkState.user_deepthink_solutionCritique
+                                    const critiquePrompt = deps.customPromptsDeepthinkState.user_deepthink_solutionCritique
                                         .replace(/\{\{originalProblemText\}\}/g, challengeText)
                                         .replace(/\{\{currentMainStrategy\}\}/g, mainStrategy.strategyText)
                                         .replace(/\{\{allSubStrategiesAndSolutions\}\}/g, solutionsText);
 
                                     const critiqueResponse = await makeDeepthinkApiCall(
                                         parts.concat([{ text: critiquePrompt }]),
-                                        customPromptsDeepthinkState.sys_deepthink_solutionCritique,
+                                        deps.customPromptsDeepthinkState.sys_deepthink_solutionCritique,
                                         false,
                                         `Initial Solution Critique for ${mainStrategy.id}`,
                                         directSub,
                                         'solutionCritiqueRetryAttempt'
                                     );
 
-                                    directSub.solutionCritique = cleanTextOutput(critiqueResponse);
+                                    directSub.solutionCritique = deps.cleanTextOutput(critiqueResponse);
                                     directSub.solutionCritiqueStatus = 'completed';
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
                                 } catch (error: any) {
                                     directSub.solutionCritiqueStatus = 'error';
                                     directSub.solutionCritiqueError = error.message || "Initial critique failed";
                                     console.error(`[Deepthink] Initial critique failed for ${mainStrategy.id}:`, error.message);
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
                                 }
                             })();
 
@@ -1196,15 +1136,15 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                             console.log('[Deepthink] Starting PostQualityFilter workflow...');
                             currentProcess.postQualityFilterStatus = 'processing';
                             currentProcess.postQualityFilterIterationCount = 0;
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
 
                             // Initialize history managers
                             const postQualityFilterHistoryManager = new PostQualityFilterHistoryManager(
-                                customPromptsDeepthinkState.sys_deepthink_postQualityFilter,
+                                deps.customPromptsDeepthinkState.sys_deepthink_postQualityFilter,
                                 challengeText
                             );
                             const strategiesGeneratorHistoryManager = new StrategiesGeneratorHistoryManager(
-                                customPromptsDeepthinkState.sys_deepthink_initialStrategy,
+                                deps.customPromptsDeepthinkState.sys_deepthink_initialStrategy,
                                 challengeText
                             );
 
@@ -1260,26 +1200,25 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                     isDetailsOpen: true
                                 };
                                 currentProcess.postQualityFilterAgents.push(pqfAgent);
-                                if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                render();
 
                                 try {
                                     // Call PostQualityFilter agent
                                     const pqfResponse = await makeDeepthinkApiCall(
                                         parts.concat([{ text: pqfPrompt }]),
-                                        customPromptsDeepthinkState.sys_deepthink_postQualityFilter,
+                                        deps.customPromptsDeepthinkState.sys_deepthink_postQualityFilter,
                                         true,
                                         `PostQualityFilter Iteration ${pqfIteration}`,
                                         pqfAgent,
                                         'retryAttempt'
                                     );
 
-                                    pqfAgent.evaluationResponse = cleanTextOutput(pqfResponse);
+                                    pqfAgent.evaluationResponse = deps.cleanTextOutput(pqfResponse);
                                     pqfAgent.rawResponse = pqfResponse;
 
                                     // Parse JSON response
                                     let cleanedResponse = pqfResponse.trim();
                                     cleanedResponse = cleanedResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-                                    cleanedResponse = cleanedResponse.replace(/^[^{]*/, '').replace(/[^}]*$/, '');
                                     const jsonStart = cleanedResponse.indexOf('{');
                                     const jsonEnd = cleanedResponse.lastIndexOf('}');
                                     if (jsonStart === -1 || jsonEnd === -1 || jsonStart >= jsonEnd) {
@@ -1368,14 +1307,14 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                     const updatedStrategiesResponse = await makeDeepthinkApiCall(
                                         parts.concat([{ text: strategiesGenPrompt }]),
-                                        customPromptsDeepthinkState.sys_deepthink_initialStrategy,
+                                        deps.customPromptsDeepthinkState.sys_deepthink_initialStrategy,
                                         true,
                                         `Strategy Updates (PostQualityFilter Iteration ${pqfIteration})`,
                                         currentProcess,
                                         'retryAttempt'
                                     );
 
-                                    const updatedStrategies = parseJsonSuggestions(updatedStrategiesResponse, 'strategies', updateIds.length);
+                                    const updatedStrategies = deps.parseJsonSuggestions(updatedStrategiesResponse, 'strategies', updateIds.length);
 
                                     // Add to history (user prompt + AI response)
                                     await strategiesGeneratorHistoryManager.addGeneratedStrategies(updatedStrategiesResponse, strategiesGenPrompt);
@@ -1409,7 +1348,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                         }
                                     }
 
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
                                     // Re-execute solutions for updated strategies
                                     console.log(`[Deepthink] Re-executing solutions for ${updatedStrategyObjects.length} updated strategies...`);
@@ -1419,9 +1358,9 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                         try {
                                             directSub.status = 'processing';
-                                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                            render();
 
-                                            const solutionPrompt = customPromptsDeepthinkState.user_deepthink_solutionAttempt
+                                            const solutionPrompt = deps.customPromptsDeepthinkState.user_deepthink_solutionAttempt
                                                 .replace('{{originalProblemText}}', challengeText)
                                                 .replace('{{assignedStrategy}}', strategy.strategyText)
                                                 .replace('{{knowledgePacket}}', currentProcess.knowledgePacket || '');
@@ -1430,24 +1369,24 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                             const solutionResponse = await makeDeepthinkApiCall(
                                                 parts.concat([{ text: solutionPrompt }]),
-                                                customPromptsDeepthinkState.sys_deepthink_solutionAttempt,
+                                                deps.customPromptsDeepthinkState.sys_deepthink_solutionAttempt,
                                                 false,
                                                 `Solution Execution for ${strategy.id} (Updated)`,
                                                 directSub,
                                                 'retryAttempt'
                                             );
 
-                                            directSub.solutionAttempt = cleanTextOutput(solutionResponse);
+                                            directSub.solutionAttempt = deps.cleanTextOutput(solutionResponse);
                                             directSub.status = 'completed';
-                                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                            render();
 
                                             // Generate critique immediately
                                             directSub.solutionCritiqueStatus = 'processing';
-                                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                            render();
 
                                             const solutionsText = `${directSub.id}:\nSub-Strategy: ${directSub.subStrategyText}\n\nSolution Attempt:\n${directSub.solutionAttempt}`;
 
-                                            const critiquePrompt = customPromptsDeepthinkState.user_deepthink_solutionCritique
+                                            const critiquePrompt = deps.customPromptsDeepthinkState.user_deepthink_solutionCritique
                                                 .replace('{{originalProblemText}}', challengeText)
                                                 .replace('{{currentMainStrategy}}', strategy.strategyText)
                                                 .replace('{{allSubStrategiesAndSolutions}}', solutionsText);
@@ -1456,21 +1395,21 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                             const critiqueResponse = await makeDeepthinkApiCall(
                                                 parts.concat([{ text: critiquePrompt }]),
-                                                customPromptsDeepthinkState.sys_deepthink_solutionCritique,
+                                                deps.customPromptsDeepthinkState.sys_deepthink_solutionCritique,
                                                 false,
                                                 `Solution Critique for ${strategy.id} (Updated)`,
                                                 directSub,
                                                 'solutionCritiqueRetryAttempt'
                                             );
 
-                                            directSub.solutionCritique = cleanTextOutput(critiqueResponse);
+                                            directSub.solutionCritique = deps.cleanTextOutput(critiqueResponse);
                                             directSub.solutionCritiqueStatus = 'completed';
-                                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                            render();
 
                                         } catch (error: any) {
                                             directSub.status = 'error';
                                             directSub.error = error.message || 'Solution execution failed';
-                                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                            render();
                                         }
                                     });
 
@@ -1481,20 +1420,20 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                     postQualityFilterHistoryManager.markStrategiesAsUpdated(updateIds);
                                     console.log(`[Deepthink] Marked ${updateIds.length} strategies as updated for re-evaluation`);
 
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
                                 } catch (error: any) {
                                     pqfAgent.status = 'error';
                                     pqfAgent.error = error.message || 'PostQualityFilter failed';
                                     console.error(`[Deepthink] PostQualityFilter error:`, error.message);
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
                                     break;
                                 }
                             }
 
                             currentProcess.postQualityFilterStatus = 'completed';
                             console.log('[Deepthink] PostQualityFilter workflow complete');
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
                         } else {
                             // PostQualityFilter is disabled - proceed directly with current strategies
                             console.log('[Deepthink] PostQualityFilter disabled - proceeding with current strategies');
@@ -1620,7 +1559,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                             addSolutionPoolVersion(currentProcess.id, currentProcess.structuredSolutionPool, 0);
                         }
 
-                        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                        render();
 
                         // Initialize history managers for critiques, pool agents, and correctors
                         const critiqueHistoryManagers = new Map<string, SolutionCritiqueHistoryManager>();
@@ -1635,7 +1574,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                             critiqueHistoryManagers.set(
                                 mainStrategy.id,
                                 new SolutionCritiqueHistoryManager(
-                                    customPromptsDeepthinkState.sys_deepthink_solutionCritique,
+                                    deps.customPromptsDeepthinkState.sys_deepthink_solutionCritique,
                                     challengeText,
                                     mainStrategy.strategyText,
                                     directSub.solutionAttempt
@@ -1646,7 +1585,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                             poolHistoryManagers.set(
                                 mainStrategy.id,
                                 new StructuredSolutionPoolHistoryManager(
-                                    customPromptsDeepthinkState.sys_deepthink_structuredSolutionPool,
+                                    deps.customPromptsDeepthinkState.sys_deepthink_structuredSolutionPool,
                                     challengeText,
                                     mainStrategy.id,
                                     mainStrategy.strategyText
@@ -1655,7 +1594,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                         });
 
                         // Main iteration loop (configurable depth)
-                        const iterativeDepth = getIterativeDepth();
+                        const iterativeDepth = deps.getIterativeDepth();
                         for (let iterNum = 1; iterNum <= iterativeDepth; iterNum++) {
                             if (currentProcess.isStopRequested) break;
                             console.log(`[Deepthink] Starting StructuredSolutionPool iteration ${iterNum}...`);
@@ -1673,7 +1612,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                 try {
                                     directSub.solutionCritiqueStatus = 'processing';
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
                                     // Get history manager for this strategy
                                     const critiqueHistoryManager = critiqueHistoryManagers.get(mainStrategy.id);
@@ -1699,7 +1638,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                     const critiqueResponse = await makeDeepthinkApiCallWithTimeout(
                                         parts.concat([{ text: critiquePrompt }]),
-                                        customPromptsDeepthinkState.sys_deepthink_solutionCritique,
+                                        deps.customPromptsDeepthinkState.sys_deepthink_solutionCritique,
                                         false,
                                         `Solution Critique Iteration ${iterNum} for ${mainStrategy.id}`,
                                         directSub,
@@ -1719,7 +1658,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                     directSub.solutionCritique = critiqueResponse;
                                     directSub.solutionCritiqueStatus = 'completed';
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
                                     const critiqueData: DeepthinkSolutionCritiqueData = {
                                         id: `critique-${mainStrategy.id}-iter${iterNum}`,
@@ -1732,13 +1671,13 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                         retryAttempt: iterNum
                                     };
                                     currentProcess.solutionCritiques.push(critiqueData);
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
                                 } catch (error: any) {
                                     directSub.solutionCritiqueStatus = 'error';
                                     directSub.solutionCritiqueError = error.message || "Critique failed";
                                     console.error(`[Deepthink] Critique failed for ${mainStrategy.id}:`, error.message);
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
                                 }
                             });
 
@@ -1748,7 +1687,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                             // Update StructuredSolutionPool to include the new critiques
                             currentProcess.structuredSolutionPool = buildStructuredSolutionPool();
                             console.log(`[Deepthink] Updated StructuredSolutionPool after critique generation`);
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
 
                             // PHASE 2: Generate solution pools for all strategies in parallel
                             console.log(`[Deepthink] Phase 2: Generating solution pools for iteration ${iterNum}...`);
@@ -1773,7 +1712,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                 try {
                                     poolAgent.status = 'processing';
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
                                     // Get history manager for this strategy
                                     const poolHistoryManager = poolHistoryManagers.get(mainStrategy.id);
@@ -1791,7 +1730,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                     const poolResponse = await makeDeepthinkApiCallWithTimeout(
                                         parts.concat([{ text: poolPrompt }]),
-                                        customPromptsDeepthinkState.sys_deepthink_structuredSolutionPool,
+                                        deps.customPromptsDeepthinkState.sys_deepthink_structuredSolutionPool,
                                         true,
                                         `StructuredSolutionPool Agent for ${mainStrategy.id} Iteration ${iterNum}`,
                                         poolAgent,
@@ -1805,7 +1744,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                     // Parse JSON response for UI consumption
                                     try {
-                                        const parsed = parseJsonSafe(poolResponse, `SolutionPool-${mainStrategy.id}`);
+                                        const parsed = deps.parseJsonSafe(poolResponse, `SolutionPool-${mainStrategy.id}`);
                                         if (parsed && Array.isArray(parsed.solutions)) {
                                             poolAgent.parsedPoolResponse = {
                                                 strategy_id: parsed.strategy_id || mainStrategy.id,
@@ -1824,13 +1763,13 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                     }
 
                                     poolAgent.status = 'completed';
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
                                 } catch (error: any) {
                                     poolAgent.status = 'error';
                                     poolAgent.error = error.message || "Solution pool generation failed";
                                     console.error(`[Deepthink] Solution pool failed for ${mainStrategy.id}:`, error.message);
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
                                 }
                             });
 
@@ -1846,7 +1785,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                 addSolutionPoolVersion(currentProcess.id, currentProcess.structuredSolutionPool, iterNum);
                             }
 
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
 
                             // PHASE 3: Generate corrected solutions for all strategies in parallel
                             console.log(`[Deepthink] Phase 3: Generating corrected solutions for iteration ${iterNum}...`);
@@ -1862,7 +1801,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                 try {
                                     directSub.selfImprovementStatus = 'processing';
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
                                     // Get or create correction history manager for this strategy
                                     let correctionManager = correctionHistoryManagers.get(mainStrategy.id);
@@ -1879,7 +1818,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                     if (iterNum === 1) {
                                         // Create manager with pool context on first iteration
                                         correctionManager = new SolutionCorrectionHistoryManager(
-                                            customPromptsDeepthinkState.sys_deepthink_selfImprovement,
+                                            deps.customPromptsDeepthinkState.sys_deepthink_selfImprovement,
                                             challengeText,
                                             mainStrategy.strategyText,
                                             currentSolution,
@@ -1909,7 +1848,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                                     const correctedSolution = await makeDeepthinkApiCallWithTimeout(
                                         parts.concat([{ text: correctionPrompt }]),
-                                        customPromptsDeepthinkState.sys_deepthink_selfImprovement,
+                                        deps.customPromptsDeepthinkState.sys_deepthink_selfImprovement,
                                         false,
                                         `Solution Correction Iteration ${iterNum} for ${mainStrategy.id}`,
                                         directSub,
@@ -1930,13 +1869,13 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                         timestamp: Date.now()
                                     });
 
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
                                 } catch (error: any) {
                                     directSub.selfImprovementStatus = 'error';
                                     directSub.selfImprovementError = error.message || "Correction failed";
                                     console.error(`[Deepthink] Correction failed for ${mainStrategy.id}:`, error.message);
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
                                 }
                             });
 
@@ -1952,7 +1891,7 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                 addSolutionPoolVersion(currentProcess.id, currentProcess.structuredSolutionPool, iterNum + 0.5);
                             }
 
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
                         }
 
                         // Mark all iterative corrections as completed
@@ -1965,14 +1904,14 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                         currentProcess.structuredSolutionPoolStatus = 'completed';
                         console.log('[Deepthink] StructuredSolutionPool mode completed');
-                        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                        render();
                     }
 
                 } else {
                     // Non-iterative refinement mode with dissected observations synthesis
                     if (dissectedObservationsEnabled) {
                         currentProcess.dissectedSynthesisStatus = 'processing';
-                        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                        render();
 
                         try {
                             const solutionsWithCritiques = currentProcess.initialStrategies
@@ -2015,7 +1954,7 @@ ${strategyCritique}
                                 .filter(section => section.trim().length > 0)
                                 .join('\n\n\n');
 
-                            const synthesisPrompt = customPromptsDeepthinkState.user_deepthink_dissectedSynthesis
+                            const synthesisPrompt = deps.customPromptsDeepthinkState.user_deepthink_dissectedSynthesis
                                 .replace('{{originalProblemText}}', challengeText)
                                 .replace('{{knowledgePacket}}', currentProcess.knowledgePacket || 'No hypothesis exploration performed.')
                                 .replace('{{solutionsWithCritiques}}', solutionsWithCritiques || 'No solution attempts available.');
@@ -2024,7 +1963,7 @@ ${strategyCritique}
 
                             const synthesisResponse = await makeDeepthinkApiCall(
                                 parts.concat([{ text: synthesisPrompt }]),
-                                customPromptsDeepthinkState.sys_deepthink_dissectedSynthesis,
+                                deps.customPromptsDeepthinkState.sys_deepthink_dissectedSynthesis,
                                 false,
                                 'Dissected Observations Synthesis',
                                 currentProcess,
@@ -2033,11 +1972,11 @@ ${strategyCritique}
 
                             currentProcess.dissectedObservationsSynthesis = synthesisResponse;
                             currentProcess.dissectedSynthesisStatus = 'completed';
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
                         } catch (error: any) {
                             currentProcess.dissectedSynthesisStatus = 'error';
                             currentProcess.dissectedSynthesisError = error.message || "Dissected synthesis failed";
-                            if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                            render();
                         }
 
                         if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped during dissected synthesis.");
@@ -2058,9 +1997,9 @@ ${strategyCritique}
 
                                 try {
                                     subStrategy.selfImprovementStatus = 'processing';
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
 
-                                    const provideAllSolutions = getProvideAllSolutionsToCorrectors();
+                                    const provideAllSolutions = deps.getProvideAllSolutionsToCorrectors();
 
                                     let solutionSection: string;
 
@@ -2132,7 +2071,7 @@ ${currentProcess.dissectedObservationsSynthesis}
 </DISSECTED OBSERVATIONS SYNTHESIS>`;
                                     }
 
-                                    const improvementPrompt = customPromptsDeepthinkState.user_deepthink_selfImprovement
+                                    const improvementPrompt = deps.customPromptsDeepthinkState.user_deepthink_selfImprovement
                                         .replace('{{originalProblemText}}', challengeText)
                                         .replace('{{currentMainStrategy}}', mainStrategy.strategyText)
                                         .replace('{{currentSubStrategy}}', subStrategy.subStrategyText)
@@ -2143,7 +2082,7 @@ ${currentProcess.dissectedObservationsSynthesis}
 
                                     const improvementResponse = await makeDeepthinkApiCall(
                                         parts.concat([{ text: improvementPrompt }]),
-                                        customPromptsDeepthinkState.sys_deepthink_selfImprovement,
+                                        deps.customPromptsDeepthinkState.sys_deepthink_selfImprovement,
                                         false,
                                         `Self-Improvement for ${subStrategy.id}`,
                                         subStrategy,
@@ -2152,11 +2091,11 @@ ${currentProcess.dissectedObservationsSynthesis}
 
                                     subStrategy.refinedSolution = improvementResponse;
                                     subStrategy.selfImprovementStatus = 'completed';
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
                                 } catch (error: any) {
                                     subStrategy.selfImprovementStatus = 'error';
                                     subStrategy.selfImprovementError = error.message || "Self-improvement failed";
-                                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                                    render();
                                 }
                             })());
                         });
@@ -2168,13 +2107,13 @@ ${currentProcess.dissectedObservationsSynthesis}
                 if (currentProcess.isStopRequested) throw new PipelineStopRequestedError("Stopped during self-improvement.");
 
                 currentProcess.strategicSolverComplete = true;
-                if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                render();
 
             } catch (error: any) {
                 if (!(error instanceof PipelineStopRequestedError)) {
                     currentProcess.status = 'error';
                     currentProcess.error = `Strategic Solver failed: ${error.message}`;
-                    if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+                    render();
                 }
                 throw error;
             }
@@ -2183,7 +2122,7 @@ ${currentProcess.dissectedObservationsSynthesis}
         await Promise.all([trackAPromise, trackBPromise]);
 
         currentProcess.finalJudgingStatus = 'processing';
-        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+        render();
 
         const allSolutions: Array<{ id: string, solution: string, mainStrategyId: string, subStrategyText: string }> = [];
 
@@ -2209,7 +2148,7 @@ ${currentProcess.dissectedObservationsSynthesis}
             currentProcess.finalJudgingStatus = 'error';
             currentProcess.finalJudgingError = "No completed solutions available for final review.";
         } else {
-            const sysPromptFinalJudge = customPromptsDeepthinkState.sys_deepthink_finalJudge;
+            const sysPromptFinalJudge = deps.customPromptsDeepthinkState.sys_deepthink_finalJudge;
 
             const finalSolutionsText = allSolutions.map((sol, i) =>
                 `<SOLUTION_${i + 1}>\n` +
@@ -2234,7 +2173,7 @@ ${currentProcess.dissectedObservationsSynthesis}
                     'retryAttempt'
                 );
                 currentProcess.finalJudgingResponseText = finalJudgingResponseText;
-                const cleanedJson = cleanOutputByType(finalJudgingResponseText, 'json');
+                const cleanedJson = deps.cleanOutputByType(finalJudgingResponseText, 'json');
                 const parsed = JSON.parse(cleanedJson);
 
                 if (!parsed.best_solution_id || !parsed.final_reasoning) {
@@ -2257,7 +2196,7 @@ ${currentProcess.dissectedObservationsSynthesis}
         }
 
         currentProcess.status = 'completed';
-        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+        render();
 
     } catch (error: any) {
         if (error instanceof PipelineStopRequestedError) {
@@ -2266,8 +2205,8 @@ ${currentProcess.dissectedObservationsSynthesis}
             currentProcess.status = 'error';
             currentProcess.error = error.message;
         }
-        if (renderActiveDeepthinkPipeline) renderActiveDeepthinkPipeline();
+        render();
     } finally {
-        updateControlsState({ isGenerating: false });
+        deps.updateControlsState({ isGenerating: false });
     }
 }

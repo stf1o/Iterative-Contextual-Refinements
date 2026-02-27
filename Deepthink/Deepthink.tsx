@@ -121,18 +121,20 @@ export function initializeDeepthinkModule(dependencies: {
     pipelinesContentContainer: HTMLElement | null;
     setActiveDeepthinkPipeline: (pipeline: DeepthinkPipelineState | null) => void;
 }) {
-    // Update local state
-    moduleState.tabsNavContainer = dependencies.tabsNavContainer;
-    moduleState.pipelinesContentContainer = dependencies.pipelinesContentContainer;
-    moduleState.escapeHtml = dependencies.escapeHtml;
-    moduleState.cleanTextOutput = dependencies.cleanTextOutput;
-    moduleState.getSelectedStrategiesCount = dependencies.getSelectedStrategiesCount;
-    moduleState.getSelectedSubStrategiesCount = dependencies.getSelectedSubStrategiesCount;
-    moduleState.getSelectedHypothesisCount = dependencies.getSelectedHypothesisCount;
-    moduleState.getSelectedRedTeamAggressiveness = dependencies.getSelectedRedTeamAggressiveness;
-    moduleState.getRefinementEnabled = dependencies.getRefinementEnabled;
-    moduleState.getIterativeCorrectionsEnabled = dependencies.getIterativeCorrectionsEnabled;
-    moduleState.getDissectedObservationsEnabled = dependencies.getDissectedObservationsEnabled;
+    // Update local module state from dependencies
+    Object.assign(moduleState, {
+        tabsNavContainer: dependencies.tabsNavContainer,
+        pipelinesContentContainer: dependencies.pipelinesContentContainer,
+        escapeHtml: dependencies.escapeHtml,
+        cleanTextOutput: dependencies.cleanTextOutput,
+        getSelectedStrategiesCount: dependencies.getSelectedStrategiesCount,
+        getSelectedSubStrategiesCount: dependencies.getSelectedSubStrategiesCount,
+        getSelectedHypothesisCount: dependencies.getSelectedHypothesisCount,
+        getSelectedRedTeamAggressiveness: dependencies.getSelectedRedTeamAggressiveness,
+        getRefinementEnabled: dependencies.getRefinementEnabled,
+        getIterativeCorrectionsEnabled: dependencies.getIterativeCorrectionsEnabled,
+        getDissectedObservationsEnabled: dependencies.getDissectedObservationsEnabled,
+    });
 
     // Subscribe to highlighter readiness
     onHighlighterReady(() => {
@@ -168,7 +170,7 @@ interface ModalOptions {
  * Returns the body element where content should be appended, and the close function.
  */
 function createBaseModal(options: ModalOptions) {
-    const isEmbedded = options.isEmbedded || false;
+    const isEmbedded = !!options.isEmbedded;
     const overlayClass = isEmbedded ? 'embedded-modal-overlay' : 'modal-overlay';
     const contentClass = isEmbedded ? 'embedded-modal-content' : 'modal-content';
 
@@ -220,7 +222,7 @@ function createBaseModal(options: ModalOptions) {
     // Body
     const body = document.createElement('div');
     body.className = 'modal-body';
-    if (options.isEmbedded) body.classList.add('custom-scrollbar');
+    if (isEmbedded) body.classList.add('custom-scrollbar');
     if (options.noPadding) body.style.padding = '0';
 
     content.appendChild(body);
@@ -281,14 +283,13 @@ export async function openDeepthinkSolutionModal(subStrategyId: string) {
     if (!subStrategy) return;
 
     const iterativeCorrectionsEnabled = moduleState.getIterativeCorrectionsEnabled();
-    const hasIterativeCorrections = iterativeCorrectionsEnabled;
 
-    const { body, overlay } = createBaseModal({
-        title: hasIterativeCorrections ? 'Iterative Corrections' : 'Solution Details',
-        noPadding: hasIterativeCorrections
+    const { body } = createBaseModal({
+        title: iterativeCorrectionsEnabled ? 'Iterative Corrections' : 'Solution Details',
+        noPadding: iterativeCorrectionsEnabled
     });
 
-    if (hasIterativeCorrections) {
+    if (iterativeCorrectionsEnabled) {
         body.style.height = 'calc(100vh - 80px)';
         body.style.overflow = 'hidden';
         body.classList.add('contextual-mode-container');
@@ -327,8 +328,7 @@ export async function openSubStrategySolutionModal(subStrategyId: string) {
         className: 'fullscreen-modal',
         title: 'Sub-Strategy Solution',
         height: 'auto',
-        padding: '0.5rem 1.5rem',
-        onClose: () => { } // Cleanup handled by base
+        padding: '0.5rem 1.5rem'
     });
 
     // Override base class specificities for this specific modal type to match exact legacy styles
@@ -360,13 +360,10 @@ export function openSubStrategyCritiqueModal(subStrategyId: string) {
     let subStrategy: any = null;
     let mainStrategyId = '';
 
-    pipeline?.initialStrategies.forEach(strategy => {
-        const found = strategy.subStrategies.find(sub => sub.id === subStrategyId);
-        if (found) {
-            subStrategy = found;
-            mainStrategyId = strategy.id;
-        }
-    });
+    for (const strategy of pipeline?.initialStrategies ?? []) {
+        subStrategy = strategy.subStrategies.find(sub => sub.id === subStrategyId);
+        if (subStrategy) { mainStrategyId = strategy.id; break; }
+    }
 
     if (!subStrategy?.solutionCritique) return;
 
@@ -444,23 +441,22 @@ function renderDefaultSolutionUI(container: HTMLElement, subStrategy: any) {
     const refinementWasPerformed = subStrategy.refinedSolution !== subStrategy.solutionAttempt;
     const currentRefinementEnabled = moduleState.getRefinementEnabled();
 
-    // Use a grid layout
     container.innerHTML = `
-        <div style="display: grid; grid-template-columns: ${currentRefinementEnabled ? '1fr 1fr' : '1fr'}; gap: 20px; height: 100%;">
+        <div class="solution-comparison-grid" style="grid-template-columns: ${currentRefinementEnabled ? '1fr 1fr' : '1fr'};">
             ${renderSolutionPanel(
         'psychology',
         currentRefinementEnabled ? 'Attempted Solution' : 'Solution',
         subStrategy.solutionAttempt || 'Solution not available'
     )}
             
-            <div style="display: flex; flex-direction: column; border: 1px solid #333; border-radius: 8px; overflow: hidden; ${!refinementWasPerformed ? 'position: relative;' : ''} ${!refinementWasPerformed ? 'class="disabled-pane"' : ''}">
-                <div style="padding: 12px 16px; background: rgba(15, 17, 32, 0.4); border-bottom: 1px solid #333;">
-                     <h4 style="margin: 0; ${!currentRefinementEnabled ? 'opacity: 0.6;' : ''}">
+            <div class="solution-panel${!refinementWasPerformed ? ' disabled-pane' : ''}"${!refinementWasPerformed ? ' style="position: relative;"' : ''}>
+                <div class="solution-panel-header">
+                     <h4 style="margin: 0;${!currentRefinementEnabled ? ' opacity: 0.6;' : ''}">
                         <span class="material-symbols-outlined">${currentRefinementEnabled ? 'auto_fix_high' : 'auto_fix_off'}</span>
                         ${currentRefinementEnabled ? 'Refined Solution' : 'Refined Solution (Disabled)'}
                      </h4>
                 </div>
-                <div style="flex: 1; overflow: auto; padding: 16px; position: relative;">
+                <div class="solution-panel-body"${!refinementWasPerformed ? ' style="position: relative;"' : ''}>
                     ${renderMathContent(currentRefinementEnabled
         ? (subStrategy.refinedSolution || 'Refined solution not available')
         : (subStrategy.refinedSolution || subStrategy.solutionAttempt || 'Solution refinement is disabled'))}
@@ -470,14 +466,13 @@ function renderDefaultSolutionUI(container: HTMLElement, subStrategy: any) {
         </div>
     `;
 
-    // Helper for left panel to reduce duplication
     function renderSolutionPanel(icon: string, title: string, content: string) {
         return `
-        <div style="display: flex; flex-direction: column; border: 1px solid #333; border-radius: 8px; overflow: hidden;">
-            <div style="padding: 12px 16px; background: rgba(15, 17, 32, 0.4); border-bottom: 1px solid #333;">
+        <div class="solution-panel">
+            <div class="solution-panel-header">
                 <h4 style="margin: 0;"><span class="material-symbols-outlined">${icon}</span>${title}</h4>
             </div>
-            <div style="flex: 1; overflow: auto; padding: 16px;">
+            <div class="solution-panel-body">
                 ${renderMathContent(content)}
             </div>
         </div>`;
@@ -826,12 +821,12 @@ export function renderDissectedObservationsContent(process: DeepthinkPipelineSta
     const iterativeCorrectionsEnabled = moduleState.getIterativeCorrectionsEnabled();
     const hasExistingCritique = process.solutionCritiques && process.solutionCritiques.length > 0;
     const hasSubStrategyCritiques = iterativeCorrectionsEnabled && process.initialStrategies.some(s =>
-        s.subStrategies.some(sub => sub.solutionCritique?.length > 0)
+        s.subStrategies.some(sub => (sub.solutionCritique?.length ?? 0) > 0)
     );
 
     if (process.solutionCritiquesStatus === 'processing') return '<div class="loading">Critiquing solutions...</div>';
     if (!refinementEnabled && !hasExistingCritique && !hasSubStrategyCritiques) return '<div class="status-message">Dissected Observations are only available when refinement is enabled.</div>';
-    if (!hasSubStrategyCritiques && !hasExistingCritique && process.solutionCritiquesStatus !== 'processing') {
+    if (!hasSubStrategyCritiques && !hasExistingCritique && (process.solutionCritiquesStatus as string) !== 'processing') {
         return '<div class="status-message">Solution critiques not yet started. Waiting for solutions to be generated.</div>';
     }
 
@@ -1153,58 +1148,64 @@ function deepthinkClickHandler(event: Event) {
     }
 }
 
-function handleShowMore(button: HTMLElement) {
-    const targetType = button.getAttribute('data-target');
-    let container, textDiv;
-
-    if (targetType === 'sub-strategy') {
-        container = button.closest('.sub-strategy-content-wrapper');
-        textDiv = container?.querySelector('.sub-strategy-text');
-    } else if (targetType === 'hypothesis') {
-        container = button.closest('.hypothesis-text-container');
-        textDiv = container?.querySelector('.hypothesis-text');
-    } else if (targetType === 'strategy') {
-        container = button.closest('.strategy-text-container');
-        textDiv = container?.querySelector('.strategy-text');
-    }
-
-    if (textDiv && container) {
-        const fullText = textDiv.getAttribute('data-full-text') || '';
-        const isExpanded = button.textContent === 'Show Less';
-        const truncateLength = (targetType === 'sub-strategy' || targetType === 'hypothesis') ? 150 : 200;
-
-        if (!isExpanded) {
-            textDiv.innerHTML = renderMathContent(fullText);
-            button.textContent = 'Show Less';
-
-            // Expand classes
-            if (targetType === 'sub-strategy') {
-                container.querySelector('.sub-strategy-text-container')?.classList.add('expanded');
-                button.closest('.red-team-agent-card')?.classList.add('expanded');
-            } else if (targetType === 'hypothesis') {
-                button.closest('.red-team-agent-card')?.querySelector('.hypothesis-text-container')?.classList.add('expanded');
-            } else if (targetType === 'strategy') {
-                button.closest('.strategy-content')?.classList.add('expanded');
-            }
-        } else {
-            textDiv.innerHTML = renderMathContent(fullText.length > truncateLength ? fullText.substring(0, truncateLength) + '...' : fullText);
-            button.textContent = 'Show More';
-
-            // Collapse classes
-            if (targetType === 'sub-strategy') {
-                container.querySelector('.sub-strategy-text-container')?.classList.remove('expanded');
-                button.closest('.red-team-agent-card')?.classList.remove('expanded');
-            } else if (targetType === 'hypothesis') {
-                button.closest('.red-team-agent-card')?.querySelector('.hypothesis-text-container')?.classList.remove('expanded');
-            } else if (targetType === 'strategy') {
-                button.closest('.strategy-content')?.classList.remove('expanded');
-            }
-
-            setTimeout(() => {
-                const scrollTarget = button.closest('.red-team-agent-card, .strategy-text-container');
-                scrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
+/** Config-driven show more/less toggle for strategy, sub-strategy, and hypothesis text */
+const SHOW_MORE_CONFIG: Record<string, {
+    containerSelector: string;
+    textSelector: string;
+    truncateLength: number;
+    getExpandTarget: (container: Element) => Element | null;
+}> = {
+    'sub-strategy': {
+        containerSelector: '.sub-strategy-content-wrapper',
+        textSelector: '.sub-strategy-text',
+        truncateLength: 150,
+        getExpandTarget: (c) => {
+            c.querySelector('.sub-strategy-text-container')?.classList.toggle('expanded');
+            return c.closest('.red-team-agent-card');
         }
+    },
+    'hypothesis': {
+        containerSelector: '.hypothesis-text-container',
+        textSelector: '.hypothesis-text',
+        truncateLength: 150,
+        getExpandTarget: (c) => c.closest('.red-team-agent-card')?.querySelector('.hypothesis-text-container') ?? null
+    },
+    'strategy': {
+        containerSelector: '.strategy-text-container',
+        textSelector: '.strategy-text',
+        truncateLength: 200,
+        getExpandTarget: (c) => c.closest('.strategy-content') ?? null
+    }
+};
+
+function handleShowMore(button: HTMLElement) {
+    const targetType = button.getAttribute('data-target') || '';
+    const config = SHOW_MORE_CONFIG[targetType];
+    if (!config) return;
+
+    const container = button.closest(config.containerSelector);
+    const textDiv = container?.querySelector(config.textSelector);
+    if (!textDiv || !container) return;
+
+    const fullText = textDiv.getAttribute('data-full-text') || '';
+    const isExpanded = button.textContent === 'Show Less';
+
+    if (!isExpanded) {
+        textDiv.innerHTML = renderMathContent(fullText);
+        button.textContent = 'Show Less';
+        config.getExpandTarget(container)?.classList.add('expanded');
+    } else {
+        const truncated = fullText.length > config.truncateLength
+            ? fullText.substring(0, config.truncateLength) + '...'
+            : fullText;
+        textDiv.innerHTML = renderMathContent(truncated);
+        button.textContent = 'Show More';
+        config.getExpandTarget(container)?.classList.remove('expanded');
+
+        setTimeout(() => {
+            const scrollTarget = button.closest('.red-team-agent-card, .strategy-text-container');
+            scrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
     }
 }
 

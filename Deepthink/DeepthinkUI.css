@@ -67,46 +67,6 @@
 }
 
 /* --------------------------------------------------------------------------
-   3. FILE UPLOAD COMPONENT
-   -------------------------------------------------------------------------- */
-
-.file-drop-area {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    border: 2px dashed var(--border-color);
-    border-radius: var(--border-radius-md);
-    background-color: rgba(var(--card-bg-base-rgb), 0.2);
-    cursor: pointer;
-    transition: all var(--transition-speed-fast) var(--easing-curve);
-    text-align: center;
-    color: var(--text-secondary-color);
-}
-
-.file-drop-area .file-drop-icon {
-    width: 32px;
-    height: 32px;
-    margin-bottom: 1rem;
-    opacity: 0.7;
-    transition: opacity var(--transition-speed-fast);
-    color: var(--text-secondary-color);
-}
-
-/* Hover States */
-.file-drop-area:hover {
-    border-color: var(--accent-purple);
-    background-color: rgba(var(--accent-purple-rgb), 0.08);
-    color: var(--text-color);
-}
-
-.file-drop-area:hover .file-drop-icon {
-    opacity: 1;
-    color: var(--accent-purple);
-}
-
-/* --------------------------------------------------------------------------
    4. TAB BUTTONS & STATUS STYLES
    -------------------------------------------------------------------------- */
 
@@ -280,22 +240,6 @@
    6. STRATEGY & SOLVER CARDS
    -------------------------------------------------------------------------- */
 
-.track-description {
-    font-size: 1rem;
-    color: var(--text-secondary-color);
-    margin: -1rem 0 1rem 0;
-    max-width: 70ch;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.strategies-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-    gap: 2rem;
-    margin-top: 1.5rem;
-    padding: 0.5rem;
-}
-
 .strategy-card {
     position: relative;
     overflow: visible;
@@ -303,17 +247,6 @@
     padding-right: 16rem;
     /* Space for pills */
     min-height: 12rem;
-}
-
-.strategy-card h5 {
-    margin: 0 0 1.2rem 0;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--text-color);
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    opacity: 0.65;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
 }
 
 .strategy-text {
@@ -325,13 +258,6 @@
     line-height: 1.7;
     letter-spacing: 0.2px;
     opacity: 0.88;
-}
-
-.strategy-title {
-    margin: 0.5rem 0;
-    font-size: 1.1rem;
-    font-weight: 500;
-    color: var(--text-color);
 }
 
 /* Expandable Content Logic */
@@ -398,121 +324,6 @@
     flex-wrap: wrap;
     gap: 0.75rem;
     margin-top: 1rem;
-}
-
-/* Expand Toggles */
-.expand-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 1rem;
-    padding: 0.7rem 1.3rem;
-
-    background: rgba(var(--accent-purple-rgb), 0.08);
-    color: var(--accent-purple);
-    border: 1.5px solid rgba(var(--accent-purple-rgb), 0.2);
-    border-radius: 18px;
-
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    cursor: pointer;
-
-    backdrop-filter: blur(20px) saturate(150%);
-    -webkit-backdrop-filter: blur(20px) saturate(150%);
-    box-shadow: 0 2px 8px rgba(var(--accent-purple-rgb), 0.06),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.08);
-
-    transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.expand-toggle:hover {
-    background: rgba(var(--accent-purple-rgb), 0.15);
-    border-color: rgba(var(--accent-purple-rgb), 0.35);
-    box-shadow: 0 8px 32px rgba(var(--accent-purple-rgb), 0.15),
-        inset 0 2px 0 rgba(255, 255, 255, 0.12),
-        inset 0 -2px 0 rgba(0, 0, 0, 0.15);
-    backdrop-filter: blur(32px) saturate(180%);
-    -webkit-backdrop-filter: blur(32px) saturate(180%);
-}
-
-.expand-toggle .material-symbols-outlined,
-.sub-strategy-expand-toggle .material-symbols-outlined {
-    font-size: 1rem;
-    transition: transform 0.3s ease;
-}
-
-.expand-toggle.expanded .material-symbols-outlined,
-.sub-strategy-expand-toggle.expanded .material-symbols-outlined {
-    transform: rotate(180deg);
-}
-
-.sub-strategy-expand-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.375rem;
-    min-width: fit-content;
-    padding: 0.75rem 1rem;
-
-    background: rgba(var(--bg-color-rgb), 0.8);
-    color: var(--text-color);
-    border: 1px solid rgba(var(--border-color-rgb), 0.3);
-    border-radius: var(--border-radius-md);
-
-    font-size: 0.85rem;
-    font-weight: 500;
-    white-space: nowrap;
-    cursor: pointer;
-
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    transition: all var(--transition-speed) var(--easing-curve);
-}
-
-.sub-strategy-expand-toggle:hover {
-    background: rgba(var(--bg-color-rgb), 0.9);
-    border-color: rgba(var(--accent-purple-rgb), 0.5);
-    color: var(--accent-purple);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    transform: translateY(-1px);
-    backdrop-filter: blur(25px);
-    -webkit-backdrop-filter: blur(25px);
-}
-
-/* Panel Action Buttons */
-.panel-action-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 2.2rem;
-    height: 2.2rem;
-    padding: 0.6rem;
-
-    background: rgba(var(--bg-color-rgb), 0.05);
-    color: var(--text-color-secondary);
-    border: 1px solid rgba(var(--border-color-rgb), 0.15);
-    border-radius: 16px;
-
-    font-size: 0.875rem;
-    cursor: pointer;
-
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-    transition: all 0.35s cubic-bezier(0.23, 1, 0.320, 1);
-}
-
-.panel-action-btn:hover {
-    background: rgba(var(--accent-purple-rgb), 0.08);
-    border-color: rgba(var(--accent-purple-rgb), 0.25);
-    color: var(--accent-purple);
-    box-shadow: 0 4px 16px rgba(var(--accent-purple-rgb), 0.08);
-}
-
-.panel-action-btn .material-symbols-outlined {
-    font-size: 1rem;
 }
 
 /* --------------------------------------------------------------------------
@@ -651,92 +462,6 @@
     display: block;
 }
 
-/* --------------------------------------------------------------------------
-   8. SUB-STRATEGY CARDS & GRID
-   -------------------------------------------------------------------------- */
-
-.sub-strategies-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(max(300px, calc((100% - 2 * var(--spacing-section-md)) / 3)), 1fr));
-    gap: var(--spacing-section-md);
-    margin: var(--space-4) 0 var(--spacing-section-lg) 0;
-    padding: var(--space-2);
-    max-width: 100%;
-}
-
-.sub-strategy-card {
-    position: relative;
-    overflow: hidden;
-    padding: var(--spacing-section-sm);
-    margin-bottom: 0;
-
-    background: rgba(var(--card-bg-base-rgb), 0.03);
-    border: 1px solid rgba(var(--border-color-rgb), 0.35);
-    border-radius: var(--radius-xl);
-
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.03),
-        0 1px 2px rgba(0, 0, 0, 0.05);
-    transition: all 0.4s cubic-bezier(0.23, 1, 0.320, 1);
-}
-
-.sub-strategy-card::after {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(var(--accent-purple-rgb), 0.02) 0%, transparent 70%);
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.4s ease;
-}
-
-.sub-strategy-card:hover {
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06),
-        0 2px 4px rgba(0, 0, 0, 0.06);
-    border-color: rgba(var(--border-color-rgb), 0.15);
-    background: rgba(var(--card-bg-base-rgb), 0.05);
-}
-
-.sub-strategy-card:hover::after {
-    opacity: 1;
-}
-
-.sub-strategy-card.killed-sub-strategy {
-    opacity: 0.6;
-    background: rgba(var(--accent-pink-rgb), 0.02);
-    border-color: rgba(var(--accent-pink-rgb), 0.15);
-}
-
-/* Sub-Strategy Header */
-.sub-strategy-card h6 {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0 0 1rem 0;
-
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--text-color);
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    opacity: 0.6;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.08));
-}
-
-.sub-strategy-card h6::before {
-    content: '';
-    width: 3px;
-    height: 14px;
-    background: var(--accent-blue);
-    border-radius: 2px;
-    opacity: 0.6;
-    box-shadow: 0 1px 4px rgba(var(--accent-blue-rgb), 0.2);
-}
-
 .sub-strategy-text-container {
     position: relative;
     height: auto;
@@ -783,24 +508,6 @@
     letter-spacing: 0.5px;
 }
 
-/* Sub-Strategy Status Indicators */
-.sub-strategy-card.status-completed::after {
-    background-color: var(--accent-green);
-    box-shadow: 0 0 8px -2px var(--success-glow);
-}
-
-.sub-strategy-card.status-processing::after,
-.sub-strategy-card.status-retrying::after {
-    background-color: var(--accent-yellow);
-    box-shadow: 0 0 8px -2px rgba(var(--accent-yellow-rgb), 0.4);
-    animation: pulse-glow-yellow 2s infinite;
-}
-
-.sub-strategy-card.status-error::after {
-    background-color: var(--accent-pink);
-    box-shadow: 0 0 8px -2px var(--error-glow);
-}
-
 .sub-strategy-content-wrapper {
     display: flex;
     flex-direction: column;
@@ -810,66 +517,10 @@
     max-height: none;
 }
 
+
 /* --------------------------------------------------------------------------
    9. HYPOTHESIS EXPLORER
    -------------------------------------------------------------------------- */
-
-.hypotheses-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    gap: 1.5rem;
-    margin-top: 1rem;
-}
-
-.hypothesis-card {
-    position: relative;
-    overflow: hidden;
-    padding: 1.8rem;
-    margin-bottom: 1.5rem;
-
-    background: rgba(var(--card-bg-base-rgb), 0.01);
-    border: 1.5px solid rgba(var(--border-color-rgb), 0.35);
-    border-radius: 28px;
-
-    backdrop-filter: blur(40px) saturate(180%);
-    -webkit-backdrop-filter: blur(40px) saturate(180%);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04),
-        0 1px 6px rgba(0, 0, 0, 0.03),
-        inset 0 1px 0 rgba(255, 255, 255, 0.03),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.06);
-
-    transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.hypothesis-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: rgba(var(--accent-purple-rgb), 0.25);
-    border-radius: 16px 16px 0 0;
-    opacity: 0;
-    box-shadow: 0 2px 8px rgba(var(--accent-purple-rgb), 0.2);
-    transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.hypothesis-card:hover {
-    border-color: rgba(var(--border-color-rgb), 0.35);
-    backdrop-filter: blur(56px) saturate(200%);
-    -webkit-backdrop-filter: blur(56px) saturate(200%);
-    box-shadow: 0 16px 72px rgba(0, 0, 0, 0.1),
-        0 4px 24px rgba(0, 0, 0, 0.06),
-        inset 0 2px 0 rgba(255, 255, 255, 0.06),
-        inset 0 -2px 0 rgba(0, 0, 0, 0.12);
-}
-
-.hypothesis-card h5 {
-    margin: 0 0 0.75rem 0;
-    font-size: 1.1rem;
-    color: var(--text-color);
-}
 
 .hypothesis-text {
     margin-bottom: 1.5rem;
@@ -904,63 +555,6 @@
     box-shadow: 0 8px 48px rgba(0, 0, 0, 0.05),
         inset 0 2px 0 rgba(255, 255, 255, 0.05),
         inset 0 -2px 0 rgba(0, 0, 0, 0.08);
-}
-
-.hypothesis-status {
-    margin-bottom: 1.5rem;
-}
-
-.prover-disprover-status {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border-color);
-}
-
-.prover-status,
-.disprover-status {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.agent-label {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text-tertiary-color);
-}
-
-/* Hypothesis Outcomes */
-.hypothesis-card.hypothesis-proven {
-    border-color: rgba(var(--accent-green-rgb), 0.5);
-}
-
-.hypothesis-card.hypothesis-proven::before {
-    background-color: var(--accent-green);
-    opacity: 0.1;
-}
-
-.hypothesis-card.hypothesis-refuted {
-    border-color: rgba(var(--accent-pink-rgb), 0.5);
-}
-
-.hypothesis-card.hypothesis-refuted::before {
-    background-color: var(--accent-pink);
-    opacity: 0.1;
-}
-
-.hypothesis-card.hypothesis-contradiction {
-    border-color: rgba(var(--accent-purple-rgb), 0.5);
-}
-
-.hypothesis-card.hypothesis-contradiction::before {
-    background-color: var(--accent-purple);
-    opacity: 0.1;
-}
-
-.hypothesis-card.status-processing {
-    animation: pulse-glow-yellow 2.5s infinite;
 }
 
 /* --------------------------------------------------------------------------
@@ -1206,104 +800,6 @@
 }
 
 /* --------------------------------------------------------------------------
-   11. DIFF ANALYSIS
-   -------------------------------------------------------------------------- */
-
-.diff-analysis-section {
-    padding: 1.5rem;
-    background: var(--card-bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-lg);
-    backdrop-filter: var(--card-blur-effect);
-    -webkit-backdrop-filter: var(--card-blur-effect);
-    box-shadow: var(--shadow-md);
-}
-
-.diff-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.diff-header h4 {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-color);
-    text-shadow: 0 1px 2px rgba(var(--bg-color-rgb), 0.3);
-}
-
-.diff-header .button {
-    display: flex;
-    /* Added for alignment */
-    align-items: center;
-    gap: 0.5rem;
-    background: linear-gradient(135deg, rgba(var(--accent-blue-rgb), 0.15), rgba(var(--accent-blue-rgb), 0.08));
-    border-color: rgba(var(--accent-blue-rgb), 0.3);
-    color: var(--accent-blue);
-    font-weight: 600;
-    transition: all var(--transition-speed) var(--easing-curve);
-}
-
-.diff-header .button:hover {
-    background: linear-gradient(135deg, rgba(var(--accent-blue-rgb), 0.25), rgba(var(--accent-blue-rgb), 0.15));
-    border-color: var(--accent-blue);
-    box-shadow: 0 0 15px -3px rgba(var(--accent-blue-rgb), 0.4);
-    transform: translateY(-1px);
-}
-
-.diff-header .button .material-symbols-outlined {
-    font-size: 1.1rem;
-}
-
-.diff-output-container {
-    min-height: 200px;
-    max-height: 400px;
-    padding: 1rem;
-    overflow-y: auto;
-
-    background-color: rgba(var(--bg-color-rgb), 0.5);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-md);
-
-    font-family: var(--font-family);
-    font-size: 0.9rem;
-    line-height: 1.6;
-}
-
-.diff-output-container .empty-state-message {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: 2rem;
-    color: var(--text-tertiary-color);
-    font-style: italic;
-    background: none;
-    border-radius: 0;
-}
-
-.diff-output-container .diff-view {
-    font-family: var(--font-family);
-    font-size: 0.85rem;
-    line-height: 1.5;
-}
-
-.diff-output-container .diff-view span {
-    display: block;
-    position: relative;
-    padding: 0.25rem 0.5rem 0.25rem 2.5rem;
-    transition: all var(--transition-speed-fast);
-}
-
-.diff-output-container .diff-neutral {
-    color: var(--text-secondary-color);
-}
-
-/* --------------------------------------------------------------------------
    12. RED TEAM REASONING PILL
    -------------------------------------------------------------------------- */
 
@@ -1382,217 +878,33 @@
 /* Remove leading top margin from first elements */
 .strategy-content> :first-child,
 .sub-strategy-content> :first-child,
-.sub-strategy-card .markdown-content> :first-child,
 .markdown-content> :first-child {
     margin-top: 0 !important;
 }
 
-/* Sub-Strategy Specific Markdown */
-.sub-strategy-card .markdown-content {
-    margin-bottom: 1.5rem;
-    text-align: left;
-    line-height: 1.8;
-    color: var(--text-secondary-color);
-    font-size: 0.9rem;
-}
+/* --------------------------------------------------------------------------
+   13. DEEPTHINK CONTENT TYPOGRAPHY (Collapsed via :is())
+   -------------------------------------------------------------------------- */
 
-.sub-strategy-card .markdown-content p,
-.sub-strategy-card .markdown-content li {
-    text-align: left;
-    line-height: 1.8;
-}
-
-.sub-strategy-card .markdown-content p {
-    margin-top: 0.2rem;
-    margin-bottom: 0.4rem;
-}
-
-.sub-strategy-card .markdown-content li {
-    margin-bottom: 0.75rem;
-}
-
-/* Headings in Sub-Strategy */
-.sub-strategy-card .markdown-content h1,
-.sub-strategy-card .markdown-content h2,
-.sub-strategy-card .markdown-content h3,
-.sub-strategy-card .markdown-content h4,
-.sub-strategy-card .markdown-content h5,
-.sub-strategy-card .markdown-content h6 {
-    text-align: left;
-    color: var(--accent-green);
-    margin-top: 0.2rem;
-    margin-bottom: 0.3rem;
-    font-weight: 600;
-    line-height: 1.4;
-}
-
-.sub-strategy-card .markdown-content h1 {
-    font-size: 1.25rem;
-}
-
-.sub-strategy-card .markdown-content h2 {
-    font-size: 1.15rem;
-}
-
-.sub-strategy-card .markdown-content h3 {
-    font-size: 1.05rem;
-}
-
-.sub-strategy-card .markdown-content h4 {
-    font-size: 1rem;
-}
-
-.sub-strategy-card .markdown-content h5 {
-    font-size: 0.95rem;
-}
-
-.sub-strategy-card .markdown-content h6 {
-    font-size: 0.9rem;
-}
-
-/* Sub-Strategy Inline Styles */
-.sub-strategy-card .markdown-content strong,
-.sub-strategy-card .markdown-content b {
-    color: var(--accent-green);
-    font-weight: 600;
-}
-
-.sub-strategy-card .markdown-content em,
-.sub-strategy-card .markdown-content i {
-    color: var(--accent-orange);
-    font-style: italic;
-}
-
-.sub-strategy-card .markdown-content ul,
-.sub-strategy-card .markdown-content ol {
-    text-align: left;
-    padding-left: 1.75rem;
-    margin: 1.25rem 0;
-    line-height: 1.8;
-}
-
-.sub-strategy-card .markdown-content code {
-    background: rgba(var(--accent-blue-rgb), 0.1);
-    padding: 0.2rem 0.4rem;
-    border-radius: 10px;
-    font-size: 0.85rem;
-    color: var(--accent-blue);
-}
-
-.sub-strategy-card .markdown-content pre {
-    background: rgba(var(--bg-color-rgb), 0.5);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    padding: 1rem;
-    margin: 1rem 0;
-    overflow-x: auto;
-    line-height: 1.6;
-    font-size: 0.85rem;
-}
-
-.sub-strategy-card .markdown-content blockquote {
-    border-left: 3px solid var(--accent-purple);
-    padding-left: 1rem;
-    margin: 1rem 0;
-    font-style: italic;
-    color: var(--text-tertiary-color);
-}
-
-.sub-strategy-card .button {
-    width: 100%;
-    justify-content: center;
-    padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, rgba(var(--accent-blue-rgb), 0.15), rgba(var(--accent-blue-rgb), 0.08));
-    border-color: rgba(var(--accent-blue-rgb), 0.3);
-    color: var(--accent-blue);
-    font-weight: 600;
-    font-size: 0.9rem;
-    transition: all var(--transition-speed) var(--easing-curve);
-}
-
-.sub-strategy-card .button:hover {
-    background: linear-gradient(135deg, rgba(var(--accent-blue-rgb), 0.25), rgba(var(--accent-blue-rgb), 0.15));
-    border-color: var(--accent-blue);
-    box-shadow: 0 0 15px -3px rgba(var(--accent-blue-rgb), 0.4);
-    transform: translateY(-1px);
-}
-
-.sub-strategy-card::after {
-    display: none;
-}
-
-/* Comprehensive Deepthink Content Styling
-   Groups all container classes to reduce redundancy while maintaining specificity 
-*/
-
-.deepthink-pipeline-container,
-.deepthink-pipeline-container .markdown-content,
-.judge-best-solution,
-.rich-content-display,
-.code-block-wrapper .rich-content-display,
-.hypothesis-text,
-.deepthink-hypothesis-explorer,
-.deepthink-red-team,
-.deepthink-final-result {
+/* Shared Deepthink content container list */
+:is(.deepthink-pipeline-container,
+    .deepthink-pipeline-container .markdown-content,
+    .judge-best-solution,
+    .hypothesis-text,
+    .deepthink-hypothesis-explorer,
+    .deepthink-red-team,
+    .deepthink-final-result) {
     line-height: var(--line-height-loose);
-    /* 2 - Comfortable reading */
 }
 
-/* Deepthink Headers (H1-H6) */
-.deepthink-pipeline-container h1,
-.deepthink-pipeline-container h2,
-.deepthink-pipeline-container h3,
-.deepthink-pipeline-container h4,
-.deepthink-pipeline-container h5,
-.deepthink-pipeline-container h6,
-.deepthink-pipeline-container .markdown-content h1,
-.deepthink-pipeline-container .markdown-content h2,
-.deepthink-pipeline-container .markdown-content h3,
-.deepthink-pipeline-container .markdown-content h4,
-.deepthink-pipeline-container .markdown-content h5,
-.deepthink-pipeline-container .markdown-content h6,
-.judge-best-solution h1,
-.judge-best-solution h2,
-.judge-best-solution h3,
-.judge-best-solution h4,
-.judge-best-solution h5,
-.judge-best-solution h6,
-.rich-content-display h1,
-.rich-content-display h2,
-.rich-content-display h3,
-.rich-content-display h4,
-.rich-content-display h5,
-.rich-content-display h6,
-.code-block-wrapper .rich-content-display h1,
-.code-block-wrapper .rich-content-display h2,
-.code-block-wrapper .rich-content-display h3,
-.code-block-wrapper .rich-content-display h4,
-.code-block-wrapper .rich-content-display h5,
-.code-block-wrapper .rich-content-display h6,
-.hypothesis-text h1,
-.hypothesis-text h2,
-.hypothesis-text h3,
-.hypothesis-text h4,
-.hypothesis-text h5,
-.hypothesis-text h6,
-.deepthink-hypothesis-explorer h1,
-.deepthink-hypothesis-explorer h2,
-.deepthink-hypothesis-explorer h3,
-.deepthink-hypothesis-explorer h4,
-.deepthink-hypothesis-explorer h5,
-.deepthink-hypothesis-explorer h6,
-.deepthink-red-team h1,
-.deepthink-red-team h2,
-.deepthink-red-team h3,
-.deepthink-red-team h4,
-.deepthink-red-team h5,
-.deepthink-red-team h6,
-.deepthink-final-result h1,
-.deepthink-final-result h2,
-.deepthink-final-result h3,
-.deepthink-final-result h4,
-.deepthink-final-result h5,
-.deepthink-final-result h6 {
+/* Headers */
+:is(.deepthink-pipeline-container,
+    .deepthink-pipeline-container .markdown-content,
+    .judge-best-solution,
+    .hypothesis-text,
+    .deepthink-hypothesis-explorer,
+    .deepthink-red-team,
+    .deepthink-final-result) :is(h1, h2, h3, h4, h5, h6) {
     color: var(--accent-green) !important;
     font-weight: var(--font-weight-semibold);
     margin-top: var(--space-6);
@@ -1600,111 +912,79 @@
     line-height: var(--line-height-heading);
 }
 
-/* Deepthink Emphasis (Italic) */
-.deepthink-pipeline-container em,
-.deepthink-pipeline-container i,
-.deepthink-pipeline-container .markdown-content em,
-.deepthink-pipeline-container .markdown-content i,
-.judge-best-solution em,
-.judge-best-solution i,
-.rich-content-display em,
-.rich-content-display i,
-.code-block-wrapper .rich-content-display em,
-.code-block-wrapper .rich-content-display i,
-.hypothesis-text em,
-.hypothesis-text i,
-.deepthink-hypothesis-explorer em,
-.deepthink-hypothesis-explorer i,
-.deepthink-red-team em,
-.deepthink-red-team i,
-.deepthink-final-result em,
-.deepthink-final-result i {
+/* Emphasis */
+:is(.deepthink-pipeline-container,
+    .deepthink-pipeline-container .markdown-content,
+    .judge-best-solution,
+    .hypothesis-text,
+    .deepthink-hypothesis-explorer,
+    .deepthink-red-team,
+    .deepthink-final-result) :is(em, i) {
     color: var(--accent-orange) !important;
     font-style: italic;
 }
 
-/* Deepthink Strong (Bold) */
-.deepthink-pipeline-container strong,
-.deepthink-pipeline-container b,
-.deepthink-pipeline-container .markdown-content strong,
-.deepthink-pipeline-container .markdown-content b,
-.judge-best-solution strong,
-.judge-best-solution b,
-.rich-content-display strong,
-.rich-content-display b,
-.code-block-wrapper .rich-content-display strong,
-.code-block-wrapper .rich-content-display b,
-.hypothesis-text strong,
-.hypothesis-text b,
-.deepthink-hypothesis-explorer strong,
-.deepthink-hypothesis-explorer b,
-.deepthink-red-team strong,
-.deepthink-red-team b,
-.deepthink-final-result strong,
-.deepthink-final-result b {
+/* Strong */
+:is(.deepthink-pipeline-container,
+    .deepthink-pipeline-container .markdown-content,
+    .judge-best-solution,
+    .hypothesis-text,
+    .deepthink-hypothesis-explorer,
+    .deepthink-red-team,
+    .deepthink-final-result) :is(strong, b) {
     color: var(--accent-green) !important;
     font-weight: var(--font-weight-bold);
 }
 
-/* Deepthink Paragraphs & Lists */
-.deepthink-pipeline-container p,
-.deepthink-pipeline-container .markdown-content p,
-.judge-best-solution p,
-.rich-content-display p,
-.code-block-wrapper .rich-content-display p,
-.hypothesis-text p,
-.deepthink-hypothesis-explorer p,
-.deepthink-red-team p,
-.deepthink-final-result p {
+/* Paragraphs */
+:is(.deepthink-pipeline-container,
+    .deepthink-pipeline-container .markdown-content,
+    .judge-best-solution,
+    .hypothesis-text,
+    .deepthink-hypothesis-explorer,
+    .deepthink-red-team,
+    .deepthink-final-result) p {
     margin-bottom: var(--space-4);
     color: var(--text-primary-color);
 }
 
-.deepthink-pipeline-container ul,
-.deepthink-pipeline-container ol,
-.deepthink-pipeline-container .markdown-content ul,
-.deepthink-pipeline-container .markdown-content ol,
-.judge-best-solution ul,
-.judge-best-solution ol,
-.rich-content-display ul,
-.rich-content-display ol,
-.code-block-wrapper .rich-content-display ul,
-.code-block-wrapper .rich-content-display ol,
-.hypothesis-text ul,
-.hypothesis-text ol,
-.deepthink-hypothesis-explorer ul,
-.deepthink-hypothesis-explorer ol,
-.deepthink-red-team ul,
-.deepthink-red-team ol,
-.deepthink-final-result ul,
-.deepthink-final-result ol {
+/* Lists */
+:is(.deepthink-pipeline-container,
+    .deepthink-pipeline-container .markdown-content,
+    .judge-best-solution,
+    .rich-content-display,
+    .code-block-wrapper .rich-content-display,
+    .hypothesis-text,
+    .deepthink-hypothesis-explorer,
+    .deepthink-red-team,
+    .deepthink-final-result) :is(ul, ol) {
     margin-bottom: var(--space-4);
     padding-left: var(--spacing-section-sm);
 }
 
-.deepthink-pipeline-container li,
-.deepthink-pipeline-container .markdown-content li,
-.judge-best-solution li,
-.rich-content-display li,
-.code-block-wrapper .rich-content-display li,
-.hypothesis-text li,
-.deepthink-hypothesis-explorer li,
-.deepthink-red-team li,
-.deepthink-final-result li {
+:is(.deepthink-pipeline-container,
+    .deepthink-pipeline-container .markdown-content,
+    .judge-best-solution,
+    .rich-content-display,
+    .code-block-wrapper .rich-content-display,
+    .hypothesis-text,
+    .deepthink-hypothesis-explorer,
+    .deepthink-red-team,
+    .deepthink-final-result) li {
     margin-bottom: var(--space-2);
     color: var(--text-primary-color);
 }
 
-/* Deepthink Blockquotes */
-.deepthink-pipeline-container blockquote,
-.deepthink-pipeline-container .markdown-content blockquote,
-.judge-best-solution blockquote,
-.rich-content-display blockquote,
-.code-block-wrapper .rich-content-display blockquote,
-.hypothesis-text blockquote,
-.deepthink-hypothesis-explorer blockquote,
-.deepthink-red-team blockquote,
-.deepthink-final-result blockquote {
+/* Blockquotes */
+:is(.deepthink-pipeline-container,
+    .deepthink-pipeline-container .markdown-content,
+    .judge-best-solution,
+    .rich-content-display,
+    .code-block-wrapper .rich-content-display,
+    .hypothesis-text,
+    .deepthink-hypothesis-explorer,
+    .deepthink-red-team,
+    .deepthink-final-result) blockquote {
     border-left: 4px solid var(--accent-purple);
     padding-left: var(--space-4);
     margin: var(--space-4) 0;
@@ -1712,16 +992,16 @@
     color: var(--text-secondary-color);
 }
 
-/* Deepthink Code Blocks */
-.deepthink-pipeline-container pre,
-.deepthink-pipeline-container .markdown-content pre,
-.judge-best-solution pre,
-.rich-content-display pre,
-.code-block-wrapper .rich-content-display pre,
-.hypothesis-text pre,
-.deepthink-hypothesis-explorer pre,
-.deepthink-red-team pre,
-.deepthink-final-result pre {
+/* Pre */
+:is(.deepthink-pipeline-container,
+    .deepthink-pipeline-container .markdown-content,
+    .judge-best-solution,
+    .rich-content-display,
+    .code-block-wrapper .rich-content-display,
+    .hypothesis-text,
+    .deepthink-hypothesis-explorer,
+    .deepthink-red-team,
+    .deepthink-final-result) pre {
     background-color: rgba(18, 18, 18, 0.8) !important;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--radius-lg);
@@ -1730,15 +1010,16 @@
     overflow-x: auto;
 }
 
-.deepthink-pipeline-container code,
-.deepthink-pipeline-container .markdown-content code,
-.judge-best-solution code,
-.rich-content-display code,
-.code-block-wrapper .rich-content-display code,
-.hypothesis-text code,
-.deepthink-hypothesis-explorer code,
-.deepthink-red-team code,
-.deepthink-final-result code {
+/* Code */
+:is(.deepthink-pipeline-container,
+    .deepthink-pipeline-container .markdown-content,
+    .judge-best-solution,
+    .rich-content-display,
+    .code-block-wrapper .rich-content-display,
+    .hypothesis-text,
+    .deepthink-hypothesis-explorer,
+    .deepthink-red-team,
+    .deepthink-final-result) code {
     background-color: rgba(18, 18, 18, 0.6) !important;
     color: #e86b6b !important;
     padding: 0.2em 0.4em;
@@ -1747,7 +1028,37 @@
 }
 
 /* --------------------------------------------------------------------------
-   14. MEDIA QUERIES
+   14. SOLUTION COMPARISON MODAL
+   -------------------------------------------------------------------------- */
+
+.solution-comparison-grid {
+    display: grid;
+    gap: 20px;
+    height: 100%;
+}
+
+.solution-panel {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #333;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.solution-panel-header {
+    padding: 12px 16px;
+    background: rgba(15, 17, 32, 0.4);
+    border-bottom: 1px solid #333;
+}
+
+.solution-panel-body {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+}
+
+/* --------------------------------------------------------------------------
+   15. MEDIA QUERIES
    -------------------------------------------------------------------------- */
 
 @media (max-width: 1200px) {
@@ -1760,10 +1071,6 @@
         top: 1rem;
         gap: 0.4rem;
         padding: 0.5rem;
-    }
-
-    .sub-strategies-grid {
-        grid-template-columns: repeat(auto-fit, minmax(max(280px, calc((100% - var(--spacing-section-md)) / 2)), 1fr));
     }
 }
 
@@ -1778,9 +1085,5 @@
         margin: 0 0 1.5rem 0;
         width: fit-content;
         grid-template-rows: repeat(3, 36px);
-    }
-
-    .sub-strategies-grid {
-        grid-template-columns: 1fr;
     }
 }

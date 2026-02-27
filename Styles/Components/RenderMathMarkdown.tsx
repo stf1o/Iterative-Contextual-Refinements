@@ -692,6 +692,14 @@ function renderMathContent(content: string): string {
     });
 
     // Sanitize
+    // Hook: strip inline color styles from AI-generated HTML to prevent
+    // colored text (e.g. green headings/bold) from overriding our theme
+    DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+        if (node instanceof HTMLElement && node.style.color) {
+            node.style.removeProperty('color');
+        }
+    });
+
     resultHtml = DOMPurify.sanitize(resultHtml, {
         ADD_TAGS: [
             'div', 'span', 'pre', 'code',
@@ -716,6 +724,9 @@ function renderMathContent(content: string): string {
         ADD_URI_SCHEMES: ['data'],
         RETURN_TRUSTED_TYPE: false
     } as any) as unknown as string;
+
+    // Remove hook after use to avoid double-hooking on next call
+    DOMPurify.removeHook('afterSanitizeAttributes');
 
     return `<div class="rich-content-display"><div class="latex-content-wrapper" style="font-size: 1.4rem; line-height: 1.6;">${resultHtml}</div></div>`;
 }

@@ -57,9 +57,9 @@
 .render-math-markdown strong,
 .latex-content-wrapper b,
 .render-math-markdown b {
-    color: var(--accent-gold) !important;
+    color: var(--accent-purple-lighter) !important;
     font-weight: 700 !important;
-    text-shadow: 0 0 8px rgba(255, 194, 105, 0.3) !important;
+    text-shadow: none !important;
 }
 
 /* Italics */
@@ -192,27 +192,32 @@
 .latex-content-wrapper ul,
 .latex-content-wrapper ol {
     margin: 1.5rem 0;
-    padding-left: 2em;
-    position: relative;
+    padding-left: 1.5em;
+    /* Standard list indentation */
 }
 
-.latex-content-wrapper ul::before,
-.latex-content-wrapper ol::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: linear-gradient(180deg, transparent, rgba(138, 127, 248, 0.3), transparent);
-    border-radius: 8px;
+/* Fix nested lists recursively drawing another deep line */
+.latex-content-wrapper ul ul,
+.latex-content-wrapper ol ol,
+.latex-content-wrapper ul ol,
+.latex-content-wrapper ol ul {
+    margin: 0.5rem 0 0.5rem 0;
+    padding-left: 1.5em;
+}
+
+.latex-content-wrapper ul {
+    list-style-type: disc;
+}
+
+.latex-content-wrapper ol {
+    list-style-type: decimal;
 }
 
 .latex-content-wrapper li {
-    margin: 0.8rem 0;
+    margin: 0.5rem 0;
     line-height: 1.7;
     color: var(--text-primary);
-    padding-left: 0.5rem;
+    padding-left: 0.25rem;
 }
 
 .latex-content-wrapper ul li::marker {

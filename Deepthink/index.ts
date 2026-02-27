@@ -14,15 +14,21 @@ export {
     solutionCritiqueAgent,
     correctedSolutionsAgent,
     selectBestSolutionAgent,
+} from './DeepthinkAgents';
+
+export type {
     AgentExecutionContext,
     AgentResponse
 } from './DeepthinkAgents';
 
 // Export prompts
 export {
-    CustomizablePromptsDeepthink,
     createDefaultCustomPromptsDeepthink,
     RED_TEAM_AGGRESSIVENESS_LEVELS
+} from './DeepthinkPrompts';
+
+export type {
+    CustomizablePromptsDeepthink,
 } from './DeepthinkPrompts';
 
 // Export types and interfaces
@@ -42,7 +48,6 @@ export {
     activateDeepthinkStrategyTab,
     openDeepthinkSolutionModal,
     closeSolutionModal,
-    parseKnowledgePacketForStyling,
     startDeepthinkAnalysisProcess,
     getActiveDeepthinkPipeline,
     setActiveDeepthinkPipelineForImport,

@@ -7,7 +7,25 @@
  */
 
 import { ChatMessageHistory } from "@langchain/community/stores/message/in_memory";
-import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
+
+// ========== SHARED HELPERS ==========
+
+type RoleContent = { role: 'system' | 'assistant' | 'user'; content: string };
+
+/** Serialize LangChain messages to plain role/content objects (shared by all exportState methods) */
+function serializeMessages(messages: BaseMessage[]): Array<{ role: string; content: unknown }> {
+    return messages.map(m => ({ role: m._getType(), content: m.content }));
+}
+
+/** Convert ChatMessageHistory to role/content array for prompt building */
+function historyToRoleArray(messages: BaseMessage[]): RoleContent[] {
+    return messages.reduce<RoleContent[]>((acc, msg) => {
+        if (msg instanceof AIMessage) acc.push({ role: 'assistant', content: msg.content as string });
+        else if (msg instanceof HumanMessage) acc.push({ role: 'user', content: msg.content as string });
+        return acc;
+    }, []);
+}
 
 /**
  * Manages conversation history for Solution Critique Agent in Iterative Mode
@@ -60,22 +78,10 @@ ${solutionToAnalyze}
 
         // Subsequent iterations: Analyze corrected solution
         const messages = await this.chatHistory.getMessages();
-        const result: Array<{ role: 'system' | 'assistant' | 'user'; content: string }> = [];
-
-        // Add initial context
-        result.push({
-            role: 'user',
-            content: `Core Challenge: ${this.originalProblem}\n\n<INTERPRETIVE FRAMEWORK>\n"${this.assignedStrategy}"\n</INTERPRETIVE FRAMEWORK>`
-        });
-
-        // Add conversation history
-        for (const msg of messages) {
-            if (msg instanceof AIMessage) {
-                result.push({ role: 'assistant', content: msg.content as string });
-            } else if (msg instanceof HumanMessage) {
-                result.push({ role: 'user', content: msg.content as string });
-            }
-        }
+        const result: RoleContent[] = [
+            { role: 'user', content: `Core Challenge: ${this.originalProblem}\n\n<INTERPRETIVE FRAMEWORK>\n"${this.assignedStrategy}"\n</INTERPRETIVE FRAMEWORK>` },
+            ...historyToRoleArray(messages),
+        ];
 
         // Add current corrected solution to analyze
         result.push({
@@ -108,10 +114,7 @@ ${solutionToAnalyze}
             assignedStrategy: this.assignedStrategy,
             initialSolution: this.initialSolution,
             iterationCount: this.iterationCount,
-            messages: messages.map(m => ({
-                role: m._getType(),
-                content: m.content
-            }))
+            messages: serializeMessages(messages),
         };
     }
 }
@@ -239,7 +242,6 @@ export class StructuredSolutionPoolHistoryManager {
         this.systemPrompt = systemPrompt;
         this.originalProblem = originalProblem;
         this.assignedStrategyId = assignedStrategyId;
-        this.assignedStrategyContent = assignedStrategyContent;
         this.assignedStrategyContent = assignedStrategyContent;
         this.iterationCount = 0;
     }
@@ -386,15 +388,7 @@ export class PostQualityFilterHistoryManager {
 
         // Subsequent iterations: Send conversation history + new strategies only
         const messages = await this.chatHistory.getMessages();
-
-        // Add conversation history
-        for (const msg of messages) {
-            if (msg instanceof AIMessage) {
-                result.push({ role: 'assistant', content: msg.content as string });
-            } else if (msg instanceof HumanMessage) {
-                result.push({ role: 'user', content: msg.content as string });
-            }
-        }
+        result.push(...historyToRoleArray(messages));
 
         // Filter to ONLY NEW strategies (not seen before)
         const newStrategies = strategiesWithExecutions.filter(s => !this.seenStrategyIds.has(s.strategyId));
@@ -465,10 +459,7 @@ export class PostQualityFilterHistoryManager {
         return {
             systemPrompt: this.systemPrompt,
             originalProblem: this.originalProblem,
-            messages: messages.map(m => ({
-                role: m._getType(),
-                content: m.content
-            }))
+            messages: serializeMessages(messages),
         };
     }
 }
@@ -501,13 +492,7 @@ export class StrategiesGeneratorHistoryManager {
 
         // Add conversation history
         const messages = await this.chatHistory.getMessages();
-        for (const msg of messages) {
-            if (msg instanceof AIMessage) {
-                result.push({ role: 'assistant', content: msg.content as string });
-            } else if (msg instanceof HumanMessage) {
-                result.push({ role: 'user', content: msg.content as string });
-            }
-        }
+        result.push(...historyToRoleArray(messages));
 
         // Build new prompt
         let userPrompt = `Core Challenge: ${this.originalProblem}\n\n`;
@@ -556,10 +541,7 @@ export class StrategiesGeneratorHistoryManager {
         return {
             systemPrompt: this.systemPrompt,
             originalProblem: this.originalProblem,
-            messages: messages.map(m => ({
-                role: m._getType(),
-                content: m.content
-            }))
+            messages: serializeMessages(messages),
         };
     }
 }
