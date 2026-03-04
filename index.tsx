@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import 'material-symbols/outlined.css';
 import { createRoot } from 'react-dom/client';
 import Sidebar from './Styles/Components/Sidebar/Sidebar';
 import MainContent from './Styles/Components/MainContent';

@@ -39,6 +39,7 @@
     "langchain": "^0.3.35",
     "lossless-json": "^4.3.0",
     "marked": "4.3.0",
+    "material-symbols": "^0.40.2",
     "nanoid": "^5.1.6",
     "openai": "^5.20.1",
     "pdfjs-dist": "^5.4.149",

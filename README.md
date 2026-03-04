@@ -1,35 +1,13 @@
 # Iterative Studio
 
-The system integrates with major AI providers (Google AI, OpenAI, Anthropic) and employs multi-agent-based architectures. Deepthink & Contextual Mode provides optional access to python interprator for the models to use. The main agentic refinements agent has access to a searchacademia tool that search for papers on arxiv.
+The system integrates with major AI providers (Google AI, OpenAI, Anthropic) and employs multi-agent-based architectures.  The system is capable of running with local models in fully offline mode.
 
 ## Operational Modes
 
-The system operates in five distinct modes, each optimized for specific use cases.
+The system operates in seven distinct modes, each optimized for specific use cases.
 
-### 1. Refine Mode
 
-**Purpose**: Traditional iterative refinements with automated feature suggestion and bug fixing. Does not manage it's own conversation history.
-
-**Architecture**:
-- Pipeline-based execution with parallel temperature variations
-- Three-stage refinement process per iteration:
-  1. Initial content generation
-  2. Feature suggestion agent (novelty-seeking or quality-focused)
-  3. Bug fix agent (syntax/runtime error correction)
-
-**Key Components**:
-- `PipelineState`: Manages multiple concurrent refinement pipelines
-- `IterationData`: Tracks individual iteration states and content evolution
-- Evolution mode support (Novelty/Quality) for feature generation
-
-**Workflow**:
-1. User provides initial prompt
-2. System generates base content across multiple temperature settings (This is currently disabled)
-3. Feature suggestion agent proposes enhancements
-4. Bug fix agent validates and corrects errors
-5. Process repeats for configured number of iterations
-
-### 2. Deepthink Mode
+### 1. Deepthink Mode
 
 **Purpose**: Complex problem-solving through strategic decomposition and hypothesis exploration.
 
@@ -66,11 +44,11 @@ The system operates in five distinct modes, each optimized for specific use case
 6. Final judge selects best approach
 
 
-![Deepthink Architecture](Deepthink/IterativeCorrections.png)
+![Deepthink Architecture](Deepthink/SystemArchitecture.png)
 
 
 
-### 3. Adaptive Deepthink Mode
+### 2. Adaptive Deepthink Mode
 
 **Purpose**: Provide full access of deepthink mode to an agent.
 
@@ -100,40 +78,8 @@ The system operates in five distinct modes, each optimized for specific use case
 4. Results integrated back into conversation context
 5. Process continues iteratively until solution reached
 
-### 4. Agentic Mode
 
-**Purpose**: General-purpose iterative refinement with tool-based content manipulation.
-
-**Architecture**:
-- Conversation-based interaction model
-- LangChain integration for advanced capabilities
-- Diff-based editing system for precise modifications
-
-**Core Components**:
-- `AgenticCoreLangchain.ts`: Manages conversation state and tool execution
-- `AgenticConversationManager`: Handles context window management
-- `AgenticUI.tsx`: Real-time activity visualization
-
-**Tool System**:
-- `ApplyDiff`: Apply targeted code modifications
-- `ReadFile`: Access external file content
-- `SearchWeb`: External information retrieval (optional)
-- `ArxivSearch`: Academic paper search (optional)
-
-**Key Features**:
-- Streaming response handling
-- Segment-based parsing (text, thinking, diff commands, tool calls)
-- Automatic context management with message summarization
-- System blocks for progress tracking
-
-**Workflow**:
-1. User submits request in conversational format
-2. AI analyzes and determines necessary tools
-3. Tools execute with real-time feedback
-4. Content iteratively refined through diff operations
-5. Process continues until user satisfaction
-
-### 5. Contextual Mode
+### 3. Contextual Mode
 
 **Purpose**: Iterative refinement through specialized agent collaboration.
 
@@ -176,6 +122,65 @@ User Request → Main Generator → Generated Content
 4. Memory agent compresses history when needed
 5. Cycle continues until completion criteria met
 
+
+### 4. Refine Mode
+
+**Purpose**: Traditional iterative refinements with automated feature suggestion and bug fixing. Does not manage it's own conversation history.
+
+**Architecture**:
+- Pipeline-based execution with parallel temperature variations
+- Three-stage refinement process per iteration:
+  1. Initial content generation
+  2. Feature suggestion agent (novelty-seeking or quality-focused)
+  3. Bug fix agent (syntax/runtime error correction)
+
+**Key Components**:
+- `PipelineState`: Manages multiple concurrent refinement pipelines
+- `IterationData`: Tracks individual iteration states and content evolution
+- Evolution mode support (Novelty/Quality) for feature generation
+
+**Workflow**:
+1. User provides initial prompt
+2. System generates base content across multiple temperature settings (This is currently disabled)
+3. Feature suggestion agent proposes enhancements
+4. Bug fix agent validates and corrects errors
+5. Process repeats for configured number of iterations
+
+
+### 5. Agentic Mode
+
+**Purpose**: General-purpose iterative refinement with tool-based content manipulation.
+
+**Architecture**:
+- Conversation-based interaction model
+- LangChain integration for advanced capabilities
+- Diff-based editing system for precise modifications
+
+**Core Components**:
+- `AgenticCoreLangchain.ts`: Manages conversation state and tool execution
+- `AgenticConversationManager`: Handles context window management
+- `AgenticUI.tsx`: Real-time activity visualization
+
+**Tool System**:
+- `ApplyDiff`: Apply targeted code modifications
+- `ReadFile`: Access external file content
+- `SearchWeb`: External information retrieval (optional)
+- `ArxivSearch`: Academic paper search (optional)
+
+**Key Features**:
+- Streaming response handling
+- Segment-based parsing (text, thinking, diff commands, tool calls)
+- Automatic context management with message summarization
+- System blocks for progress tracking
+
+**Workflow**:
+1. User submits request in conversational format
+2. AI analyzes and determines necessary tools
+3. Tools execute with real-time feedback
+4. Content iteratively refined through diff operations
+5. Process continues until user satisfaction
+
+
 ## Configuration
 
 ### Model Selection
@@ -185,6 +190,11 @@ Supports configuration of:
 - Model selection per provider
 - Temperature and Top-P sampling parameters
 - Mode-specific parameters (iteration depth, agent counts)
+- Local Models
+
+
+###  Fully Offline Mode:
+Use your lookback IP: http://127.0.0.1:1234 or http://localhost:1234 when you turn off your wifi or unplug the ethernet cable.
 
 ### Mode-Specific Settings
 
@@ -198,6 +208,7 @@ Supports configuration of:
 - Hypothesis count
 - Red team aggressiveness
 - Iterative corrections toggle
+
 
 ## Data Flow
 
@@ -229,7 +240,7 @@ Error states tracked per pipeline/iteration with detailed error messages and rec
 ## Import/Export
 
 Supported operations:
-- State export (JSON format)
+- State export (.gz)
 - State import with validation
 - Cross-session persistence
 - Mode-specific state serialization
@@ -239,7 +250,6 @@ Supported operations:
 - **Build Tool**: Vite
 - **Language**: TypeScript
 - **UI Framework**: React 19
-- **Code Editor**: Monaco Editor
 - **Styling**: Custom CSS with modern design patterns
 
 ## Development
@@ -252,7 +262,7 @@ Supported operations:
 /Contextual       - Contextual mode implementation
 /Deepthink        - Deepthink mode implementation
 /Routing          - AI provider routing
-/Parsing          - Response parsing utilities
+/Core          - Config management and parsing utilities
 index.tsx         - Main application entry
 prompts.ts        - Prompt templates
 ```
@@ -264,10 +274,8 @@ prompts.ts        - Prompt templates
   "@google/genai": "AI provider",
   "openai": "AI provider",
   "@langchain/core": "Agent framework",
-  "@monaco-editor/react": "Code editor",
   "diff2html": "Diff visualization",
   "katex": "Math rendering",
-  "react-flow": "Graph visualization"
 }
 ```
 
