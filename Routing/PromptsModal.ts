@@ -5,7 +5,6 @@
 
 import { initializePromptStyling, updatePromptContent } from '../Styles/Components/PromptStyling';
 import { PromptRefiner } from './PromptRefiner';
-import { openPromptDiffModal } from '../Styles/Components/DiffModal/DiffModalController';
 import { globalState } from '../Core/State';
 
 export class PromptsModal {
@@ -624,6 +623,7 @@ export class PromptsModal {
 
         globalOption.innerHTML = `
             <span class="custom-model-select-option-text">Use Global Model</span>
+            <span class="material-symbols-outlined option-check">check</span>
         `;
 
         globalOption.addEventListener('click', () => {
@@ -706,6 +706,7 @@ export class PromptsModal {
 
                 option.innerHTML = `
                     <span class="custom-model-select-option-text">${model.value}</span>
+                    <span class="material-symbols-outlined option-check">check</span>
                 `;
 
                 option.addEventListener('click', () => {
@@ -907,8 +908,10 @@ export class PromptsModal {
 
         if (!originalPrompt) return;
 
-        // Use the existing diff modal from DiffModal.tsx
-        openPromptDiffModal(originalPrompt, currentPrompt, `Prompt Changes - ${agentName}`);
+        // Use the existing diff modal from DiffModal.tsx (lazy-loaded)
+        void import('../Styles/Components/DiffModal/DiffModalController').then((mod) => {
+            mod.openPromptDiffModal(originalPrompt, currentPrompt, `Prompt Changes - ${agentName}`);
+        });
     }
 
     public updateTriggerState(isGenerating: boolean): void {

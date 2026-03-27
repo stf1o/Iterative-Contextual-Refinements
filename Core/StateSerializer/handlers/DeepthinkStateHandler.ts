@@ -7,16 +7,8 @@
 
 import type { ModeStateHandler } from '../ModeStateHandler';
 import type { DeepthinkPipelineState } from '../../../Deepthink/DeepthinkCore';
-import {
-    getActiveDeepthinkPipeline,
-    setActiveDeepthinkPipelineForImport,
-} from '../../../Deepthink/Deepthink';
-import {
-    getSolutionPoolVersionsForExport,
-    restoreSolutionPoolVersions
-} from '../../../Deepthink/SolutionPool';
-import { renderActiveDeepthinkPipeline } from '../../../Deepthink/Deepthink';
 import { activateTab } from '../../AppRouter';
+import { ensureDeepthinkInitialized, getLoadedDeepthinkModule, getLoadedSolutionPoolModule } from '../../ModeLoader';
 
 /**
  * Extended state that includes solution pool versions for evolution view.
@@ -27,44 +19,53 @@ export interface DeepthinkExportState {
     activeTabId: string;
 }
 
+let pendingState: DeepthinkExportState | null = null;
+
 export const deepthinkStateHandler: ModeStateHandler<DeepthinkExportState> = {
     modeName: 'deepthink',
 
     getFullState(): DeepthinkExportState | null {
-        const pipeline = getActiveDeepthinkPipeline();
+        const deepthink = getLoadedDeepthinkModule();
+        if (!deepthink) return null;
+
+        const pipeline = deepthink.getActiveDeepthinkPipeline();
         if (!pipeline) {
             return null;
         }
 
+        const solutionPool = getLoadedSolutionPoolModule();
         return {
             pipeline,
-            solutionPoolVersions: getSolutionPoolVersionsForExport(pipeline.id),
+            solutionPoolVersions: solutionPool ? solutionPool.getSolutionPoolVersionsForExport(pipeline.id) : null,
             activeTabId: pipeline.activeTabId || 'strategic-solver',
         };
     },
 
     restoreState(state: DeepthinkExportState | null): void {
-        if (!state || !state.pipeline) {
-            setActiveDeepthinkPipelineForImport(null);
-            return;
-        }
-
-        // Restore the pipeline
-        setActiveDeepthinkPipelineForImport(state.pipeline);
-
-        // Restore solution pool versions if available
-        if (state.solutionPoolVersions && state.solutionPoolVersions.length > 0) {
-            restoreSolutionPoolVersions(state.pipeline.id, state.solutionPoolVersions);
-        }
+        pendingState = state;
     },
 
     renderAfterImport(): void {
-        const pipeline = getActiveDeepthinkPipeline();
-        if (pipeline) {
-            renderActiveDeepthinkPipeline();
-            if (pipeline.activeTabId) {
-                activateTab(pipeline.activeTabId);
+        void ensureDeepthinkInitialized().then((mod) => {
+            const state = pendingState;
+            pendingState = null;
+
+            if (!state || !state.pipeline) {
+                mod.setActiveDeepthinkPipelineForImport(null);
+                return;
             }
-        }
+
+            mod.setActiveDeepthinkPipelineForImport(state.pipeline);
+
+            const solutionPool = getLoadedSolutionPoolModule();
+            if (state.solutionPoolVersions && state.solutionPoolVersions.length > 0 && solutionPool) {
+                solutionPool.restoreSolutionPoolVersions(state.pipeline.id, state.solutionPoolVersions);
+            }
+
+            mod.renderActiveDeepthinkPipeline();
+            if (state.activeTabId) {
+                activateTab(state.activeTabId);
+            }
+        });
     },
 };

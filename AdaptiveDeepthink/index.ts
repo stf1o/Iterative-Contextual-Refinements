@@ -7,9 +7,7 @@
 
 // Core functionality
 export {
-    AdaptiveDeepthinkConversationManager,
     createAdaptiveDeepthinkState,
-    parseAdaptiveDeepthinkResponse,
     executeAdaptiveDeepthinkTool
 } from './AdaptiveDeepthinkCore';
 

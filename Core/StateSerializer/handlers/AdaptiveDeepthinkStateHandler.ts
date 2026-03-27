@@ -6,27 +6,30 @@
  */
 
 import type { ModeStateHandler } from '../ModeStateHandler';
-import {
-    getAdaptiveDeepthinkState,
-    setAdaptiveDeepthinkStateForImport,
-    renderAdaptiveDeepthinkMode,
-} from '../../../AdaptiveDeepthink/AdaptiveDeepthinkMode';
+import type { AdaptiveDeepthinkStoreState } from '../../../AdaptiveDeepthink/AdaptiveDeepthink';
+import { ensureAdaptiveDeepthinkInitialized, getLoadedAdaptiveDeepthinkModule } from '../../ModeLoader';
 
-// The state type is the UIState wrapper
-type AdaptiveDeepthinkUIState = ReturnType<typeof getAdaptiveDeepthinkState>;
+let pendingState: AdaptiveDeepthinkStoreState | null = null;
 
-export const adaptiveDeepthinkStateHandler: ModeStateHandler<AdaptiveDeepthinkUIState> = {
+export const adaptiveDeepthinkStateHandler: ModeStateHandler<AdaptiveDeepthinkStoreState | null> = {
     modeName: 'adaptive-deepthink',
 
-    getFullState(): AdaptiveDeepthinkUIState {
-        return getAdaptiveDeepthinkState();
+    getFullState(): AdaptiveDeepthinkStoreState | null {
+        const mod = getLoadedAdaptiveDeepthinkModule();
+        return mod ? mod.getAdaptiveDeepthinkState() : null;
     },
 
-    restoreState(state: AdaptiveDeepthinkUIState): void {
-        setAdaptiveDeepthinkStateForImport(state);
+    restoreState(state: AdaptiveDeepthinkStoreState | null): void {
+        pendingState = state;
     },
 
     renderAfterImport(): void {
-        renderAdaptiveDeepthinkMode();
+        void ensureAdaptiveDeepthinkInitialized().then((mod) => {
+            if (pendingState) {
+                mod.setAdaptiveDeepthinkStateForImport(pendingState);
+                pendingState = null;
+            }
+            mod.renderAdaptiveDeepthinkMode();
+        });
     },
 };

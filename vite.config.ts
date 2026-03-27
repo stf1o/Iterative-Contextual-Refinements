@@ -14,6 +14,16 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       }
     },
+    server: {
+      watch: {
+        ignored: [
+          '**/Forest-Fire-Detection/**',
+          '**/.venv/**',
+          '**/__pycache__/**',
+          '**/*.pyc',
+        ],
+      },
+    },
     base: '/Iterative-Contextual-Refinements/',
     build: {
       rollupOptions: {

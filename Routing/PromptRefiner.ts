@@ -143,7 +143,10 @@ export class PromptRefiner {
         const globalOption = document.createElement('div');
         globalOption.className = 'custom-model-select-option';
         globalOption.dataset.value = '';
-        globalOption.innerHTML = '<span class="custom-model-select-option-text">Use Global Model</span>';
+        globalOption.innerHTML = `
+            <span class="custom-model-select-option-text">Use Global Model</span>
+            <span class="material-symbols-outlined option-check">check</span>
+        `;
         globalOption.addEventListener('click', () => {
             this.selectModel('', 'Use Global Model', select);
         });
@@ -188,7 +191,10 @@ export class PromptRefiner {
                 const option = document.createElement('div');
                 option.className = 'custom-model-select-option';
                 option.dataset.value = model.value;
-                option.innerHTML = `<span class="custom-model-select-option-text">${model.value}</span>`;
+                option.innerHTML = `
+                    <span class="custom-model-select-option-text">${model.value}</span>
+                    <span class="material-symbols-outlined option-check">check</span>
+                `;
                 option.addEventListener('click', () => {
                     this.selectModel(model.value, model.value, select);
                 });

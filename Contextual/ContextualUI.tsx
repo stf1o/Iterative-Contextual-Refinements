@@ -9,12 +9,13 @@ import { flushSync } from 'react-dom';
 import { ContextualState, ContextualMessage } from './ContextualCore';
 import RenderMathMarkdown from '../Styles/Components/RenderMathMarkdown';
 import { openEmbeddedModal } from '../Styles/Components/EmbeddedModal';
-import { FaRobot, FaStop, FaDatabase, FaSearch } from 'react-icons/fa';
-import { MdOutlineTaskAlt } from 'react-icons/md';
-import { CgSandClock } from 'react-icons/cg';
 
 // Track React roots to prevent creating multiple roots on the same container
 const rootMap = new WeakMap<HTMLElement, Root>();
+
+const MaterialIcon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
+    <span className={`material-symbols-outlined${className ? ` ${className}` : ''}`}>{name}</span>
+);
 
 interface ContextualUIProps {
     state: ContextualState;
@@ -95,7 +96,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
         if (!content) {
             return (
                 <div className="empty-state">
-                    <FaRobot className="empty-icon" />
+                    <MaterialIcon name="smart_toy" className="empty-icon" />
                     <p>Waiting for generation...</p>
                 </div>
             );
@@ -169,7 +170,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
                                 title="View current memory document"
                                 disabled={!state.currentMemory}
                             >
-                                <CgSandClock />
+                                <MaterialIcon name="pending" />
                                 Memory
                             </button>
                             <button
@@ -178,7 +179,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
                                 title="View current solution pool"
                                 disabled={!state.currentStrategicPool}
                             >
-                                <FaDatabase />
+                                <MaterialIcon name="database" />
                                 Solution Pool
                             </button>
                             <button
@@ -187,7 +188,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
                                 title="View current critique"
                                 disabled={!state.currentBestSuggestions}
                             >
-                                <FaSearch />
+                                <MaterialIcon name="manage_search" />
                                 Critique
                             </button>
                         </>
@@ -274,7 +275,7 @@ const AgentActivityPanel: React.FC<{ state: ContextualState; onStop: () => void 
                     <span className="iteration-badge">{state.iterationCount}</span>
                     {state.isProcessing && (
                         <button className="stop-button" onClick={onStop}>
-                            <FaStop />
+                            <MaterialIcon name="stop_circle" />
                             Stop
                         </button>
                     )}
@@ -312,12 +313,12 @@ const MinimalMessageCard: React.FC<{ message: ContextualMessage; allMessages: Co
 
     const getRoleIcon = (role: string) => {
         switch (role) {
-            case 'main_generator': return <MdOutlineTaskAlt className="card-icon" />;
-            case 'iterative_agent': return <FaSearch className="card-icon" />;
-            case 'memory_agent': return <CgSandClock className="card-icon" />;
-            case 'strategic_pool_agent': return <FaDatabase className="card-icon" />;
-            case 'system': return <FaRobot className="card-icon" />;
-            default: return <FaRobot className="card-icon" />;
+            case 'main_generator': return <MaterialIcon name="check" className="card-icon" />;
+            case 'iterative_agent': return <MaterialIcon name="manage_search" className="card-icon" />;
+            case 'memory_agent': return <MaterialIcon name="pending" className="card-icon" />;
+            case 'strategic_pool_agent': return <MaterialIcon name="database" className="card-icon" />;
+            case 'system': return <MaterialIcon name="smart_toy" className="card-icon" />;
+            default: return <MaterialIcon name="smart_toy" className="card-icon" />;
         }
     };
 

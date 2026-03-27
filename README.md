@@ -152,25 +152,26 @@ User Request → Main Generator → Generated Content
 **Purpose**: General-purpose iterative refinement with tool-based content manipulation.
 
 **Architecture**:
-- Conversation-based interaction model
-- LangChain integration for advanced capabilities
+- LangGraph-driven tool loop with provider-aware LangChain chat models
+- Structured tool calling across hosted and local providers
 - Diff-based editing system for precise modifications
 
 **Core Components**:
-- `AgenticCoreLangchain.ts`: Manages conversation state and tool execution
-- `AgenticConversationManager`: Handles context window management
+- `AgenticCore.ts`: Streams graph execution into the UI state
+- `AgenticToolGraph.ts`: Defines the LangGraph workflow, tools, and model factory
+- `AgenticEdits.ts`: Applies draft mutations for `multi_edit`
 - `AgenticUI.tsx`: Real-time activity visualization
 
 **Tool System**:
-- `ApplyDiff`: Apply targeted code modifications
-- `ReadFile`: Access external file content
-- `SearchWeb`: External information retrieval (optional)
-- `ArxivSearch`: Academic paper search (optional)
+- `multi_edit`: Apply structured batch edits
+- `read_current_content`: Inspect the current working draft
+- `verify_current_content`: Run an independent verification pass
+- `searchacademia`: Search arXiv for supporting material
 
 **Key Features**:
 - Streaming response handling
-- Segment-based parsing (text, thinking, diff commands, tool calls)
-- Automatic context management with message summarization
+- Structured tool calls with no custom response parsing
+- Sequential tool execution with graph-managed control flow
 - System blocks for progress tracking
 
 **Workflow**:

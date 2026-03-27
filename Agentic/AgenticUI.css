@@ -300,6 +300,24 @@
     max-width: 100%;
 }
 
+.message-inline-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.agent-text-segment {
+    color: var(--text-secondary-color);
+}
+
+.agent-text-segment > :first-child {
+    margin-top: 0;
+}
+
+.agent-text-segment > :last-child {
+    margin-bottom: 0;
+}
+
 /* Command and Tool displays */
 .message-commands,
 .message-tools {

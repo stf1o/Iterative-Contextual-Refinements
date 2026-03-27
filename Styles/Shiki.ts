@@ -8,38 +8,38 @@
  * Additional languages are loaded dynamically when needed.
  */
 
-import {
-    createHighlighter,
-    type HighlighterCore
-} from 'shiki';
+import { createBundledHighlighter, type HighlighterCore } from 'shiki/core';
+import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 
-// Import only the themes and languages we need (if using fine-grained bundle, 
-// strictly speaking regular 'shiki' includes all, but we can try to limit if possible,
-// or just accept the bundle to FIX the issue first).
-// Ideally we use 'shiki/bundle/web' but let's stick to 'shiki' to ensure it works.
-
-import langJavaScript from 'shiki/langs/javascript.mjs';
-import langTypeScript from 'shiki/langs/typescript.mjs';
-import langPython from 'shiki/langs/python.mjs';
-import langCss from 'shiki/langs/css.mjs';
-import langHtml from 'shiki/langs/html.mjs';
-import langJson from 'shiki/langs/json.mjs';
-import langBash from 'shiki/langs/bash.mjs';
-import langMarkdown from 'shiki/langs/markdown.mjs';
-import langSql from 'shiki/langs/sql.mjs';
-import langJava from 'shiki/langs/java.mjs';
-import langCpp from 'shiki/langs/cpp.mjs';
-import langC from 'shiki/langs/c.mjs';
-import langGo from 'shiki/langs/go.mjs';
-import langRust from 'shiki/langs/rust.mjs';
-import langYaml from 'shiki/langs/yaml.mjs';
-import langXml from 'shiki/langs/xml.mjs';
-import langJsx from 'shiki/langs/jsx.mjs';
-import langTsx from 'shiki/langs/tsx.mjs';
-
-// Bundled themes
-import themeGithubDark from 'shiki/themes/github-dark.mjs';
-import themeGithubLight from 'shiki/themes/github-light.mjs';
+// Fine-grained bundle: only load the languages + themes we explicitly list.
+const createHighlighter = createBundledHighlighter({
+    langs: {
+        javascript: () => import('shiki/langs/javascript.mjs'),
+        typescript: () => import('shiki/langs/typescript.mjs'),
+        python: () => import('shiki/langs/python.mjs'),
+        css: () => import('shiki/langs/css.mjs'),
+        html: () => import('shiki/langs/html.mjs'),
+        json: () => import('shiki/langs/json.mjs'),
+        bash: () => import('shiki/langs/bash.mjs'),
+        markdown: () => import('shiki/langs/markdown.mjs'),
+        sql: () => import('shiki/langs/sql.mjs'),
+        java: () => import('shiki/langs/java.mjs'),
+        cpp: () => import('shiki/langs/cpp.mjs'),
+        c: () => import('shiki/langs/c.mjs'),
+        go: () => import('shiki/langs/go.mjs'),
+        rust: () => import('shiki/langs/rust.mjs'),
+        yaml: () => import('shiki/langs/yaml.mjs'),
+        xml: () => import('shiki/langs/xml.mjs'),
+        jsx: () => import('shiki/langs/jsx.mjs'),
+        tsx: () => import('shiki/langs/tsx.mjs')
+    },
+    themes: {
+        'github-dark': () => import('shiki/themes/github-dark.mjs'),
+        'github-light': () => import('shiki/themes/github-light.mjs')
+    },
+    // Use JS regex engine to avoid wasm loading requirements in the browser.
+    engine: () => createJavaScriptRegexEngine()
+});
 
 // Singleton highlighter instance
 let highlighterInstance: HighlighterCore | null = null;
@@ -77,14 +77,9 @@ export async function initHighlighter(): Promise<HighlighterCore> {
 
     initPromise = (async () => {
         try {
-            // createHighlighter handles engine/wasm implicitly
             const highlighter = await createHighlighter({
-                themes: [themeGithubDark, themeGithubLight],
-                langs: [
-                    langJavaScript, langTypeScript, langPython, langCss, langHtml,
-                    langJson, langBash, langMarkdown, langSql, langJava, langCpp,
-                    langC, langGo, langRust, langYaml, langXml, langJsx, langTsx
-                ]
+                themes: ['github-dark', 'github-light'],
+                langs: [...BUNDLED_LANGUAGES]
             });
             highlighterInstance = highlighter as HighlighterCore; // Cast to Core type
             // Notify listeners

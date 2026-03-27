@@ -284,6 +284,7 @@ export const StrategicSolverTab: React.FC<{
                                             key={s.id}
                                             className={`sub-tab-button${idx === activeIndex ? ' active' : ''}${s.isKilledByRedTeam ? ' killed-strategy' : ''}`}
                                             title={`Strategy ${idx + 1}`}
+                                            data-strategy-index={idx}
                                             onClick={() => onStrategyTabClick(idx)}
                                         >
                                             {idx + 1}
@@ -331,9 +332,13 @@ const StrategyContent: React.FC<{
                 containerClassName="strategy-text-container"
                 textClassName="strategy-text"
             />
-            <div className="strategy-actions">
+                <div className="strategy-actions">
                 {isSkipMode && hasDirectSolution && (
-                    <button className="view-solution-button" onClick={() => onViewSolution(directSub!.id)}>
+                    <button
+                        className="view-solution-button"
+                        data-sub-strategy-id={directSub!.id}
+                        onClick={() => onViewSolution(directSub!.id)}
+                    >
                         <MIcon name="visibility" /> View Solution
                     </button>
                 )}
@@ -376,7 +381,11 @@ const SubStrategiesGrid: React.FC<{
                                 />
                                 <div className="sub-strategy-actions">
                                     {hasContent && (
-                                        <button className="view-solution-button" onClick={() => onViewSolution(sub.id)}>
+                                        <button
+                                            className="view-solution-button"
+                                            data-sub-strategy-id={sub.id}
+                                            onClick={() => onViewSolution(sub.id)}
+                                        >
                                             <MIcon name="visibility" /> View Solution
                                         </button>
                                     )}
@@ -425,7 +434,11 @@ export const HypothesisExplorerTab: React.FC<{
                             />
                             {h.testerAttempt && (
                                 <div className="red-team-reasoning-section">
-                                    <button className="view-argument-button" onClick={() => onViewArgument(h.id)}>
+                                    <button
+                                        className="view-argument-button"
+                                        data-hypothesis-id={h.id}
+                                        onClick={() => onViewArgument(h.id)}
+                                    >
                                         <MIcon name="article" /> View The Argument
                                     </button>
                                 </div>
@@ -560,7 +573,11 @@ export const DissectedObservationsTab: React.FC<{
                                     )}
                                     {critique.critiqueResponse ? (
                                         <div className="red-team-reasoning-section">
-                                            <button className="view-critique-button" onClick={() => onViewCritique(critique.id)}>
+                                            <button
+                                                className="view-critique-button"
+                                                data-critique-id={critique.id}
+                                                onClick={() => onViewCritique(critique.id)}
+                                            >
                                                 <MIcon name="rate_review" /> View Full Critique
                                             </button>
                                         </div>
@@ -589,7 +606,11 @@ export const DissectedObservationsTab: React.FC<{
                                             <MathHTML content={mainStrategy.strategyText?.substring(0, 150) + '...' || ''} className="sub-strategy-text" />
                                         </div>
                                         <div className="red-team-reasoning-section">
-                                            <button className="view-critique-button" onClick={() => onViewSubStrategyCritique(directSub.id)}>
+                                            <button
+                                                className="view-critique-button"
+                                                data-critique-substrategy-id={directSub.id}
+                                                onClick={() => onViewSubStrategyCritique(directSub.id)}
+                                            >
                                                 <MIcon name="rate_review" /> View Full Critique
                                             </button>
                                         </div>
@@ -663,7 +684,12 @@ export const RedTeamTab: React.FC<{
                                     )}
                                     {agent.reasoning && (
                                         <div className="red-team-reasoning-section">
-                                            <button type="button" className="red-team-fullscreen-btn red-team-reasoning-pill" onClick={() => onViewReasoning(agent.id)}>
+                                            <button
+                                                type="button"
+                                                className="red-team-fullscreen-btn red-team-reasoning-pill"
+                                                data-agent-id={agent.id}
+                                                onClick={() => onViewReasoning(agent.id)}
+                                            >
                                                 <div className="pill-content">
                                                     <MIcon name="code" className="pill-icon" />
                                                     <div className="pill-text">
@@ -708,7 +734,12 @@ export const RedTeamTab: React.FC<{
                                         )}
                                         {agent.reasoning && (
                                             <div className="red-team-reasoning-section">
-                                                <button type="button" className="red-team-fullscreen-btn red-team-reasoning-pill" onClick={() => onViewReasoning(agent.id)}>
+                                                <button
+                                                    type="button"
+                                                    className="red-team-fullscreen-btn red-team-reasoning-pill"
+                                                    data-agent-id={agent.id}
+                                                    onClick={() => onViewReasoning(agent.id)}
+                                                >
                                                     <div className="pill-content">
                                                         <MIcon name="code" className="pill-icon" />
                                                         <div className="pill-text">

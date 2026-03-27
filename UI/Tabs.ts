@@ -1,6 +1,6 @@
 import { globalState } from '../Core/State';
 import { ApplicationMode } from '../Core/Types';
-import { activateDeepthinkStrategyTab } from '../Deepthink/Deepthink';
+import { ensureDeepthinkInitialized, getLoadedDeepthinkModule } from '../Core/ModeLoader';
 
 export function getTabsNavContainer(): HTMLElement | null {
     return document.getElementById('tabs-nav-container');
@@ -68,7 +68,14 @@ export function activateTab(idToActivate: string | number): void {
         if (contentPane) contentPane.classList.add('active');
 
         if (idToActivate === 'strategic-solver' && activeDeepthinkPipeline.initialStrategies.length > 0) {
-            activateDeepthinkStrategyTab(activeDeepthinkPipeline.activeStrategyTab ?? 0);
+            const deepthink = getLoadedDeepthinkModule();
+            if (deepthink) {
+                deepthink.activateDeepthinkStrategyTab(activeDeepthinkPipeline.activeStrategyTab ?? 0);
+            } else {
+                void ensureDeepthinkInitialized().then(mod => {
+                    mod.activateDeepthinkStrategyTab(activeDeepthinkPipeline.activeStrategyTab ?? 0);
+                });
+            }
         }
 
     } else if (currentMode !== 'deepthink') {

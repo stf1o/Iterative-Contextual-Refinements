@@ -8,7 +8,6 @@
 
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { AIProvider } from '../Routing/AIProvider';
 import { callGemini } from "@/Routing/AIService.js";
 import { CustomizablePromptsDeepthink } from './DeepthinkPrompts';
@@ -76,6 +75,14 @@ export {
     getActiveDeepthinkPipeline,
     setActiveDeepthinkPipelineForImport
 };
+
+export interface DeepthinkTabDefinition {
+    id: string;
+    label: string;
+    icon: string;
+    alignRight?: boolean;
+    statusClass: string;
+}
 
 // ============================================================================ 
 // Module State
@@ -583,20 +590,7 @@ export function renderActiveDeepthinkPipeline() {
     // Unmount existing React content root ONLY if the container is different (which shouldn't happen)
     // We want to reuse the root for React 18 update semantics to avoid synchronous unmount errors
 
-    // Determine Tabs
-    const isRedTeamEnabled = moduleState.getSelectedRedTeamAggressiveness() !== 'off';
-    const hasPostQualityFilter = deepthinkProcess.postQualityFilterAgents?.length > 0;
-    const isHypothesisEnabled = moduleState.getSelectedHypothesisCount() > 0;
-    const isDissectedEnabled = moduleState.getRefinementEnabled() || moduleState.getIterativeCorrectionsEnabled() || moduleState.getDissectedObservationsEnabled();
-
-    const tabs = [
-        { id: 'strategic-solver', label: 'Strategic Solver', icon: 'psychology', visible: true },
-        { id: 'hypothesis-explorer', label: 'Hypothesis Explorer', icon: 'science', visible: isHypothesisEnabled },
-        { id: 'solution-pool', label: 'Solution Pool', icon: 'database', visible: deepthinkProcess.structuredSolutionPoolEnabled },
-        { id: 'dissected-observations', label: 'Dissected Observations', icon: 'troubleshoot', visible: isDissectedEnabled },
-        { id: 'red-team', label: 'Red Team', icon: 'security', visible: isRedTeamEnabled || hasPostQualityFilter },
-        { id: 'final-result', label: 'Final Result', icon: 'flag', visible: true, alignRight: true }
-    ].filter(t => t.visible);
+    const tabs = getVisibleDeepthinkTabs(deepthinkProcess);
 
     if (!tabs.some(t => t.id === deepthinkProcess.activeTabId) && tabs.length > 0) {
         deepthinkProcess.activeTabId = tabs[0].id;
@@ -606,9 +600,7 @@ export function renderActiveDeepthinkPipeline() {
     tabs.forEach(tab => {
         const btn = document.createElement('button');
         btn.id = `deepthink-tab-${tab.id}`;
-        const statusClass = getTabStatusClass(tab.id, deepthinkProcess);
-
-        btn.className = `tab-button deepthink-mode-tab ${deepthinkProcess.activeTabId === tab.id ? 'active' : ''} ${statusClass} ${(tab as any).alignRight ? 'align-right' : ''}`;
+        btn.className = `tab-button deepthink-mode-tab ${deepthinkProcess.activeTabId === tab.id ? 'active' : ''} ${tab.statusClass} ${tab.alignRight ? 'align-right' : ''}`;
         btn.innerHTML = `<span class="material-symbols-outlined">${tab.icon}</span>${tab.label}`;
         btn.addEventListener('click', () => {
             deepthinkProcess.activeTabId = tab.id;
@@ -637,29 +629,80 @@ export function renderActiveDeepthinkPipeline() {
         pipelineContentRoot = createRoot(pipelineContentContainerNode);
     }
 
-    const tabContent = renderTabContent(deepthinkProcess);
+    const tabContent = createDeepthinkTabContent(deepthinkProcess);
     pipelineContentRoot.render(tabContent);
 
     addDeepthinkEventHandlers();
 }
 
-function renderTabContent(process: DeepthinkPipelineState): React.ReactElement {
+type DeepthinkTabContentCallbacks = {
+    onStrategyTabClick?: (idx: number) => void;
+    onViewSolution?: (id: string) => void;
+    onViewArgument?: (id: string) => void;
+    onViewCritique?: (id: string) => void;
+    onViewSubStrategyCritique?: (id: string) => void;
+    onViewReasoning?: (id: string) => void;
+};
+
+export function getVisibleDeepthinkTabs(process: DeepthinkPipelineState): DeepthinkTabDefinition[] {
+    const isRedTeamEnabled = moduleState.getSelectedRedTeamAggressiveness() !== 'off';
+    const hasPostQualityFilter = process.postQualityFilterAgents?.length > 0;
+    const isHypothesisEnabled = moduleState.getSelectedHypothesisCount() > 0;
+    const isDissectedEnabled = moduleState.getRefinementEnabled() || moduleState.getIterativeCorrectionsEnabled() || moduleState.getDissectedObservationsEnabled();
+
+    return [
+        { id: 'strategic-solver', label: 'Strategic Solver', icon: 'psychology', visible: true },
+        { id: 'hypothesis-explorer', label: 'Hypothesis Explorer', icon: 'science', visible: isHypothesisEnabled },
+        { id: 'solution-pool', label: 'Solution Pool', icon: 'database', visible: process.structuredSolutionPoolEnabled },
+        { id: 'dissected-observations', label: 'Dissected Observations', icon: 'troubleshoot', visible: isDissectedEnabled },
+        { id: 'red-team', label: 'Red Team', icon: 'security', visible: isRedTeamEnabled || hasPostQualityFilter },
+        { id: 'final-result', label: 'Final Result', icon: 'flag', visible: true, alignRight: true }
+    ]
+        .filter(tab => tab.visible)
+        .map(({ visible, ...tab }) => ({
+            ...tab,
+            statusClass: getTabStatusClass(tab.id, process)
+        }));
+}
+
+export function createDeepthinkTabContent(
+    process: DeepthinkPipelineState,
+    callbacks: DeepthinkTabContentCallbacks = {}
+): React.ReactElement {
+    const onStrategyTabClick = callbacks.onStrategyTabClick ?? ((idx: number) => {
+        process.activeStrategyTab = idx;
+        renderActiveDeepthinkPipeline();
+    });
+    const onViewSolution = callbacks.onViewSolution ?? ((id: string) => openSubStrategySolutionModal(id));
+    const onViewArgument = callbacks.onViewArgument ?? ((id: string) => openHypothesisArgumentModal(id));
+    const onViewCritique = callbacks.onViewCritique ?? ((id: string) => openCritiqueModal(id));
+    const onViewSubStrategyCritique = callbacks.onViewSubStrategyCritique ?? ((id: string) => openSubStrategyCritiqueModal(id));
+    const onViewReasoning = callbacks.onViewReasoning ?? ((id: string) => {
+        const rtAgent = process.redTeamEvaluations.find(a => a.id === id);
+        if (rtAgent?.reasoning) {
+            openRedTeamReasoningModal(rtAgent);
+            return;
+        }
+
+        const pqfAgent = process.postQualityFilterAgents.find(a => a.id === id);
+        if (pqfAgent?.reasoning) {
+            openPostQualityFilterModal(pqfAgent);
+        }
+    });
+
     switch (process.activeTabId) {
         case 'strategic-solver':
             return React.createElement(StrategicSolverTab, {
                 process,
                 escapeHtml: moduleState.escapeHtml,
-                onStrategyTabClick: (idx: number) => {
-                    process.activeStrategyTab = idx;
-                    renderActiveDeepthinkPipeline();
-                },
-                onViewSolution: (id: string) => openSubStrategySolutionModal(id),
+                onStrategyTabClick,
+                onViewSolution,
             });
         case 'hypothesis-explorer':
             return React.createElement(HypothesisExplorerTab, {
                 process,
                 escapeHtml: moduleState.escapeHtml,
-                onViewArgument: (id: string) => openHypothesisArgumentModal(id),
+                onViewArgument,
             });
         case 'solution-pool':
             return React.createElement(SolutionPoolTabContent, { process });
@@ -668,18 +711,13 @@ function renderTabContent(process: DeepthinkPipelineState): React.ReactElement {
                 process,
                 refinementEnabled: moduleState.getRefinementEnabled(),
                 iterativeCorrectionsEnabled: moduleState.getIterativeCorrectionsEnabled(),
-                onViewCritique: (id: string) => openCritiqueModal(id),
-                onViewSubStrategyCritique: (id: string) => openSubStrategyCritiqueModal(id),
+                onViewCritique,
+                onViewSubStrategyCritique,
             });
         case 'red-team':
             return React.createElement(RedTeamTab, {
                 process,
-                onViewReasoning: (id: string) => {
-                    const rtAgent = process.redTeamEvaluations.find(a => a.id === id);
-                    if (rtAgent?.reasoning) { openRedTeamReasoningModal(rtAgent); return; }
-                    const pqfAgent = process.postQualityFilterAgents.find(a => a.id === id);
-                    if (pqfAgent?.reasoning) openPostQualityFilterModal(pqfAgent);
-                },
+                onViewReasoning,
             });
         case 'final-result':
             return React.createElement(FinalResultTab, {
@@ -690,11 +728,8 @@ function renderTabContent(process: DeepthinkPipelineState): React.ReactElement {
             return React.createElement(StrategicSolverTab, {
                 process,
                 escapeHtml: moduleState.escapeHtml,
-                onStrategyTabClick: (idx: number) => {
-                    process.activeStrategyTab = idx;
-                    renderActiveDeepthinkPipeline();
-                },
-                onViewSolution: (id: string) => openSubStrategySolutionModal(id),
+                onStrategyTabClick,
+                onViewSolution,
             });
     }
 }
@@ -731,61 +766,4 @@ function getTabStatusClass(tabId: string, process: DeepthinkPipelineState): stri
             return '';
         default: return '';
     }
-}
-
-// ============================================================================ 
-// Backward-Compatible HTML String Adapters
-// Used by AdaptiveDeepthinkMode.tsx which still renders via innerHTML.
-// These will be removed once AdaptiveDeepthink is migrated to React.
-// ============================================================================ 
-
-export function renderStrategicSolverContent(process: DeepthinkPipelineState): string {
-    return renderToStaticMarkup(
-        React.createElement(StrategicSolverTab, {
-            process,
-            escapeHtml: moduleState.escapeHtml,
-            onStrategyTabClick: () => { },
-            onViewSolution: () => { },
-        })
-    );
-}
-
-export function renderHypothesisExplorerContent(process: DeepthinkPipelineState): string {
-    return renderToStaticMarkup(
-        React.createElement(HypothesisExplorerTab, {
-            process,
-            escapeHtml: moduleState.escapeHtml,
-            onViewArgument: () => { },
-        })
-    );
-}
-
-export function renderDissectedObservationsContent(process: DeepthinkPipelineState): string {
-    return renderToStaticMarkup(
-        React.createElement(DissectedObservationsTab, {
-            process,
-            refinementEnabled: moduleState.getRefinementEnabled(),
-            iterativeCorrectionsEnabled: moduleState.getIterativeCorrectionsEnabled(),
-            onViewCritique: () => { },
-            onViewSubStrategyCritique: () => { },
-        })
-    );
-}
-
-export function renderRedTeamContent(process: DeepthinkPipelineState): string {
-    return renderToStaticMarkup(
-        React.createElement(RedTeamTab, {
-            process,
-            onViewReasoning: () => { },
-        })
-    );
-}
-
-export function renderFinalResultContent(process: DeepthinkPipelineState): string {
-    return renderToStaticMarkup(
-        React.createElement(FinalResultTab, {
-            process,
-            escapeHtml: moduleState.escapeHtml,
-        })
-    );
 }

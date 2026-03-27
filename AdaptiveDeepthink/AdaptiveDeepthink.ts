@@ -1,28 +1,14 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- * 
+ *
  * Adaptive Deepthink - Main orchestration logic and state management
  */
 
-import { AgenticMessage, SystemBlock } from '../Agentic/AgenticCore';
-import {
-    AdaptiveDeepthinkState,
-    AdaptiveDeepthinkConversationManager,
-    AdaptiveDeepthinkToolCall,
-    parseAdaptiveDeepthinkResponse,
-    executeAdaptiveDeepthinkTool,
-    createAdaptiveDeepthinkState
-} from './AdaptiveDeepthinkCore';
-import { CustomizablePromptsAdaptiveDeepthink } from './AdaptiveDeepthinkPrompt';
-import { AgentExecutionContext } from '../Deepthink/DeepthinkAgents';
-import {
-    callAI,
-    getSelectedModel,
-    getSelectedTemperature,
-    getSelectedTopP
-} from '../Routing';
-import { updateControlsState } from '../UI/Controls';
+import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+import { nanoid } from 'nanoid';
+import { AgenticMessage, ResponseSegment, SystemBlock } from '../Agentic/AgenticCore';
+import { messageContentToText } from '../Core/LangGraphToolRuntime';
 import { globalState } from '../Core/State';
 import type {
     DeepthinkPipelineState,
@@ -30,11 +16,32 @@ import type {
     DeepthinkSubStrategyData,
     DeepthinkHypothesisData
 } from '../Deepthink/Deepthink';
+import type { AgentExecutionContext } from '../Deepthink/DeepthinkAgents';
+import {
+    callAI,
+    getSelectedModel,
+    getSelectedTemperature,
+    getSelectedTopP
+} from '../Routing';
+import { updateControlsState } from '../UI/Controls';
+import {
+    createAdaptiveDeepthinkState,
+    type AdaptiveDeepthinkState,
+    type AdaptiveDeepthinkToolCall,
+    type AdaptiveDeepthinkToolExecutionContext,
+    type AdaptiveDeepthinkToolPrompts
+} from './AdaptiveDeepthinkCore';
+import { CustomizablePromptsAdaptiveDeepthink } from './AdaptiveDeepthinkPrompt';
+import {
+    createAdaptiveDeepthinkGraph,
+    normalizeAdaptiveDeepthinkToolCall,
+    type AdaptiveDeepthinkGraphState,
+    type AdaptiveDeepthinkToolResultArtifact
+} from './AdaptiveDeepthinkToolGraph';
 
 export interface AdaptiveDeepthinkStoreState {
     id: string;
     coreState: AdaptiveDeepthinkState;
-    conversationManager: AdaptiveDeepthinkConversationManager;
     messages: AgenticMessage[];
     isProcessing: boolean;
     isComplete: boolean;
@@ -49,9 +56,15 @@ let activeAdaptiveDeepthinkState: AdaptiveDeepthinkStoreState | null = null;
 let abortController: AbortController | null = null;
 const listeners = new Set<(state: AdaptiveDeepthinkStoreState | null) => void>();
 
-const MAX_RETRIES = 3;
-const INITIAL_DELAY_MS = 20000;
-const BACKOFF_FACTOR = 2;
+const TOOL_MODEL_MAP: Partial<Record<AdaptiveDeepthinkToolCall['type'], keyof CustomizablePromptsAdaptiveDeepthink>> = {
+    GenerateStrategies: 'model_strategyGeneration',
+    GenerateHypotheses: 'model_hypothesisGeneration',
+    TestHypotheses: 'model_hypothesisTesting',
+    ExecuteStrategies: 'model_execution',
+    SolutionCritique: 'model_solutionCritique',
+    CorrectedSolutions: 'model_corrector',
+    SelectBestSolution: 'model_finalJudge'
+};
 
 export function subscribeToAdaptiveDeepthinkState(listener: (state: AdaptiveDeepthinkStoreState | null) => void) {
     listeners.add(listener);
@@ -61,56 +74,34 @@ export function subscribeToAdaptiveDeepthinkState(listener: (state: AdaptiveDeep
 
 export function notifyAdaptiveDeepthinkListeners() {
     if (activeAdaptiveDeepthinkState) {
-        // Create shallow copy to trigger React re-render
-        listeners.forEach(l => l({ ...activeAdaptiveDeepthinkState! }));
-    } else {
-        listeners.forEach(l => l(null));
+        listeners.forEach(listener => listener({ ...activeAdaptiveDeepthinkState! }));
+        return;
     }
+
+    listeners.forEach(listener => listener(null));
 }
 
 export function updateAdaptiveDeepthinkTab(tabId: string) {
-    if (activeAdaptiveDeepthinkState) {
-        activeAdaptiveDeepthinkState.navigationState.currentTab = tabId;
-        activeAdaptiveDeepthinkState.deepthinkPipelineState.activeTabId = tabId;
-        notifyAdaptiveDeepthinkListeners();
+    if (!activeAdaptiveDeepthinkState) {
+        return;
     }
+
+    activeAdaptiveDeepthinkState.navigationState.currentTab = tabId;
+    activeAdaptiveDeepthinkState.deepthinkPipelineState.activeTabId = tabId;
+    notifyAdaptiveDeepthinkListeners();
 }
 
 export function updateAdaptiveDeepthinkStrategyTab(strategyIndex: number) {
-    if (activeAdaptiveDeepthinkState) {
-        activeAdaptiveDeepthinkState.deepthinkPipelineState.activeStrategyTab = strategyIndex;
-        notifyAdaptiveDeepthinkListeners();
+    if (!activeAdaptiveDeepthinkState) {
+        return;
     }
+
+    activeAdaptiveDeepthinkState.deepthinkPipelineState.activeStrategyTab = strategyIndex;
+    notifyAdaptiveDeepthinkListeners();
 }
 
-function newMsgId(prefix: string = 'msg'): string {
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function getAgentNameFromToolType(toolType: string): string {
-    const mapping: Record<string, string> = {
-        'GenerateStrategies': 'Strategy Generation Agent',
-        'GenerateHypotheses': 'Hypothesis Generation Agent',
-        'TestHypotheses': 'Hypothesis Testing Agent',
-        'ExecuteStrategies': 'Strategy Execution Agent',
-        'SolutionCritique': 'Solution Critique Agent',
-        'CorrectedSolutions': 'Solution Correction Agent',
-        'SelectBestSolution': 'Final Judge Agent'
-    };
-    return mapping[toolType] || toolType;
-}
-
-function getAgentIconFromToolType(toolType: string): string {
-    const mapping: Record<string, string> = {
-        'GenerateStrategies': 'psychology',
-        'GenerateHypotheses': 'science',
-        'TestHypotheses': 'troubleshoot',
-        'ExecuteStrategies': 'settings_suggest',
-        'SolutionCritique': 'security',
-        'CorrectedSolutions': 'auto_fix',
-        'SelectBestSolution': 'flag'
-    };
-    return mapping[toolType] || 'smart_toy';
+function newMsgId(prefix = 'msg'): string {
+    return `${prefix}-${nanoid(8)}`;
 }
 
 function formatToolCallDisplay(toolCall: AdaptiveDeepthinkToolCall): string {
@@ -129,35 +120,96 @@ function formatToolCallDisplay(toolCall: AdaptiveDeepthinkToolCall): string {
             return `CorrectedSolutions([${toolCall.executionIds.length} solutions])`;
         case 'SelectBestSolution':
             return `SelectBestSolution([${toolCall.solutionIds.length} solutions])`;
+        case 'Exit':
+            return 'Exit()';
         default:
-            return (toolCall as any).type || 'Unknown Tool';
+            return toolCall.type;
     }
 }
 
-interface ResponseSegment {
-    kind: 'text' | 'tool';
-    text?: string;
-    tool?: {
-        type: string;
-        rawType: string;
-    };
-}
-
-function parseIntoSegments(narrative: string, toolCalls: AdaptiveDeepthinkToolCall[]): ResponseSegment[] {
+function buildAgentSegments(message: AIMessage): ResponseSegment[] {
     const segments: ResponseSegment[] = [];
-    if (narrative && narrative.trim()) {
-        segments.push({ kind: 'text', text: narrative.trim() });
+    const narrative = messageContentToText(message.content);
+
+    if (narrative) {
+        segments.push({ kind: 'text', text: narrative });
     }
-    if (toolCalls.length > 0) {
+
+    for (const toolInvocation of message.tool_calls ?? []) {
+        const toolCall = normalizeAdaptiveDeepthinkToolCall(toolInvocation.name, toolInvocation.args);
+        const rawType = toolCall?.type ?? toolInvocation.name;
+        const label = toolCall ? formatToolCallDisplay(toolCall) : rawType;
+
         segments.push({
             kind: 'tool',
             tool: {
-                type: formatToolCallDisplay(toolCalls[0]),
-                rawType: toolCalls[0].type
-            }
+                type: label,
+                rawType
+            } as any
         });
     }
+
     return segments;
+}
+
+function buildAgentMessage(message: AIMessage): AgenticMessage | null {
+    const segments = buildAgentSegments(message);
+    if (segments.length === 0) {
+        return null;
+    }
+
+    const content = segments
+        .filter(segment => segment.kind === 'text')
+        .map(segment => segment.text)
+        .join('\n')
+        .trim();
+
+    return {
+        id: newMsgId('agent'),
+        role: 'agent',
+        content,
+        timestamp: Date.now(),
+        status: 'success',
+        segments
+    };
+}
+
+function buildSystemMessage(message: ToolMessage): AgenticMessage {
+    const content = messageContentToText(message.content);
+    const artifact = (message.artifact ?? undefined) as AdaptiveDeepthinkToolResultArtifact | undefined;
+    const tool = artifact?.tool ?? message.name ?? 'tool';
+    const isError = message.status === 'error';
+
+    const blocks: SystemBlock[] = isError
+        ? [{ kind: 'error', message: content }]
+        : [{ kind: 'tool_result', tool, result: content }];
+
+    return {
+        id: newMsgId('system'),
+        role: 'system',
+        content,
+        timestamp: Date.now(),
+        status: isError ? 'error' : 'success',
+        blocks
+    };
+}
+
+function toAdaptiveMessage(
+    message: AIMessage | ToolMessage
+): AgenticMessage | null {
+    if (message instanceof AIMessage) {
+        return buildAgentMessage(message);
+    }
+
+    if (message instanceof ToolMessage) {
+        return buildSystemMessage(message);
+    }
+
+    return null;
+}
+
+function isAbortError(error: unknown): boolean {
+    return error instanceof Error && (error.name === 'AbortError' || error.message === 'Aborted');
 }
 
 function createInitialDeepthinkPipelineState(question: string): DeepthinkPipelineState {
@@ -194,7 +246,6 @@ function parseToolResultAndUpdateState(toolCall: AdaptiveDeepthinkToolCall, tool
         case 'GenerateStrategies': {
             state.initialStrategies = [];
             const strategyMatches = toolResult.matchAll(/<Strategy ID: (strategy-\d+-\d+)>\s*([\s\S]*?)\s*<\/Strategy ID: \1>/g);
-            let idx = 0;
             for (const match of strategyMatches) {
                 const strategyId = match[1];
                 const strategyText = match[2].trim();
@@ -207,7 +258,6 @@ function parseToolResultAndUpdateState(toolCall: AdaptiveDeepthinkToolCall, tool
                     strategyFormat: 'markdown'
                 };
                 state.initialStrategies.push(strategy);
-                idx++;
             }
             break;
         }
@@ -354,57 +404,14 @@ function parseToolResultAndUpdateState(toolCall: AdaptiveDeepthinkToolCall, tool
             }
             break;
         }
+        case 'Exit':
+            state.status = 'completed';
+            break;
     }
 }
 
-export async function startAdaptiveDeepthinkProcess(
-    question: string,
-    customPrompts: CustomizablePromptsAdaptiveDeepthink,
-    images: Array<{ base64: string, mimeType: string }> = []
-) {
-    if (activeAdaptiveDeepthinkState) {
-        stopAdaptiveDeepthinkProcess();
-    }
-    if (!question || globalState.isAdaptiveDeepthinkRunning) return;
-
-    const coreState: AdaptiveDeepthinkState = createAdaptiveDeepthinkState(question);
-    const conversationManager = new AdaptiveDeepthinkConversationManager(
-        question,
-        customPrompts.sys_adaptiveDeepthink_main
-    );
-
-    activeAdaptiveDeepthinkState = {
-        id: coreState.id,
-        coreState,
-        conversationManager,
-        messages: [],
-        isProcessing: true,
-        isComplete: false,
-        deepthinkPipelineState: createInitialDeepthinkPipelineState(question),
-        navigationState: {
-            currentTab: 'strategic-solver'
-        }
-    };
-
-    globalState.isAdaptiveDeepthinkRunning = true;
-    updateControlsState();
-    abortController = new AbortController();
-
-    notifyAdaptiveDeepthinkListeners();
-
-    startAdaptiveDeepthinkSession(question, customPrompts, images).catch(err => {
-        console.error("Adaptive Deepthink Error:", err);
-    });
-}
-
-async function startAdaptiveDeepthinkSession(
-    _question: string,
-    customPrompts: CustomizablePromptsAdaptiveDeepthink,
-    images: Array<{ base64: string, mimeType: string }> = []
-) {
-    if (!activeAdaptiveDeepthinkState || !globalState.isAdaptiveDeepthinkRunning) return;
-
-    const deepthinkPrompts = {
+function createDeepthinkPrompts(customPrompts: CustomizablePromptsAdaptiveDeepthink): AdaptiveDeepthinkToolPrompts {
+    return {
         sys_deepthink_initialStrategy: customPrompts.sys_adaptiveDeepthink_strategyGeneration,
         user_deepthink_initialStrategy: '',
         sys_deepthink_hypothesisGeneration: customPrompts.sys_adaptiveDeepthink_hypothesisGeneration,
@@ -419,215 +426,214 @@ async function startAdaptiveDeepthinkSession(
         user_deepthink_selfImprovement: '',
         sys_deepthink_finalJudge: customPrompts.sys_adaptiveDeepthink_finalJudge
     };
+}
 
-    const agentContext: AgentExecutionContext = {
+function createBaseExecutionContext(): AgentExecutionContext {
+    return {
         callAI: callAI as any,
         cleanOutputByType: (raw: string) => raw,
         parseJsonSafe: (raw: string) => {
-            try { return JSON.parse(raw); } catch { return null; }
+            try {
+                return JSON.parse(raw);
+            } catch {
+                return null;
+            }
         },
         getSelectedTemperature,
         getSelectedModel,
         getSelectedTopP
     };
+}
 
-    while (globalState.isAdaptiveDeepthinkRunning && !activeAdaptiveDeepthinkState.isComplete) {
-        try {
-            activeAdaptiveDeepthinkState.isProcessing = true;
-            notifyAdaptiveDeepthinkListeners();
+function createToolExecutionContext(
+    baseContext: AgentExecutionContext,
+    customPrompts: CustomizablePromptsAdaptiveDeepthink,
+    toolCall: AdaptiveDeepthinkToolCall
+): AdaptiveDeepthinkToolExecutionContext {
+    const modelKey = TOOL_MODEL_MAP[toolCall.type];
+    const selectedModelOverride = modelKey ? customPrompts[modelKey] : null;
 
-            const placeholderIndex = activeAdaptiveDeepthinkState.messages.length;
-            activeAdaptiveDeepthinkState.messages = [...activeAdaptiveDeepthinkState.messages, {
-                id: newMsgId('agent'),
-                role: 'agent' as const,
-                content: '',
-                timestamp: Date.now(),
-                status: 'processing' as const
-            }];
-            notifyAdaptiveDeepthinkListeners();
+    return {
+        ...baseContext,
+        getSelectedModel: () => selectedModelOverride || getSelectedModel()
+    };
+}
 
-            const prompt = await activeAdaptiveDeepthinkState.conversationManager.buildPrompt();
-            const systemPrompt = activeAdaptiveDeepthinkState.conversationManager.getSystemPrompt();
+async function syncGraphState(graphState: AdaptiveDeepthinkGraphState, processedMessages: number) {
+    if (!activeAdaptiveDeepthinkState) {
+        return;
+    }
 
-            const modelName = getSelectedModel();
-            const temperature = getSelectedTemperature();
-            const topP = getSelectedTopP();
+    const nextMessages = [...activeAdaptiveDeepthinkState.messages];
 
-            let responseText = '';
-            let lastError: Error | null = null;
-
-            for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-                if (abortController?.signal.aborted) {
-                    throw new Error('Process stopped by user');
-                }
-
-                try {
-                    if (attempt > 0) {
-                        const delay = INITIAL_DELAY_MS * Math.pow(BACKOFF_FACTOR, attempt - 1);
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    }
-
-                    const promptParts: any[] = [{ text: prompt }];
-                    images.slice().reverse().forEach(img => {
-                        promptParts.unshift({
-                            inlineData: { mimeType: img.mimeType, data: img.base64 }
-                        });
-                    });
-
-                    const response = await callAI(
-                        promptParts,
-                        temperature,
-                        modelName,
-                        systemPrompt,
-                        false,
-                        topP
-                    );
-
-                    responseText = response.text || '';
-                    if (responseText) break;
-
-                    throw new Error('Provider returned empty response');
-                } catch (error) {
-                    lastError = error instanceof Error ? error : new Error(String(error));
-                    console.warn(`Adaptive Deepthink AI call attempt ${attempt + 1}/${MAX_RETRIES + 1} failed:`, lastError.message);
-                    if (attempt === MAX_RETRIES) break;
-                }
+    for (const message of graphState.messages.slice(processedMessages)) {
+        if (message instanceof ToolMessage) {
+            const artifact = (message.artifact ?? undefined) as AdaptiveDeepthinkToolResultArtifact | undefined;
+            const content = messageContentToText(message.content);
+            if (artifact?.toolCall && message.status !== 'error' && artifact.toolCall.type !== 'Exit') {
+                parseToolResultAndUpdateState(artifact.toolCall, content);
             }
+        }
 
-            if (!responseText) {
-                const errMsg = lastError
-                    ? `AI call failed after ${MAX_RETRIES + 1} attempts: ${lastError.message}`
-                    : 'Provider returned an empty response after all retries.';
-
-                activeAdaptiveDeepthinkState.messages = [
-                    ...activeAdaptiveDeepthinkState.messages.slice(0, placeholderIndex),
-                    ...activeAdaptiveDeepthinkState.messages.slice(placeholderIndex + 1),
-                    {
-                        id: newMsgId('system'),
-                        role: 'system',
-                        content: errMsg,
-                        timestamp: Date.now(),
-                        status: 'error' as const,
-                        blocks: [{ kind: 'error', message: errMsg } as SystemBlock]
-                    }
-                ];
-                activeAdaptiveDeepthinkState.isProcessing = false;
-                notifyAdaptiveDeepthinkListeners();
-                continue;
+        if (message instanceof AIMessage || message instanceof ToolMessage) {
+            const mapped = toAdaptiveMessage(message);
+            if (mapped) {
+                nextMessages.push(mapped);
             }
+        }
+    }
 
-            await activeAdaptiveDeepthinkState.conversationManager.addAgentMessage(responseText);
+    activeAdaptiveDeepthinkState.messages = nextMessages;
+    activeAdaptiveDeepthinkState.coreState = graphState.coreState;
+    notifyAdaptiveDeepthinkListeners();
+}
 
-            const parsed = parseAdaptiveDeepthinkResponse(responseText);
-            const segments = parseIntoSegments(parsed.narrative, parsed.toolCalls);
+export async function startAdaptiveDeepthinkProcess(
+    question: string,
+    customPrompts: CustomizablePromptsAdaptiveDeepthink,
+    images: Array<{ base64: string, mimeType: string }> = []
+) {
+    if (activeAdaptiveDeepthinkState) {
+        stopAdaptiveDeepthinkProcess();
+    }
+    if (!question || globalState.isAdaptiveDeepthinkRunning) {
+        return;
+    }
 
-            const msgs = activeAdaptiveDeepthinkState.messages;
-            msgs[placeholderIndex] = {
-                ...msgs[placeholderIndex],
-                content: parsed.narrative,
-                segments: segments as any
-            };
+    const coreState = createAdaptiveDeepthinkState(question);
+    coreState.status = 'processing';
 
-            notifyAdaptiveDeepthinkListeners();
+    activeAdaptiveDeepthinkState = {
+        id: coreState.id,
+        coreState,
+        messages: [],
+        isProcessing: true,
+        isComplete: false,
+        deepthinkPipelineState: createInitialDeepthinkPipelineState(question),
+        navigationState: {
+            currentTab: 'strategic-solver'
+        }
+    };
 
-            if (parsed.toolCalls.length === 0) {
-                activeAdaptiveDeepthinkState.coreState.status = 'completed';
-                activeAdaptiveDeepthinkState.isComplete = true;
-                activeAdaptiveDeepthinkState.isProcessing = false;
-                notifyAdaptiveDeepthinkListeners();
+    globalState.isAdaptiveDeepthinkRunning = true;
+    updateControlsState();
+    abortController = new AbortController();
+    notifyAdaptiveDeepthinkListeners();
+
+    void runAdaptiveDeepthinkGraph(question, customPrompts, images).catch(error => {
+        console.error('Adaptive Deepthink Error:', error);
+    });
+}
+
+async function runAdaptiveDeepthinkGraph(
+    question: string,
+    customPrompts: CustomizablePromptsAdaptiveDeepthink,
+    images: Array<{ base64: string, mimeType: string }>
+) {
+    if (!activeAdaptiveDeepthinkState || !globalState.isAdaptiveDeepthinkRunning) {
+        return;
+    }
+
+    let finalGraphState: AdaptiveDeepthinkGraphState | null = null;
+
+    try {
+        const deepthinkPrompts = createDeepthinkPrompts(customPrompts);
+        const baseContext = createBaseExecutionContext();
+        const modelName = customPrompts.model_main || getSelectedModel();
+        const temperature = getSelectedTemperature();
+        const topP = getSelectedTopP();
+
+        const graph = createAdaptiveDeepthinkGraph({
+            modelName,
+            temperature,
+            topP,
+            systemPrompt: customPrompts.sys_adaptiveDeepthink_main,
+            deepthinkPrompts,
+            images,
+            createExecutionContext: toolCall => createToolExecutionContext(baseContext, customPrompts, toolCall)
+        });
+
+        const initialGraphInput = {
+            messages: [new HumanMessage(`Core Challenge:\n${question}`)],
+            coreState: activeAdaptiveDeepthinkState.coreState,
+            shouldExit: false
+        };
+
+        let processedMessages = 0;
+        const stream = await graph.stream(initialGraphInput, {
+            streamMode: 'values',
+            recursionLimit: 48,
+            signal: abortController?.signal
+        });
+
+        for await (const graphState of stream) {
+            finalGraphState = graphState as AdaptiveDeepthinkGraphState;
+            await syncGraphState(finalGraphState, processedMessages);
+            processedMessages = finalGraphState.messages.length;
+
+            if (abortController?.signal.aborted || !activeAdaptiveDeepthinkState) {
                 break;
             }
+        }
 
-            const toolCall = parsed.toolCalls[0];
-            const agentName = getAgentNameFromToolType(toolCall.type);
-            const agentIcon = getAgentIconFromToolType(toolCall.type);
+        if (!activeAdaptiveDeepthinkState) {
+            return;
+        }
 
-            activeAdaptiveDeepthinkState.messages = [...activeAdaptiveDeepthinkState.messages, {
-                id: newMsgId('system'),
-                role: 'system',
-                content: `<div class="deepthink-tool-executing">
-                    <span class="material-symbols-outlined tool-executing-icon">${agentIcon}</span>
-                    <div class="tool-executing-content">
-                        <div class="tool-executing-title">Executing: ${agentName}</div>
-                        <div class="tool-executing-subtitle">Processing response...</div>
-                    </div>
-                </div>`,
-                timestamp: Date.now(),
-                status: 'processing' as const
-            }];
-            notifyAdaptiveDeepthinkListeners();
+        if (finalGraphState) {
+            activeAdaptiveDeepthinkState.coreState = finalGraphState.coreState;
+            activeAdaptiveDeepthinkState.coreState.status = activeAdaptiveDeepthinkState.coreState.error ? 'error' : 'completed';
+            activeAdaptiveDeepthinkState.isProcessing = false;
+            activeAdaptiveDeepthinkState.isComplete = true;
+            activeAdaptiveDeepthinkState.error = undefined;
+        } else {
+            activeAdaptiveDeepthinkState.isProcessing = false;
+            activeAdaptiveDeepthinkState.isComplete = true;
+        }
 
-            const toolResult = await executeAdaptiveDeepthinkTool(
-                toolCall,
-                activeAdaptiveDeepthinkState.coreState,
-                agentContext,
-                deepthinkPrompts,
-                images
-            );
-
-            parseToolResultAndUpdateState(toolCall, toolResult);
-            notifyAdaptiveDeepthinkListeners();
-
+        notifyAdaptiveDeepthinkListeners();
+    } catch (error) {
+        if (!isAbortError(error) && !abortController?.signal.aborted && activeAdaptiveDeepthinkState) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
             activeAdaptiveDeepthinkState.messages = [
-                ...activeAdaptiveDeepthinkState.messages.slice(0, -1),
+                ...activeAdaptiveDeepthinkState.messages,
                 {
                     id: newMsgId('system'),
                     role: 'system',
-                    content: toolResult,
+                    content: message,
                     timestamp: Date.now(),
-                    status: toolResult.includes('[ERROR:') ? 'error' : 'success',
-                    blocks: [{
-                        kind: 'tool_result',
-                        tool: toolCall.type,
-                        result: toolResult
-                    } as SystemBlock]
+                    status: 'error',
+                    blocks: [{ kind: 'error', message }]
                 }
             ];
-
-            await activeAdaptiveDeepthinkState.conversationManager.addSystemMessage(toolResult);
+            activeAdaptiveDeepthinkState.coreState.status = 'error';
+            activeAdaptiveDeepthinkState.coreState.error = message;
             activeAdaptiveDeepthinkState.isProcessing = false;
+            activeAdaptiveDeepthinkState.isComplete = true;
+            activeAdaptiveDeepthinkState.error = message;
             notifyAdaptiveDeepthinkListeners();
-
-        } catch (error) {
-            console.error('Adaptive Deepthink loop error:', error);
-            activeAdaptiveDeepthinkState.messages = [...activeAdaptiveDeepthinkState.messages, {
-                id: newMsgId('system'),
-                role: 'system',
-                content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                timestamp: Date.now(),
-                status: 'error',
-                blocks: [{
-                    kind: 'error',
-                    message: error instanceof Error ? error.message : 'Unknown error'
-                } as SystemBlock]
-            }];
-
-            activeAdaptiveDeepthinkState.isProcessing = false;
-            activeAdaptiveDeepthinkState.error = error instanceof Error ? error.message : 'Unknown error';
-            notifyAdaptiveDeepthinkListeners();
-            break;
         }
-
-        if (abortController?.signal.aborted) break;
+    } finally {
+        globalState.isAdaptiveDeepthinkRunning = false;
+        updateControlsState();
+        abortController = null;
     }
-
-    globalState.isAdaptiveDeepthinkRunning = false;
-    updateControlsState();
 }
 
 export function stopAdaptiveDeepthinkProcess() {
     globalState.isAdaptiveDeepthinkRunning = false;
-    if (abortController) {
-        abortController.abort();
-        abortController = null;
-    }
+    abortController?.abort();
+    abortController = null;
     updateControlsState();
 
-    if (activeAdaptiveDeepthinkState) {
-        activeAdaptiveDeepthinkState.isProcessing = false;
-        activeAdaptiveDeepthinkState.isComplete = true;
-        notifyAdaptiveDeepthinkListeners();
+    if (!activeAdaptiveDeepthinkState) {
+        return;
     }
+
+    activeAdaptiveDeepthinkState.isProcessing = false;
+    activeAdaptiveDeepthinkState.isComplete = true;
+    activeAdaptiveDeepthinkState.coreState.status = 'completed';
+    notifyAdaptiveDeepthinkListeners();
 }
 
 export function cleanupAdaptiveDeepthinkMode() {
@@ -640,10 +646,48 @@ export function getAdaptiveDeepthinkState(): AdaptiveDeepthinkStoreState | null 
     return activeAdaptiveDeepthinkState;
 }
 
+function restoreMap<T>(value: unknown): Map<string, T> {
+    if (value instanceof Map) {
+        return new Map(value);
+    }
+
+    if (Array.isArray(value)) {
+        return new Map(value as Array<[string, T]>);
+    }
+
+    if (value && typeof value === 'object') {
+        return new Map(Object.entries(value as Record<string, T>));
+    }
+
+    return new Map();
+}
+
+function normalizeImportedAdaptiveState(state: AdaptiveDeepthinkStoreState): AdaptiveDeepthinkStoreState {
+    const question = state.coreState?.question || '';
+    const coreState = state.coreState ?? createAdaptiveDeepthinkState(question);
+
+    coreState.strategies = restoreMap(coreState.strategies);
+    coreState.hypotheses = restoreMap(coreState.hypotheses);
+    coreState.hypothesisTestings = restoreMap(coreState.hypothesisTestings);
+    coreState.executions = restoreMap(coreState.executions);
+    coreState.critiques = restoreMap(coreState.critiques);
+    coreState.correctedSolutions = restoreMap(coreState.correctedSolutions);
+
+    return {
+        ...state,
+        coreState,
+        messages: Array.isArray(state.messages) ? state.messages : [],
+        deepthinkPipelineState: state.deepthinkPipelineState ?? createInitialDeepthinkPipelineState(question),
+        navigationState: state.navigationState ?? {
+            currentTab: state.deepthinkPipelineState?.activeTabId || 'strategic-solver'
+        },
+        isProcessing: false
+    };
+}
+
 export function setAdaptiveDeepthinkStateForImport(state: AdaptiveDeepthinkStoreState | null) {
     if (state) {
-        state.isProcessing = false;
-        activeAdaptiveDeepthinkState = state;
+        activeAdaptiveDeepthinkState = normalizeImportedAdaptiveState(state);
         globalState.isAdaptiveDeepthinkRunning = false;
     } else {
         activeAdaptiveDeepthinkState = null;

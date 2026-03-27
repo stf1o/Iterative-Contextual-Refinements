@@ -271,6 +271,27 @@ export class ProviderManager {
         return null;
     }
 
+    public getProviderNameForModel(modelId: string): string | null {
+        for (const [providerName, config] of this.providers) {
+            if (config.models.includes(modelId) && this.activeProviders.has(providerName)) {
+                return providerName;
+            }
+        }
+        return null;
+    }
+
+    public getProviderConfig(providerName: string): ProviderConfig | null {
+        return this.providers.get(providerName) ?? null;
+    }
+
+    public getProviderConfigForModel(modelId: string): ProviderConfig | null {
+        const providerName = this.getProviderNameForModel(modelId);
+        if (!providerName) {
+            return null;
+        }
+        return this.getProviderConfig(providerName);
+    }
+
     public getAllProviders(): ProviderConfig[] {
         return Array.from(this.providers.values());
     }

@@ -1,13 +1,10 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- * 
- * Adaptive Deepthink Core - Agentic mode with Langchain conversation history
- * Uses exported Deepthink agents as tools
+ *
+ * Adaptive Deepthink Core
  */
 
-import { ChatMessageHistory } from "@langchain/community/stores/message/in_memory";
-import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import {
     generateStrategiesAgent,
     generateHypothesesAgent,
@@ -27,7 +24,26 @@ export type AdaptiveDeepthinkToolCall =
     | { type: 'ExecuteStrategies'; executions: Array<{ strategyId: string; hypothesisIds: string[] }>; specialContext?: string }
     | { type: 'SolutionCritique'; executionIds: string[]; specialContext?: string }
     | { type: 'CorrectedSolutions'; executionIds: string[] }
-    | { type: 'SelectBestSolution'; solutionIds: string[] };
+    | { type: 'SelectBestSolution'; solutionIds: string[] }
+    | { type: 'Exit' };
+
+export interface AdaptiveDeepthinkToolPrompts {
+    sys_deepthink_initialStrategy: string;
+    user_deepthink_initialStrategy: string;
+    sys_deepthink_hypothesisGeneration: string;
+    user_deepthink_hypothesisGeneration: string;
+    sys_deepthink_hypothesisTester: string;
+    user_deepthink_hypothesisTester: string;
+    sys_deepthink_solutionAttempt: string;
+    user_deepthink_solutionAttempt: string;
+    sys_deepthink_solutionCritique: string;
+    user_deepthink_solutionCritique: string;
+    sys_deepthink_selfImprovement: string;
+    user_deepthink_selfImprovement: string;
+    sys_deepthink_finalJudge: string;
+}
+
+export type AdaptiveDeepthinkToolExecutionContext = AgentExecutionContext;
 
 // State management
 export interface AdaptiveDeepthinkState {
@@ -49,171 +65,13 @@ export interface AdaptiveDeepthinkState {
 }
 
 /**
- * Conversation manager for Adaptive Deepthink
- */
-export class AdaptiveDeepthinkConversationManager {
-    private chatHistory: ChatMessageHistory;
-    private systemPrompt: string;
-    private question: string;
-
-    constructor(question: string, systemPrompt: string) {
-        this.question = question;
-        this.systemPrompt = systemPrompt;
-        this.chatHistory = new ChatMessageHistory();
-    }
-
-    async addAgentMessage(content: string): Promise<void> {
-        await this.chatHistory.addMessage(new AIMessage(content));
-    }
-
-    async addSystemMessage(content: string): Promise<void> {
-        await this.chatHistory.addMessage(new SystemMessage(content));
-    }
-
-    async getConversationHistory(): Promise<string> {
-        const messages = await this.chatHistory.getMessages();
-        const formattedMessages: string[] = [];
-
-        for (const msg of messages) {
-            if (msg instanceof SystemMessage) {
-                formattedMessages.push(`[System]: ${msg.content}`);
-            } else if (msg instanceof AIMessage) {
-                formattedMessages.push(`${msg.content}`);
-            }
-        }
-
-        return formattedMessages.join('\n\n');
-    }
-
-    async buildPrompt(): Promise<string> {
-        const history = await this.getConversationHistory();
-
-        if (!history || history.trim().length === 0) {
-            return `Core Challenge: ${this.question}`;
-        }
-
-        return history;
-    }
-
-    getSystemPrompt(): string {
-        return this.systemPrompt;
-    }
-
-    async clearHistory(): Promise<void> {
-        await this.chatHistory.clear();
-    }
-}
-
-/**
- * Parse agent response to extract tool calls
- */
-export function parseAdaptiveDeepthinkResponse(response: string): {
-    narrative: string;
-    toolCalls: AdaptiveDeepthinkToolCall[];
-} {
-    const toolCalls: AdaptiveDeepthinkToolCall[] = [];
-    let narrative = response;
-
-    // Parse GenerateStrategies
-    const stratRegex = /\[TOOL:GenerateStrategies\((\d+)(?:,\s*"([^"]*)")?\s*\)\s*\]/g;
-    let match;
-    while ((match = stratRegex.exec(response)) !== null) {
-        toolCalls.push({
-            type: 'GenerateStrategies',
-            numStrategies: parseInt(match[1]),
-            specialContext: match[2] || undefined
-        });
-        narrative = narrative.replace(match[0], '');
-    }
-
-    // Parse GenerateHypotheses
-    const hypRegex = /\[TOOL:GenerateHypotheses\((\d+)(?:,\s*"([^"]*)")?\s*\)\s*\]/g;
-    while ((match = hypRegex.exec(response)) !== null) {
-        toolCalls.push({
-            type: 'GenerateHypotheses',
-            numHypotheses: parseInt(match[1]),
-            specialContext: match[2] || undefined
-        });
-        narrative = narrative.replace(match[0], '');
-    }
-
-    // Parse TestHypotheses
-    const testHypRegex = /\[TOOL:TestHypotheses\(\[(.*?)\](?:,\s*"([^"]*)")?\s*\)\s*\]/g;
-    while ((match = testHypRegex.exec(response)) !== null) {
-        const ids = match[1].split(',').map(id => id.trim().replace(/['"]/g, ''));
-        toolCalls.push({
-            type: 'TestHypotheses',
-            hypothesisIds: ids,
-            specialContext: match[2] || undefined
-        });
-        narrative = narrative.replace(match[0], '');
-    }
-
-    // Parse ExecuteStrategies
-    const execStratRegex = /\[TOOL:ExecuteStrategies\(\[(.*?)\](?:,\s*"([^"]*)")?\s*\)\s*\]/g;
-    while ((match = execStratRegex.exec(response)) !== null) {
-        try {
-            const execsJson = match[1];
-            const parsed = JSON.parse(`[${execsJson}]`);
-            toolCalls.push({
-                type: 'ExecuteStrategies',
-                executions: parsed,
-                specialContext: match[2] || undefined
-            });
-        } catch (e) {
-            // Skip malformed execution
-        }
-        narrative = narrative.replace(match[0], '');
-    }
-
-    // Parse SolutionCritique
-    const critiqueRegex = /\[TOOL:SolutionCritique\(\[(.*?)\](?:,\s*"([^"]*)")?\s*\)\s*\]/g;
-    while ((match = critiqueRegex.exec(response)) !== null) {
-        const ids = match[1].split(',').map(id => id.trim().replace(/['"]/g, ''));
-        toolCalls.push({
-            type: 'SolutionCritique',
-            executionIds: ids,
-            specialContext: match[2] || undefined
-        });
-        narrative = narrative.replace(match[0], '');
-    }
-
-    // Parse CorrectedSolutions
-    const correctedRegex = /\[TOOL:CorrectedSolutions\(\[(.*?)\]\s*\)\s*\]/g;
-    while ((match = correctedRegex.exec(response)) !== null) {
-        const ids = match[1].split(',').map(id => id.trim().replace(/['"]/g, ''));
-        toolCalls.push({
-            type: 'CorrectedSolutions',
-            executionIds: ids
-        });
-        narrative = narrative.replace(match[0], '');
-    }
-
-    // Parse SelectBestSolution
-    const selectRegex = /\[TOOL:SelectBestSolution\(\[(.*?)\]\s*\)\s*\]/g;
-    while ((match = selectRegex.exec(response)) !== null) {
-        const ids = match[1].split(',').map(id => id.trim().replace(/['"]/g, ''));
-        toolCalls.push({
-            type: 'SelectBestSolution',
-            solutionIds: ids
-        });
-        narrative = narrative.replace(match[0], '');
-    }
-
-    return {
-        narrative: narrative.trim(),
-        toolCalls
-    };
-}
-
-/**
  * Execute a tool call
  */
 export async function executeAdaptiveDeepthinkTool(
     toolCall: AdaptiveDeepthinkToolCall,
     state: AdaptiveDeepthinkState,
-    context: AgentExecutionContext,
-    deepthinkPrompts: any,
+    context: AdaptiveDeepthinkToolExecutionContext,
+    deepthinkPrompts: AdaptiveDeepthinkToolPrompts,
     images: Array<{ base64: string, mimeType: string }> = []
 ): Promise<string> {
     try {
@@ -418,6 +276,9 @@ export async function executeAdaptiveDeepthinkTool(
                 state.selectedSolution = response.data.selection;
                 return `<Best Solution Selected>\n${response.data.selection}\n</Best Solution Selected>`;
             }
+
+            case 'Exit':
+                return '<Adaptive Deepthink Exit />';
 
             default:
                 return '[ERROR: Unknown tool type]';

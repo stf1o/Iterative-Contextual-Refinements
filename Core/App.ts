@@ -3,52 +3,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { initializeDeepthinkModule, startDeepthinkAnalysisProcess } from '../Deepthink/Deepthink';
-import {
-    startContextualProcess
-} from '../Contextual/Contextual';
-import {
-    startAdaptiveDeepthinkProcess
-} from '../AdaptiveDeepthink/AdaptiveDeepthinkMode';
 import { exportConfiguration, handleImportConfiguration } from './ConfigManager';
 import { updateUIAfterModeChange, renderActiveMode } from './AppRouter';
 import { initializeEvolutionConvergenceButtons } from '../Styles/Components/Sidebar/ModelParameters';
-import { openDiffModal } from '../Styles/Components/DiffModal/DiffModalController';
 import {
-    initializeAgenticMode,
-    startAgenticProcess,
-    setAgenticPromptsManager,
-} from '../Agentic/AgenticUI_Bridge';
+    ensureAdaptiveDeepthinkInitialized,
+    ensureAgenticInitialized,
+    ensureContextualInitialized,
+    ensureDeepthinkInitialized,
+    loadWebsiteLogic,
+    setAgenticPromptsManagerForLazyLoad
+} from './ModeLoader';
 
 import {
     routingManager,
     initializeRouting,
-    getSelectedModel,
-    getSelectedTemperature,
-    getSelectedTopP,
-    getSelectedStrategiesCount,
-    getSelectedSubStrategiesCount,
-    getSelectedHypothesisCount,
-    getSelectedRedTeamAggressiveness,
-    getRefinementEnabled,
-    getSkipSubStrategies,
-    getDissectedObservationsEnabled,
-    getIterativeCorrectionsEnabled,
-    getIterativeDepth,
-    getProvideAllSolutionsToCorrectors,
-    getPostQualityFilterEnabled,
     hasValidApiKey,
-    callAI,
     getProviderForCurrentModel
 } from '../Routing';
-import { parseJsonSafe } from './JsonParser';
 import { globalState } from './State';
 import { ApplicationMode } from './Types';
 import { updateControlsState } from '../UI/Controls';
-import { runPipeline, initPipelines } from '../Refine/WebsiteLogic';
 import { LayoutController } from '../UI/LayoutController';
 import { GlobalModals } from '../UI/GlobalModals';
-import { setupCodeExecutionToggle } from '../UI/setupCodeExecutionToggle';
 
 export class App {
     public static init() {
@@ -71,45 +48,7 @@ export class App {
         this.initializeCustomPromptTextareas();
         updateUIAfterModeChange(); // Called early to set up initial UI logic based on default mode
 
-        // Initialize Agentic mode
-        initializeAgenticMode();
-
         initializeEvolutionConvergenceButtons();
-
-        // Initialize Gemini code execution toggle for Contextual mode
-        setupCodeExecutionToggle();
-
-        // Initialize deepthink module with all required dependencies
-        initializeDeepthinkModule({
-            getAIProvider: () => routingManager.getAIProvider(),
-            callGemini: callAI,
-            parseJsonSafe,
-            updateControlsState,
-            escapeHtml: (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'),
-            getSelectedTemperature,
-            getSelectedModel,
-            getSelectedTopP,
-            getSelectedStrategiesCount,
-            getSelectedSubStrategiesCount,
-            getSelectedHypothesisCount,
-            getSelectedRedTeamAggressiveness,
-            getRefinementEnabled,
-            getSkipSubStrategies,
-            getDissectedObservationsEnabled,
-            getIterativeCorrectionsEnabled,
-            getIterativeDepth,
-            getProvideAllSolutionsToCorrectors,
-            getPostQualityFilterEnabled,
-            getDeepthinkCodeExecutionEnabled: () => routingManager.getDeepthinkConfigController().isCodeExecutionEnabled(),
-            getModelProvider: getProviderForCurrentModel,
-            cleanTextOutput: (text: string) => text.trim(),
-            customPromptsDeepthinkState: globalState.customPromptsDeepthinkState,
-            tabsNavContainer: document.getElementById('tabs-nav-container'), // Deprecated UI dependency
-            pipelinesContentContainer: document.getElementById('pipelines-content-container'), // Deprecated UI dependency
-            setActiveDeepthinkPipeline: (pipeline: any) => {
-                globalState.activeDeepthinkPipeline = pipeline as any;
-            }
-        });
         // Default to first mode if none specifically checked (e.g. after import or on fresh load)
         const appModeRadios = document.querySelectorAll('input[name="app-mode"]');
         let modeIsAlreadySet = false;
@@ -179,24 +118,29 @@ export class App {
         if (globalState.currentMode === 'deepthink') {
             console.log('Starting Deepthink process');
             const firstImage = globalState.currentProblemImages.length > 0 ? globalState.currentProblemImages[0] : null;
-            await startDeepthinkAnalysisProcess(initialIdea, firstImage?.base64, firstImage?.mimeType);
+            const deepthink = await ensureDeepthinkInitialized();
+            await deepthink.startDeepthinkAnalysisProcess(initialIdea, firstImage?.base64, firstImage?.mimeType);
         } else if (globalState.currentMode === 'agentic') {
             console.log('Starting Agentic process');
             try {
-                await startAgenticProcess(initialIdea);
+                const agentic = await ensureAgenticInitialized();
+                await agentic.startAgenticProcess(initialIdea);
             } catch (e) {
                 console.error('Error starting Agentic process:', e);
             }
         } else if (globalState.currentMode === 'contextual') {
-            await startContextualProcess(initialIdea, globalState.customPromptsContextualState);
+            const contextual = await ensureContextualInitialized();
+            await contextual.startContextualProcess(initialIdea, globalState.customPromptsContextualState);
         } else if (globalState.currentMode === 'adaptive-deepthink') {
-            await startAdaptiveDeepthinkProcess(initialIdea, globalState.customPromptsAdaptiveDeepthinkState, globalState.currentProblemImages);
+            const adaptive = await ensureAdaptiveDeepthinkInitialized();
+            await adaptive.startAdaptiveDeepthinkProcess(initialIdea, globalState.customPromptsAdaptiveDeepthinkState, globalState.currentProblemImages);
         } else { // Website mode
             console.log('Starting Website mode');
-            initPipelines();
+            const websiteLogic = await loadWebsiteLogic();
+            websiteLogic.initPipelines();
             renderActiveMode();
             console.log('Pipelines initialized:', globalState.pipelinesState.length);
-            const runningPromises = globalState.pipelinesState.map(p => runPipeline(p.id, initialIdea));
+            const runningPromises = globalState.pipelinesState.map(p => websiteLogic.runPipeline(p.id, initialIdea));
 
             try {
                 await Promise.allSettled(runningPromises);
@@ -216,7 +160,9 @@ export class App {
     }
 
     public static handleDiffModalClick(pipelineId: number, iterationNumber: number, contentType: 'html' | 'text') {
-        openDiffModal(pipelineId, iterationNumber, contentType);
+        void import('../Styles/Components/DiffModal/DiffModalController').then((mod) => {
+            mod.openDiffModal(pipelineId, iterationNumber, contentType);
+        });
     }
 
     private static initializeCustomPromptTextareas() {
@@ -230,7 +176,7 @@ export class App {
 
         const agenticPromptsManager = routingManager.getAgenticPromptsManager();
         if (agenticPromptsManager) {
-            setAgenticPromptsManager(agenticPromptsManager);
+            setAgenticPromptsManagerForLazyLoad(agenticPromptsManager);
         }
     }
 }

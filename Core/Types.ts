@@ -1,9 +1,9 @@
 
-import { CustomizablePromptsWebsite } from '../Refine/RefinePrompts';
-import { CustomizablePromptsDeepthink } from '../Deepthink/DeepthinkPrompts';
-import { CustomizablePromptsAdaptiveDeepthink } from '../AdaptiveDeepthink/AdaptiveDeepthinkPrompt';
-import { CustomizablePromptsContextual } from '../Contextual/ContextualPrompts';
-import {
+import type { CustomizablePromptsWebsite } from '../Refine/RefinePrompts';
+import type { CustomizablePromptsDeepthink } from '../Deepthink/DeepthinkPrompts';
+import type { CustomizablePromptsAdaptiveDeepthink } from '../AdaptiveDeepthink/AdaptiveDeepthinkPrompt';
+import type { CustomizablePromptsContextual } from '../Contextual/ContextualPrompts';
+import type {
     DeepthinkSolutionCritiqueData,
     DeepthinkSubStrategyData,
     DeepthinkHypothesisData,

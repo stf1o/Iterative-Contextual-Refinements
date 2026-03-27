@@ -194,7 +194,9 @@ const RedTeamSection: React.FC<{
                             onChange={e => onPostQualityFilterToggle(e.target.checked)}
                         />
                         <label htmlFor="dt-post-quality-filter-toggle" className="method-checkbox-label">
-                            <div className="method-checkbox-custom" />
+                            <div className="method-checkbox-custom">
+                                <span className="material-symbols-outlined checkbox-icon">check</span>
+                            </div>
                         </label>
                     </div>
                     <div className="method-card-title">
@@ -355,7 +357,9 @@ const RefinementSection: React.FC<{
                                     checked={dissectedObservationsEnabled} disabled={singlePassDisabled}
                                     onChange={e => onDissectedObservationsToggle(e.target.checked)} />
                                 <label htmlFor="dt-dissected-observations-toggle" className="method-checkbox-label">
-                                    <div className="method-checkbox-custom" />
+                                    <div className="method-checkbox-custom">
+                                        <span className="material-symbols-outlined checkbox-icon">check</span>
+                                    </div>
                                 </label>
                             </div>
                             <div className="method-card-title">
@@ -374,7 +378,9 @@ const RefinementSection: React.FC<{
                                     checked={provideAllSolutionsEnabled} disabled={singlePassDisabled}
                                     onChange={e => onProvideAllSolutionsToggle(e.target.checked)} />
                                 <label htmlFor="dt-provide-all-solutions-toggle" className="method-checkbox-label">
-                                    <div className="method-checkbox-custom" />
+                                    <div className="method-checkbox-custom">
+                                        <span className="material-symbols-outlined checkbox-icon">check</span>
+                                    </div>
                                 </label>
                             </div>
                             <div className="method-card-title">
@@ -394,7 +400,9 @@ const RefinementSection: React.FC<{
                                 checked={iterativeCorrectionsEnabled} disabled={!refinementEnabled}
                                 onChange={e => onIterativeCorrectionsToggle(e.target.checked)} />
                             <label htmlFor="dt-iterative-corrections-toggle" className="method-checkbox-label">
-                                <div className="method-checkbox-custom" />
+                                <div className="method-checkbox-custom">
+                                    <span className="material-symbols-outlined checkbox-icon">check</span>
+                                </div>
                             </label>
                         </div>
                         <div className="method-card-title">

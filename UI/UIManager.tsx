@@ -1,6 +1,5 @@
 import React from 'react';
 import { PipelineTabData, getPipelineTabsData, getCurrentMode, getModeTitle, getActivePipelineId, isWebsiteMode, isGenerating, getPipelinesCount } from './UIManager';
-import { updatePipelineStatusUI } from '../Refine/WebsiteUI';
 import { activateTab } from './Tabs';
 import { globalState } from '../Core/State';
 
@@ -96,7 +95,9 @@ export const handlePipelineStop = (pipelineId: number) => {
     if (pipeline && pipeline.status === 'running') {
         pipeline.isStopRequested = true;
         pipeline.status = 'stopping';
-        updatePipelineStatusUI(pipeline.id, 'stopping');
+        void import('../Refine/WebsiteUI').then((mod) => {
+            mod.updatePipelineStatusUI(pipeline.id, 'stopping');
+        });
     }
 };
 

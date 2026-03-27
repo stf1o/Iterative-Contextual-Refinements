@@ -415,10 +415,14 @@ textarea.prompt-textarea:focus {
     font-weight: 500;
 }
 
-.custom-model-select-option.selected::after {
-    content: 'check';
-    font-family: 'Material Symbols Outlined';
+.custom-model-select-option .option-check {
+    display: none;
     font-size: 1rem;
+    color: var(--accent-blue);
+}
+
+.custom-model-select-option.selected .option-check {
+    display: inline-flex;
 }
 
 .custom-model-select-option-text {

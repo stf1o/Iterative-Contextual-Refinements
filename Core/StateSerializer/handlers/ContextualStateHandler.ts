@@ -6,25 +6,30 @@
  */
 
 import type { ModeStateHandler } from '../ModeStateHandler';
-import {
-    getContextualState,
-    setContextualStateForImport,
-    renderContextualMode,
-} from '../../../Contextual/Contextual';
 import type { ContextualState } from '../../../Contextual/ContextualCore';
+import { ensureContextualInitialized, getLoadedContextualModule } from '../../ModeLoader';
+
+let pendingState: ContextualState | null = null;
 
 export const contextualStateHandler: ModeStateHandler<ContextualState> = {
     modeName: 'contextual',
 
     getFullState(): ContextualState | null {
-        return getContextualState();
+        const mod = getLoadedContextualModule();
+        return mod ? mod.getContextualState() : null;
     },
 
     restoreState(state: ContextualState | null): void {
-        setContextualStateForImport(state);
+        pendingState = state;
     },
 
     renderAfterImport(): void {
-        renderContextualMode();
+        void ensureContextualInitialized().then((mod) => {
+            if (pendingState) {
+                mod.setContextualStateForImport(pendingState);
+                pendingState = null;
+            }
+            mod.renderContextualMode();
+        });
     },
 };

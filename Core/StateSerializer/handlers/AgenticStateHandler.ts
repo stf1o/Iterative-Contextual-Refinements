@@ -6,27 +6,30 @@
  */
 
 import type { ModeStateHandler } from '../ModeStateHandler';
-import {
-    getActiveAgenticState,
-    setActiveAgenticStateForImport,
-    renderAgenticMode,
-} from '../../../Agentic/AgenticUI_Bridge';
 import type { AgenticState } from '../../../Agentic/AgenticCore';
+import { ensureAgenticInitialized, getLoadedAgenticModule } from '../../ModeLoader';
+
+let pendingState: AgenticState | null = null;
 
 export const agenticStateHandler: ModeStateHandler<AgenticState> = {
     modeName: 'agentic',
 
     getFullState(): AgenticState | null {
-        return getActiveAgenticState();
+        const mod = getLoadedAgenticModule();
+        return mod ? mod.getActiveAgenticState() : null;
     },
 
     restoreState(state: AgenticState | null): void {
-        if (state) {
-            setActiveAgenticStateForImport(state);
-        }
+        pendingState = state;
     },
 
     renderAfterImport(): void {
-        renderAgenticMode();
+        void ensureAgenticInitialized().then((mod) => {
+            if (pendingState) {
+                mod.setActiveAgenticStateForImport(pendingState);
+                pendingState = null;
+            }
+            mod.renderAgenticMode();
+        });
     },
 };
