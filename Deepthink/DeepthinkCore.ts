@@ -8,7 +8,7 @@
 
 import { Part, GenerateContentResponse } from "@google/genai";
 import { AIProvider, ThinkingConfig } from '../Routing/AIProvider';
-import { CustomizablePromptsDeepthink } from './DeepthinkPrompts';
+import { CustomizablePromptsDeepthink, RED_TEAM_AGGRESSIVENESS_LEVELS } from './DeepthinkPrompts';
 import { SolutionCritiqueHistoryManager, SolutionCorrectionHistoryManager, StructuredSolutionPoolHistoryManager, PostQualityFilterHistoryManager, StrategiesGeneratorHistoryManager } from './DeepthinkIterativeHistory';
 import { addSolutionPoolVersion } from './SolutionPool';
 import { extractPartsInOrder, formatPartsForDisplay } from '../Routing/ResponseParser';
@@ -355,7 +355,7 @@ export async function runConsolidatedRedTeamAnalysis(
     imageBase64: string | null | undefined,
     imageMimeType: string | null | undefined,
     makeDeepthinkApiCall: any,
-    _aggressiveness: string
+    aggressiveness: string
 ): Promise<void> {
     if (!strategies || strategies.length === 0) return;
 
@@ -386,16 +386,20 @@ export async function runConsolidatedRedTeamAnalysis(
             return `Main Strategy [ID: ${mainStrategy.id}]:\n${mainStrategy.strategyText}\nSub-Strategies:\n${subStrategiesText}`;
         }).join('\n\n' + '='.repeat(40) + '\n\n');
 
+        const aggressivenessConfig = RED_TEAM_AGGRESSIVENESS_LEVELS[aggressiveness as keyof typeof RED_TEAM_AGGRESSIVENESS_LEVELS] || RED_TEAM_AGGRESSIVENESS_LEVELS.balanced;
         const redTeamPrompt = deps.customPromptsDeepthinkState.user_deepthink_redTeam
             .replace('{{originalProblemText}}', problemText)
-            .replace('{{allStrategies}}', allStrategiesText);
+            .replace('{{allStrategies}}', allStrategiesText)
+            .replace(/\{\{RED_TEAM_AGGRESSIVENESS\}\}/g, aggressivenessConfig.description);
+        const redTeamSysPrompt = deps.customPromptsDeepthinkState.sys_deepthink_redTeam
+            .replace(/\{\{RED_TEAM_AGGRESSIVENESS\}\}/g, aggressivenessConfig.description);
 
         const redTeamPromptParts: Part[] = [...buildImageParts(imageBase64, imageMimeType), { text: redTeamPrompt }];
         redTeamAgent.requestPrompt = redTeamPrompt + (imageBase64 ? "\n[Image Provided]" : "");
 
         const redTeamResponse = await makeDeepthinkApiCall(
             redTeamPromptParts,
-            deps.customPromptsDeepthinkState.sys_deepthink_redTeam,
+            redTeamSysPrompt,
             true,
             `Red Team Evaluation`,
             redTeamAgent,
@@ -597,16 +601,20 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                     return;
                 }
 
-                const hypothesisPrompt = deps.customPromptsDeepthinkState.user_deepthink_hypothesisGeneration.replace('{{originalProblemText}}', challengeText);
+                const hypothesisPrompt = deps.customPromptsDeepthinkState.user_deepthink_hypothesisGeneration
+                    .replace('{{originalProblemText}}', challengeText)
+                    .replace(/\{\{NUM_HYPOTHESES\}\}/g, deps.getSelectedHypothesisCount().toString());
                 currentProcess.requestPromptHypothesisGen = hypothesisPrompt;
                 currentProcess.hypothesisGenStatus = 'processing';
                 render();
 
                 const parts: Part[] = buildImageParts(imageBase64, imageMimeType);
 
+                const hypothesisSysPrompt = deps.customPromptsDeepthinkState.sys_deepthink_hypothesisGeneration
+                    .replace(/\{\{NUM_HYPOTHESES\}\}/g, deps.getSelectedHypothesisCount().toString());
                 const hypothesisResponse = await makeDeepthinkApiCall(
                     parts.concat([{ text: hypothesisPrompt }]),
-                    deps.customPromptsDeepthinkState.sys_deepthink_hypothesisGeneration,
+                    hypothesisSysPrompt,
                     true,
                     "Hypothesis Generation",
                     currentProcess,
@@ -700,7 +708,9 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
 
                 const parts: Part[] = buildImageParts(imageBase64, imageMimeType);
 
-                const strategiesPrompt = deps.customPromptsDeepthinkState.user_deepthink_initialStrategy.replace('{{originalProblemText}}', challengeText);
+                const strategiesPrompt = deps.customPromptsDeepthinkState.user_deepthink_initialStrategy
+                    .replace('{{originalProblemText}}', challengeText)
+                    .replace(/\{\{NUM_STRATEGIES\}\}/g, deps.getSelectedStrategiesCount().toString());
                 currentProcess.requestPromptInitialStrategyGen = strategiesPrompt;
 
                 const strategiesResponse = await makeDeepthinkApiCall(
@@ -775,7 +785,8 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                             const subStrategyPrompt = deps.customPromptsDeepthinkState.user_deepthink_subStrategy
                                 .replace('{{originalProblemText}}', challengeText)
                                 .replace('{{currentMainStrategy}}', mainStrategy.strategyText)
-                                .replace('{{otherMainStrategiesStr}}', otherMainStrategiesStr);
+                                .replace('{{otherMainStrategiesStr}}', otherMainStrategiesStr)
+                                .replace(/\{\{NUM_SUB_STRATEGIES\}\}/g, deps.getSelectedSubStrategiesCount().toString());
 
                             mainStrategy.requestPromptSubStrategyGen = subStrategyPrompt;
 

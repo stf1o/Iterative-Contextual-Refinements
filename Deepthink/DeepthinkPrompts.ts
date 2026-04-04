@@ -169,16 +169,14 @@ export const RED_TEAM_AGGRESSIVENESS_LEVELS = {
 
 // Function to create default Deepthink prompts (generalized version of Math mode)
 export function createDefaultCustomPromptsDeepthink(
-  NUM_INITIAL_STRATEGIES_DEEPTHINK: number = 3,
-  NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK: number = 3,
-  NUM_HYPOTHESES: number = 4,
-  RED_TEAM_AGGRESSIVENESS: string = "balanced"
+  _NUM_INITIAL_STRATEGIES_DEEPTHINK: number = 3,
+  _NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK: number = 3,
+  _NUM_HYPOTHESES: number = 4,
+  _RED_TEAM_AGGRESSIVENESS: string = "balanced"
 ): CustomizablePromptsDeepthink {
-  // Get the aggressiveness level configuration
-  const aggressivenessConfig =
-    RED_TEAM_AGGRESSIVENESS_LEVELS[
-    RED_TEAM_AGGRESSIVENESS as keyof typeof RED_TEAM_AGGRESSIVENESS_LEVELS
-    ] || RED_TEAM_AGGRESSIVENESS_LEVELS.balanced;
+  // Note: These parameters are no longer used in templates.
+  // Counts and aggressiveness are now injected at runtime via {{PLACEHOLDER}} substitution
+  // in DeepthinkCore.ts, using the user's current slider/toggle values.
 
   return {
     // ==================================================================================
@@ -261,8 +259,8 @@ Your response must be exclusively a valid JSON object. No additional text is per
     user_deepthink_initialStrategy: `Core Challenge: {{originalProblemText}}
 
 <CRITICAL MISSION DIRECTIVE>
-Analyze the Attached Core Challenge and produce exactly ${NUM_INITIAL_STRATEGIES_DEEPTHINK} genuinely novel and fundamentally distinct **High-Level Strategic Interpretations**.
-It is absolutely crucial that you generate exactly ${NUM_INITIAL_STRATEGIES_DEEPTHINK} strategies as this is a system generated adaptive number based on the complexity of the problem.
+Analyze the Attached Core Challenge and produce exactly {{NUM_STRATEGIES}} genuinely novel and fundamentally distinct **High-Level Strategic Interpretations**.
+It is absolutely crucial that you generate exactly {{NUM_STRATEGIES}} strategies as this is a system generated adaptive number based on the complexity of the problem.
 You may change this number based on the internal adaptive framework for specific cases. This is allowed and expected.
 </CRITICAL MISSION DIRECTIVE>
 `,
@@ -334,8 +332,8 @@ Your response must be exclusively a valid JSON object. No additional text is per
     user_deepthink_subStrategy: `Core Challenge: {{originalProblemText}}
 
 <CRITICAL MISSION DIRECTIVE>
-You are assigned the single Main Strategy below. Decompose this framework into exactly ${NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK} genuinely novel and distinct **High-Level Nuanced Interpretations**.
-It is absolutely crucial that you generate exactly ${NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK} sub-strategies as this is an adaptive system generated number based on the complexity of the problem.
+You are assigned the single Main Strategy below. Decompose this framework into exactly {{NUM_SUB_STRATEGIES}} genuinely novel and distinct **High-Level Nuanced Interpretations**.
+It is absolutely crucial that you generate exactly {{NUM_SUB_STRATEGIES}} sub-strategies as this is an adaptive system generated number based on the complexity of the problem.
 </CRITICAL MISSION DIRECTIVE>
 
 <ASSIGNED MAIN STRATEGY LENS>
@@ -1483,22 +1481,20 @@ Your response must be exclusively a valid JSON object. No additional text, comme
 \`\`\`json
 {
   "hypotheses": [
-    ${Array.from(
-      { length: NUM_HYPOTHESES },
-      (_, i) =>
-        `"Hypothesis ${i + 1
-        }: [A clear, precise, testable statement probing a critical unknown, hidden structural property, or pivotal assumption about the challenge. This must be strategically valuable—its resolution must fundamentally illuminate the solution path.]"`
-    ).join(",\n    ")}
+    "Hypothesis 1: [A clear, precise, testable statement probing a critical unknown...]",
+    "Hypothesis 2: [...]",
+    "... up to Hypothesis {{NUM_HYPOTHESES}}"
   ]
 }
 \`\`\`
+You MUST produce exactly {{NUM_HYPOTHESES}} hypotheses in the array.
 </Output Format Requirements>`,
 
     user_deepthink_hypothesisGeneration: `Core Challenge: {{originalProblemText}}
 [An image may also be associated with this challenge and is CRITICAL to your analysis if provided with the API call.]
 
 <CRITICAL MISSION DIRECTIVE>
-You are a Master Hypothesis Architect. Your mission is to analyze the Core Challenge and produce exactly ${NUM_HYPOTHESES} genuinely distinct, strategically valuable, and rigorously testable hypotheses. Each hypothesis must probe a critical unknown that, once investigated, will provide actionable intelligence to the solution execution agents.
+You are a Master Hypothesis Architect. Your mission is to analyze the Core Challenge and produce exactly {{NUM_HYPOTHESES}} genuinely distinct, strategically valuable, and rigorously testable hypotheses. Each hypothesis must probe a critical unknown that, once investigated, will provide actionable intelligence to the solution execution agents.
 </CRITICAL MISSION DIRECTIVE>
 
 <YOUR TASK AND OPERATIONAL DIRECTIVES>
@@ -1755,7 +1751,7 @@ For internal domain adaptability mandate, You are the gatekeeper of domain valid
 
 
 <System-enforced protocols>
-${aggressivenessConfig.description}
+{{RED_TEAM_AGGRESSIVENESS}}
 </System-enforced protocols>
 
 **Core Responsibility - Your Singular, Unwavering Mission:**
@@ -1778,7 +1774,7 @@ ${systemInstructionJsonOutputOnly}`,
 You are operating within the "Deepthink" reasoning system as 'Strategic Evaluator Prime'. Your evaluation standards are determined by the system-enforced protocols.
 
 <System-enforced protocols>
-${aggressivenessConfig.description}
+{{RED_TEAM_AGGRESSIVENESS}}
 </System-enforced protocols>
 
 **ALL STRATEGIES TO EVALUATE:**
