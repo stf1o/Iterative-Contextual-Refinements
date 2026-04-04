@@ -111,7 +111,7 @@
     pointer-events: none;
 }
 
-.main-view-evolution-button .material-symbols-outlined {
+.main-view-evolution-button .icon-slot {
     font-size: 1.1rem;
 }
 
@@ -145,7 +145,7 @@
 }
 
 /* Deepthink Tab Icons */
-.tab-button.deepthink-mode-tab .material-symbols-outlined {
+.tab-button.deepthink-mode-tab .icon-slot {
     font-size: 1.2rem;
     margin-right: 0.75rem;
     opacity: 0.75;
@@ -154,7 +154,7 @@
         filter 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.tab-button.deepthink-mode-tab.active .material-symbols-outlined {
+.tab-button.deepthink-mode-tab.active .icon-slot {
     opacity: 1;
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
 }
@@ -572,7 +572,7 @@
     filter: drop-shadow(0 1px 3px rgba(var(--accent-blue-rgb), 0.15));
 }
 
-.synthesis-title .material-symbols-outlined {
+.synthesis-title .icon-slot {
     font-size: var(--icon-size-lg);
     color: var(--accent-blue);
     filter: drop-shadow(0 0 8px rgba(var(--accent-blue-rgb), 0.3));
@@ -699,7 +699,7 @@
         inset 0 -2px 0 rgba(0, 0, 0, 0.15);
 }
 
-.view-critique-button .material-symbols-outlined {
+.view-critique-button .icon-slot {
     font-size: 1.2rem;
 }
 
@@ -983,7 +983,7 @@
     .hypothesis-text,
     .deepthink-hypothesis-explorer,
     .deepthink-red-team,
-    .deepthink-final-result) pre {
+    .deepthink-final-result) pre:not(.code-block-container pre) {
     background-color: rgba(18, 18, 18, 0.8) !important;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--radius-lg);
@@ -1001,7 +1001,7 @@
     .hypothesis-text,
     .deepthink-hypothesis-explorer,
     .deepthink-red-team,
-    .deepthink-final-result) code {
+    .deepthink-final-result) :not(pre) > code {
     background-color: rgba(18, 18, 18, 0.6) !important;
     color: #e86b6b !important;
     padding: 0.2em 0.4em;

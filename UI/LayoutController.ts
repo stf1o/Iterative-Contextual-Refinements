@@ -4,6 +4,7 @@
  */
 
 import { globalState } from '../Core/State';
+import { setIconSlot } from './Icons';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -29,13 +30,13 @@ export function getThemeToggleButton(): HTMLElement | null {
 
 export function getThemeIcon(): HTMLElement | null {
     const button = getThemeToggleButton();
-    return button?.querySelector('.material-symbols-outlined') || null;
+    return button?.querySelector('.icon-slot') || null;
 }
 
 export function setThemeIcon(isLight: boolean): void {
     const icon = getThemeIcon();
     if (icon) {
-        icon.textContent = isLight ? 'dark_mode' : 'light_mode';
+        setIconSlot(icon, isLight ? 'dark_mode' : 'light_mode');
     }
 }
 

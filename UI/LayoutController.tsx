@@ -1,4 +1,5 @@
 import React from 'react';
+import { Icon } from './Icons';
 import { 
     getSidebarCollapsed, 
     getExpandButton, 
@@ -18,7 +19,7 @@ export const SidebarExpandButton: React.FC = () => {
             style={{ display: isCollapsed ? 'flex' : 'none' }}
             onClick={expandSidebar}
         >
-            <span className="material-symbols-outlined">chevron_right</span>
+            <Icon name="chevron_right" />
         </button>
     );
 };
@@ -29,7 +30,7 @@ export const SidebarCollapseButton: React.FC = () => {
             id="sidebar-collapse-button" 
             className="sidebar-collapse-button"
         >
-            <span className="material-symbols-outlined">chevron_left</span>
+            <Icon name="chevron_left" />
         </button>
     );
 };
@@ -38,9 +39,7 @@ export const ThemeToggleButton: React.FC = () => {
     const isLight = isLightMode();
     return (
         <button id="theme-toggle-button" className="theme-toggle-button" title="Toggle theme">
-            <span className="material-symbols-outlined">
-                {isLight ? 'dark_mode' : 'light_mode'}
-            </span>
+            <Icon name={isLight ? 'dark_mode' : 'light_mode'} />
         </button>
     );
 };
@@ -52,8 +51,8 @@ export const FullscreenToggleButton: React.FC<{ previewContainerId: string }> = 
             className="fullscreen-toggle-button"
             title="Toggle Fullscreen Preview"
         >
-            <span className="icon-fullscreen material-symbols-outlined">fullscreen</span>
-            <span className="icon-exit-fullscreen material-symbols-outlined" style={{ display: 'none' }}>fullscreen_exit</span>
+            <Icon name="fullscreen" className="icon-fullscreen" />
+            <Icon name="fullscreen_exit" className="icon-exit-fullscreen" style={{ display: 'none' }} />
         </button>
     );
 };

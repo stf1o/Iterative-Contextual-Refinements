@@ -40,11 +40,11 @@ body.light-mode .shiki span {
 
 /* Dark mode background */
 .shiki {
-    background-color: #0d1117;
+    background-color: #0a0d15;
 }
 
 body.light-mode .shiki {
-    background-color: #f6f8fa;
+    background-color: #f8fafc;
 }
 
 /* When shiki is inside a code-block-container, flatten it */
@@ -53,10 +53,6 @@ body.light-mode .shiki {
     padding: 0 !important;
     border-radius: 0 !important;
     margin: 0 !important;
-}
-
-.code-block-container .shiki code {
-    padding: 12px 20px 20px 20px !important;
 }
 
 /* Code element inside shiki */

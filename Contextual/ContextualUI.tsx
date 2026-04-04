@@ -9,13 +9,10 @@ import { flushSync } from 'react-dom';
 import { ContextualState, ContextualMessage } from './ContextualCore';
 import RenderMathMarkdown from '../Styles/Components/RenderMathMarkdown';
 import { openEmbeddedModal } from '../Styles/Components/EmbeddedModal';
+import { Icon, setIconSlot } from '../UI/Icons';
 
 // Track React roots to prevent creating multiple roots on the same container
 const rootMap = new WeakMap<HTMLElement, Root>();
-
-const MaterialIcon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
-    <span className={`material-symbols-outlined${className ? ` ${className}` : ''}`}>{name}</span>
-);
 
 interface ContextualUIProps {
     state: ContextualState;
@@ -96,7 +93,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
         if (!content) {
             return (
                 <div className="empty-state">
-                    <MaterialIcon name="smart_toy" className="empty-icon" />
+                    <Icon name="smart_toy" className="empty-icon" />
                     <p>Waiting for generation...</p>
                 </div>
             );
@@ -135,7 +132,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
                                 onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
                                 onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
                             >
-                                <span className="material-symbols-outlined" style={{ fontSize: '1.1rem', lineHeight: 1 }}>dock_to_left</span>
+                                <Icon name="dock_to_left" style={{ fontSize: '1.1rem', lineHeight: 1 }} />
                             </button>
                             <div
                                 style={{
@@ -159,7 +156,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
                         }}
                         title="View content evolution timeline (updates live)"
                     >
-                        <span className="material-symbols-outlined">movie</span>
+                        <Icon name="movie" />
                         Evolutions
                     </button>
                     {state.id !== 'iterative-corrections' && (
@@ -170,7 +167,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
                                 title="View current memory document"
                                 disabled={!state.currentMemory}
                             >
-                                <MaterialIcon name="pending" />
+                                <Icon name="pending" />
                                 Memory
                             </button>
                             <button
@@ -179,7 +176,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
                                 title="View current solution pool"
                                 disabled={!state.currentStrategicPool}
                             >
-                                <MaterialIcon name="database" />
+                                <Icon name="database" />
                                 Solution Pool
                             </button>
                             <button
@@ -188,7 +185,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
                                 title="View current critique"
                                 disabled={!state.currentBestSuggestions}
                             >
-                                <MaterialIcon name="manage_search" />
+                                <Icon name="manage_search" />
                                 Critique
                             </button>
                         </>
@@ -197,17 +194,17 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
                         className="action-btn"
                         onClick={async (e) => {
                             const button = e.currentTarget;
-                            const icon = button.querySelector('.material-symbols-outlined');
+                            const icon = button.querySelector('.icon-slot');
 
                             try {
                                 await navigator.clipboard.writeText(content);
 
                                 if (icon) {
-                                    const originalIcon = icon.textContent;
-                                    icon.textContent = 'check';
+                                    const originalIcon = (icon as HTMLElement).dataset.iconName || 'content_copy';
+                                    setIconSlot(icon, 'check');
 
                                     setTimeout(() => {
-                                        icon.textContent = originalIcon || 'content_copy';
+                                        setIconSlot(icon, originalIcon);
                                     }, 1500);
                                 }
                             } catch (err) {
@@ -217,7 +214,7 @@ const CurrentBestGenerationPanel: React.FC<{ content: string; originalContent: s
                         title="Copy current text"
                         disabled={!content}
                     >
-                        <span className="material-symbols-outlined">content_copy</span>
+                        <Icon name="content_copy" />
                     </button>
                 </div>
             </div>
@@ -275,7 +272,7 @@ const AgentActivityPanel: React.FC<{ state: ContextualState; onStop: () => void 
                     <span className="iteration-badge">{state.iterationCount}</span>
                     {state.isProcessing && (
                         <button className="stop-button" onClick={onStop}>
-                            <MaterialIcon name="stop_circle" />
+                            <Icon name="stop_circle" />
                             Stop
                         </button>
                     )}
@@ -313,12 +310,12 @@ const MinimalMessageCard: React.FC<{ message: ContextualMessage; allMessages: Co
 
     const getRoleIcon = (role: string) => {
         switch (role) {
-            case 'main_generator': return <MaterialIcon name="check" className="card-icon" />;
-            case 'iterative_agent': return <MaterialIcon name="manage_search" className="card-icon" />;
-            case 'memory_agent': return <MaterialIcon name="pending" className="card-icon" />;
-            case 'strategic_pool_agent': return <MaterialIcon name="database" className="card-icon" />;
-            case 'system': return <MaterialIcon name="smart_toy" className="card-icon" />;
-            default: return <MaterialIcon name="smart_toy" className="card-icon" />;
+            case 'main_generator': return <Icon name="check" className="card-icon" />;
+            case 'iterative_agent': return <Icon name="manage_search" className="card-icon" />;
+            case 'memory_agent': return <Icon name="pending" className="card-icon" />;
+            case 'strategic_pool_agent': return <Icon name="database" className="card-icon" />;
+            case 'system': return <Icon name="smart_toy" className="card-icon" />;
+            default: return <Icon name="smart_toy" className="card-icon" />;
         }
     };
 
@@ -356,7 +353,7 @@ const MinimalMessageCard: React.FC<{ message: ContextualMessage; allMessages: Co
                     onClick={() => openEmbeddedModal(getRoleLabel(message.role), message.content, message, allMessages)}
                     title="View full response"
                 >
-                    <span className="material-symbols-outlined">visibility</span>
+                    <Icon name="visibility" />
                     View
                 </button>
             </div>

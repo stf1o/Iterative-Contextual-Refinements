@@ -228,7 +228,7 @@
     gap: 0.4rem;
 }
 
-.diff-stat-item .material-symbols-outlined {
+.diff-stat-item .icon-slot {
     font-size: 1rem;
 }
 
@@ -291,7 +291,7 @@
     box-shadow: none;
 }
 
-.iteration-nav-button .material-symbols-outlined {
+.iteration-nav-button .icon-slot {
     font-size: 1.1rem;
 }
 
@@ -429,7 +429,7 @@
     line-height: 1.1;
 }
 
-.comparison-title .material-symbols-outlined {
+.comparison-title .icon-slot {
     color: var(--accent-purple);
     font-size: 1.25rem;
     filter: drop-shadow(0 0 6px rgba(var(--accent-purple-rgb), 0.35));
@@ -716,7 +716,7 @@
     box-shadow: 0 2px 8px rgba(var(--accent-purple-rgb), 0.2);
 }
 
-.preview-control-button .material-symbols-outlined {
+.preview-control-button .icon-slot {
     font-size: 1rem;
 }
 
@@ -1139,7 +1139,7 @@
     cursor: pointer;
 }
 
-.diff-view-label .material-symbols-outlined {
+.diff-view-label .icon-slot {
     font-size: 1.1rem;
     color: var(--accent-purple);
 }

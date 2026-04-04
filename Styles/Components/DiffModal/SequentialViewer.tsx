@@ -15,6 +15,7 @@ import {
     SPEED_OPTIONS,
     DEFAULT_SPEED_MS
 } from './SequentialViewer';
+import { Icon } from '../../../UI/Icons';
 
 // ─── Line Display Components ──────────────────────────────────────────────────
 
@@ -92,7 +93,7 @@ const SplitView: React.FC<SplitViewProps> = ({
         <div className="sequential-split-side left">
             <div className="sequential-split-header">
                 <h3 className="sequential-split-title">
-                    <span className="material-symbols-outlined">history</span>
+                    <Icon name="history" />
                     {prevTitle}
                 </h3>
             </div>
@@ -114,7 +115,7 @@ const SplitView: React.FC<SplitViewProps> = ({
         <div className="sequential-split-side right">
             <div className="sequential-split-header">
                 <h3 className="sequential-split-title">
-                    <span className="material-symbols-outlined">auto_awesome</span>
+                    <Icon name="auto_awesome" />
                     {currentTitle}
                 </h3>
             </div>
@@ -474,7 +475,7 @@ const SequentialViewerModal: React.FC<SequentialViewerProps> = ({ contentStates,
                 {/* Header */}
                 <div className="sequential-viewer-header">
                     <div className="sequential-header-content">
-                        <span className="material-symbols-outlined sequential-icon">subscriptions</span>
+                        <Icon name="subscriptions" className="sequential-icon" />
                         <div className="sequential-title-group">
                             <h2 className="sequential-title">Sequential Evolution Playback</h2>
                             <span className="sequential-subtitle" id="iteration-indicator">
@@ -489,9 +490,7 @@ const SequentialViewerModal: React.FC<SequentialViewerProps> = ({ contentStates,
                             title="Toggle View Mode"
                             onClick={handleToggleViewMode}
                         >
-                            <span className="material-symbols-outlined">
-                                {viewMode === 'split' ? 'view_column' : 'view_agenda'}
-                            </span>
+                            <Icon name={viewMode === 'split' ? 'view_column' : 'view_agenda'} />
                             <span className="button-text">
                                 {viewMode === 'split' ? 'Unified View' : 'Split View'}
                             </span>
@@ -501,7 +500,7 @@ const SequentialViewerModal: React.FC<SequentialViewerProps> = ({ contentStates,
                             id="sequential-close-btn"
                             onClick={onClose}
                         >
-                            <span className="material-symbols-outlined">close</span>
+                            <Icon name="close" />
                         </button>
                     </div>
                 </div>
@@ -547,7 +546,7 @@ const SequentialViewerModal: React.FC<SequentialViewerProps> = ({ contentStates,
                             onClick={handlePrev}
                             disabled={currentIteration === 0}
                         >
-                            <span className="material-symbols-outlined">skip_previous</span>
+                            <Icon name="skip_previous" />
                         </button>
                         <button
                             className="sequential-control-btn sequential-play-btn"
@@ -555,9 +554,7 @@ const SequentialViewerModal: React.FC<SequentialViewerProps> = ({ contentStates,
                             title="Play/Pause (Space)"
                             onClick={handleTogglePlayback}
                         >
-                            <span className="material-symbols-outlined">
-                                {isPlaying ? 'pause' : 'play_arrow'}
-                            </span>
+                            <Icon name={isPlaying ? 'pause' : 'play_arrow'} />
                         </button>
                         <button
                             className="sequential-control-btn"
@@ -566,7 +563,7 @@ const SequentialViewerModal: React.FC<SequentialViewerProps> = ({ contentStates,
                             onClick={handleNext}
                             disabled={currentIteration === contentStates.length - 1}
                         >
-                            <span className="material-symbols-outlined">skip_next</span>
+                            <Icon name="skip_next" />
                         </button>
                     </div>
                     <div className="sequential-controls-right">

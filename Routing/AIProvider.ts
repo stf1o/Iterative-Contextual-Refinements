@@ -21,8 +21,9 @@ export interface ThinkingConfig {
 
 // Models that require mandatory high thinking level
 const GEMINI_3_MODELS = [
-    'gemini-3-pro-preview',
-    'gemini-3-flash-preview'
+    'gemini-3.1-pro-preview',
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite-preview',
 ];
 
 export interface AIProvider {

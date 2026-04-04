@@ -10,6 +10,7 @@
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { getDeepthinkConfigController } from '../Routing';
+import { Icon } from '../UI/Icons';
 
 export interface DeepthinkConfigPanelProps {
     strategiesCount: number;
@@ -92,7 +93,7 @@ const StrategyExecutionSection: React.FC<{
     return (
         <div className="strategy-execution-container">
             <div className="strategy-execution-header">
-                <span className="material-symbols-outlined">account_tree</span>
+                <Icon name="account_tree" />
                 <span>Strategy Execution</span>
             </div>
             <div className="strategy-execution-card">
@@ -161,7 +162,7 @@ const RedTeamSection: React.FC<{
 }> = ({ redTeamMode, postQualityFilterEnabled, iterativeCorrectionsEnabled, onRedTeamModeChange, onPostQualityFilterToggle }) => (
     <div className="red-team-options-container">
         <div className="red-team-options-header">
-            <span className="material-symbols-outlined">security</span>
+            <Icon name="security" />
             <span>Red Team Evaluation</span>
         </div>
         <div className="red-team-toggle-wrapper">
@@ -195,7 +196,7 @@ const RedTeamSection: React.FC<{
                         />
                         <label htmlFor="dt-post-quality-filter-toggle" className="method-checkbox-label">
                             <div className="method-checkbox-custom">
-                                <span className="material-symbols-outlined checkbox-icon">check</span>
+                                <Icon name="check" className="checkbox-icon" />
                             </div>
                         </label>
                     </div>
@@ -328,7 +329,7 @@ const RefinementSection: React.FC<{
     return (
         <div className="refinement-options-container">
             <div className="refinement-options-header">
-                <span className="material-symbols-outlined">auto_fix_high</span>
+                <Icon name="auto_fix_high" />
                 <span>Solution Refinement</span>
             </div>
 
@@ -358,7 +359,7 @@ const RefinementSection: React.FC<{
                                     onChange={e => onDissectedObservationsToggle(e.target.checked)} />
                                 <label htmlFor="dt-dissected-observations-toggle" className="method-checkbox-label">
                                     <div className="method-checkbox-custom">
-                                        <span className="material-symbols-outlined checkbox-icon">check</span>
+                                        <Icon name="check" className="checkbox-icon" />
                                     </div>
                                 </label>
                             </div>
@@ -379,7 +380,7 @@ const RefinementSection: React.FC<{
                                     onChange={e => onProvideAllSolutionsToggle(e.target.checked)} />
                                 <label htmlFor="dt-provide-all-solutions-toggle" className="method-checkbox-label">
                                     <div className="method-checkbox-custom">
-                                        <span className="material-symbols-outlined checkbox-icon">check</span>
+                                        <Icon name="check" className="checkbox-icon" />
                                     </div>
                                 </label>
                             </div>
@@ -401,7 +402,7 @@ const RefinementSection: React.FC<{
                                 onChange={e => onIterativeCorrectionsToggle(e.target.checked)} />
                             <label htmlFor="dt-iterative-corrections-toggle" className="method-checkbox-label">
                                 <div className="method-checkbox-custom">
-                                    <span className="material-symbols-outlined checkbox-icon">check</span>
+                                    <Icon name="check" className="checkbox-icon" />
                                 </div>
                             </label>
                         </div>

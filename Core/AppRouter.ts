@@ -15,6 +15,7 @@ import {
     getLoadedAgenticModule,
     getLoadedContextualModule,
     getLoadedDeepthinkModule,
+    loadWebsiteLogic,
     loadWebsiteUI
 } from './ModeLoader';
 
@@ -80,6 +81,10 @@ export function renderActiveMode() {
                 if (pipelinesContentContainer) {
                     const panel = await import('../Deepthink/DeepthinkConfigPanel');
                     if (mode !== globalState.currentMode || token !== renderToken) return;
+                    if (globalState.activeDeepthinkPipeline) {
+                        mod.renderActiveDeepthinkPipeline();
+                        return;
+                    }
                     panel.renderDeepthinkConfigPanelInContainer(pipelinesContentContainer);
                 }
             }
@@ -89,6 +94,12 @@ export function renderActiveMode() {
         // Default: Website / Refine Mode
         const tabsNavContainer = document.getElementById('tabs-nav-container');
         const pipelinesContentContainer = document.getElementById('pipelines-content-container');
+
+        // Initialize pipelines if empty (e.g., when switching to website mode or after import)
+        if (globalState.pipelinesState.length === 0) {
+            const websiteLogic = await loadWebsiteLogic();
+            websiteLogic.initPipelines();
+        }
 
         if (tabsNavContainer && pipelinesContentContainer) {
             const websiteUI = await loadWebsiteUI();

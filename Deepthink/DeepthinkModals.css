@@ -481,7 +481,7 @@
     cursor: not-allowed;
 }
 
-.embedded-modal-content .modal-nav-btn .material-symbols-outlined {
+.embedded-modal-content .modal-nav-btn .icon-slot {
     font-size: 1.25rem;
 }
 
@@ -592,15 +592,15 @@
 }
 
 /* Panel Type Specifics */
-.solution-modal-panel .modal-panel-title .material-symbols-outlined {
+.solution-modal-panel .modal-panel-title .icon-slot {
     color: var(--accent-green);
 }
 
-.argument-modal-panel .modal-panel-title .material-symbols-outlined {
+.argument-modal-panel .modal-panel-title .icon-slot {
     color: var(--accent-purple);
 }
 
-.critique-modal-panel .modal-panel-title .material-symbols-outlined {
+.critique-modal-panel .modal-panel-title .icon-slot {
     color: var(--accent-yellow);
 }
 
@@ -831,7 +831,7 @@
     border-bottom: 1px solid var(--border-color);
 }
 
-.solution-pane-title .material-symbols-outlined {
+.solution-pane-title .icon-slot {
     font-size: 2rem;
     color: var(--accent-purple);
 }
@@ -1011,8 +1011,8 @@
 }
 
 /* Code */
-.solution-markdown-content code,
-.fullscreen-modal .solution-pane-content code {
+.solution-markdown-content :not(pre) > code,
+.fullscreen-modal .solution-pane-content :not(pre) > code {
     background: rgba(var(--accent-blue-rgb), 0.1);
     color: var(--accent-blue);
     padding: 0.2rem 0.4rem;
@@ -1022,8 +1022,8 @@
     border: 1px solid rgba(var(--accent-blue-rgb), 0.2);
 }
 
-.solution-markdown-content pre,
-.fullscreen-modal .solution-pane-content pre {
+.solution-markdown-content pre:not(.code-block-container pre),
+.fullscreen-modal .solution-pane-content pre:not(.code-block-container pre) {
     background: rgba(var(--bg-color-rgb), 0.6);
     /* Fallback/Specific */
     border: 1px solid var(--border-color);
@@ -1127,7 +1127,7 @@
     transform: translateY(1px) scale(0.98);
 }
 
-.diff-controls .button .material-symbols-outlined {
+.diff-controls .button .icon-slot {
     font-size: 1rem;
 }
 
@@ -1219,7 +1219,7 @@
     line-height: 1.6;
 }
 
-.red-team-section-title .material-symbols-outlined {
+.red-team-section-title .icon-slot {
     font-size: 1.2rem;
     flex-shrink: 0;
     margin-top: 0.1rem;
@@ -1313,12 +1313,12 @@ body.light-mode .sidebar-toggle-button:hover {
     border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-.sidebar-toggle-button .material-symbols-outlined {
+.sidebar-toggle-button .icon-slot {
     font-size: 1.25rem !important;
     color: var(--text-color) !important;
 }
 
-body.light-mode .sidebar-toggle-button .material-symbols-outlined {
+body.light-mode .sidebar-toggle-button .icon-slot {
     color: #666666 !important;
 }
 

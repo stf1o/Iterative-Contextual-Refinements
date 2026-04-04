@@ -4,6 +4,7 @@
  */
 
 import { callAI } from './AIService';
+import { renderIconMarkup } from '../UI/Icons';
 
 export interface PromptRefinerConfig {
     agentName: string;
@@ -46,7 +47,7 @@ export class PromptRefiner {
                 <div class="prompt-refiner-header">
                     <h3 class="prompt-refiner-title">Refine Prompt</h3>
                     <button class="prompt-refiner-close" aria-label="Close">
-                        <span class="material-symbols-outlined">close</span>
+                        ${renderIconMarkup('close')}
                     </button>
                 </div>
                 <div class="prompt-refiner-body">
@@ -67,7 +68,7 @@ export class PromptRefiner {
                             <div class="custom-model-select" id="prompt-refiner-custom-select">
                                 <div class="custom-model-select-trigger" id="prompt-refiner-model-trigger">
                                     <span class="custom-model-select-text" id="prompt-refiner-model-text">Use Global Model</span>
-                                    <span class="custom-model-select-arrow material-symbols-outlined">expand_more</span>
+                                    ${renderIconMarkup('expand_more', 'custom-model-select-arrow')}
                                 </div>
                                 <div class="custom-model-select-dropdown" id="prompt-refiner-model-dropdown">
                                     <!-- Options will be populated here -->
@@ -83,7 +84,7 @@ export class PromptRefiner {
                     <button class="prompt-refiner-button prompt-refiner-button-primary" data-action="refine">
                         <span class="prompt-refiner-button-text">Refine Prompt</span>
                         <span class="prompt-refiner-spinner" style="display: none;">
-                            <span class="material-symbols-outlined">progress_activity</span>
+                            ${renderIconMarkup('progress_activity')}
                         </span>
                     </button>
                 </div>
@@ -145,7 +146,7 @@ export class PromptRefiner {
         globalOption.dataset.value = '';
         globalOption.innerHTML = `
             <span class="custom-model-select-option-text">Use Global Model</span>
-            <span class="material-symbols-outlined option-check">check</span>
+            ${renderIconMarkup('check', 'option-check')}
         `;
         globalOption.addEventListener('click', () => {
             this.selectModel('', 'Use Global Model', select);
@@ -193,7 +194,7 @@ export class PromptRefiner {
                 option.dataset.value = model.value;
                 option.innerHTML = `
                     <span class="custom-model-select-option-text">${model.value}</span>
-                    <span class="material-symbols-outlined option-check">check</span>
+                    ${renderIconMarkup('check', 'option-check')}
                 `;
                 option.addEventListener('click', () => {
                     this.selectModel(model.value, model.value, select);
@@ -310,7 +311,7 @@ export class PromptRefiner {
         if (spinner) {
             spinner.style.display = 'inline-flex';
             // Add spinning class to the icon
-            const icon = spinner.querySelector('.material-symbols-outlined');
+            const icon = spinner.querySelector('.icon-slot');
             if (icon) icon.classList.add('spinning');
         }
 
@@ -330,7 +331,7 @@ export class PromptRefiner {
             if (spinner) {
                 spinner.style.display = 'none';
                 // Remove spinning class
-                const icon = spinner.querySelector('.material-symbols-outlined');
+                const icon = spinner.querySelector('.icon-slot');
                 if (icon) icon.classList.remove('spinning');
             }
         }

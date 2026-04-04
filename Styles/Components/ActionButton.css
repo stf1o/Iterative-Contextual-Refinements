@@ -59,9 +59,9 @@
     box-shadow: none;
 }
 
-.copy-solution-btn .material-symbols-outlined,
-.download-solution-btn .material-symbols-outlined,
-.action-btn .material-symbols-outlined {
+.copy-solution-btn .icon-slot,
+.download-solution-btn .icon-slot,
+.action-btn .icon-slot {
     font-size: 1.25em;
     line-height: 1;
     transform: translateY(1px);

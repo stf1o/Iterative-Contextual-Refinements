@@ -14,14 +14,13 @@ import {
 } from './DeepthinkCore';
 import { ActionButton } from '../Styles/Components/ActionButton';
 import RenderMathMarkdown from '../Styles/Components/RenderMathMarkdown';
+import { Icon } from '../UI/Icons';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Shared Primitives
 // ═══════════════════════════════════════════════════════════════════════
 
-const MIcon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
-    <span className={`material-symbols-outlined${className ? ` ${className}` : ''}`}>{name}</span>
-);
+const MIcon = Icon;
 
 const MathHTML: React.FC<{ content: string; className?: string }> = ({ content, className }) => (
     <RenderMathMarkdown content={content} className={className} />
@@ -226,26 +225,139 @@ export const EmbeddedModalContent: React.FC<{
     <MathHTML content={content} className={contentClass} />
 );
 
-export const RedTeamReasoningContent: React.FC<{ agent: any; reasoningData: any }> = ({ agent, reasoningData }) => {
-    const strategyInfo = reasoningData.strategy_id || reasoningData.strategy;
-    const verdict = reasoningData.verdict || reasoningData.decision || reasoningData.action;
-    const verdictClass = verdict && /eliminate/i.test(verdict) ? 'verdict-eliminate' : 'verdict-keep';
+interface StructuredReasoningEvaluation {
+    id: string;
+    decision: string;
+    reasoning: string;
+}
 
-    const rawAnalysis = reasoningData.reasoning || reasoningData.explanation || reasoningData.analysis;
-    let contentToRender = '';
-    if (rawAnalysis && typeof rawAnalysis === 'string') {
-        contentToRender = rawAnalysis.replace(/(^|\n)\*{0,2}Challenge Evaluation:.*?(?=\n|$)/i, '$1').trim();
-    } else if (rawAnalysis) {
-        contentToRender = JSON.stringify(rawAnalysis, null, 2);
-    } else {
-        contentToRender = typeof agent.reasoning === 'string' ? agent.reasoning : JSON.stringify(agent.reasoning, null, 2);
+interface StructuredReasoningViewModel {
+    challenge?: string;
+    analysisSummary?: string;
+    strategyInfo?: string;
+    verdict?: string;
+    narrative?: string;
+    evaluations: StructuredReasoningEvaluation[];
+}
+
+function parseStructuredReasoning(reasoning: unknown): StructuredReasoningViewModel {
+    const fallbackText = typeof reasoning === 'string'
+        ? reasoning
+        : reasoning
+            ? JSON.stringify(reasoning, null, 2)
+            : '';
+
+    let parsed: Record<string, any> | null = null;
+    if (typeof reasoning === 'string') {
+        try {
+            parsed = JSON.parse(reasoning);
+        } catch {
+            parsed = null;
+        }
+    } else if (reasoning && typeof reasoning === 'object') {
+        parsed = reasoning as Record<string, any>;
     }
+
+    const evaluationsSource = Array.isArray(parsed?.strategy_evaluations)
+        ? parsed?.strategy_evaluations
+        : Array.isArray(parsed?.strategies)
+            ? parsed?.strategies
+            : [];
+
+    return {
+        challenge: typeof parsed?.challenge === 'string' ? parsed.challenge : undefined,
+        analysisSummary: typeof parsed?.analysis_summary === 'string' ? parsed.analysis_summary : undefined,
+        strategyInfo: typeof parsed?.strategy_id === 'string'
+            ? parsed.strategy_id
+            : typeof parsed?.strategy === 'string'
+                ? parsed.strategy
+                : undefined,
+        verdict: typeof parsed?.verdict === 'string'
+            ? parsed.verdict
+            : typeof parsed?.decision === 'string'
+                ? parsed.decision
+                : typeof parsed?.action === 'string'
+                    ? parsed.action
+                    : undefined,
+        narrative: typeof parsed?.reasoning === 'string'
+            ? parsed.reasoning
+            : typeof parsed?.explanation === 'string'
+                ? parsed.explanation
+                : typeof parsed?.analysis === 'string'
+                    ? parsed.analysis
+                    : fallbackText,
+        evaluations: evaluationsSource
+            .filter((evaluation: any) => evaluation && typeof evaluation === 'object')
+            .map((evaluation: any) => ({
+                id: String(evaluation.id || evaluation.strategy_id || 'Unknown ID'),
+                decision: String(evaluation.decision || evaluation.verdict || evaluation.action || 'unknown'),
+                reasoning: String(evaluation.reason || evaluation.reasoning || evaluation.explanation || 'No reasoning provided'),
+            })),
+    };
+}
+
+export const StructuredReasoningContent: React.FC<{
+    reasoning: unknown;
+    wrapperClassName?: string;
+    resultsClassName?: string;
+    emptyMessage?: string;
+}> = ({
+    reasoning,
+    wrapperClassName = 'red-team-reasoning-display',
+    resultsClassName = 'red-team-evaluation-results',
+    emptyMessage = 'No analysis available',
+}) => {
+    const parsed = React.useMemo(() => parseStructuredReasoning(reasoning), [reasoning]);
+
+    const body = parsed.evaluations.length > 0 || parsed.challenge || parsed.analysisSummary
+        ? (
+            <div className={resultsClassName}>
+                {parsed.challenge && <h4>Challenge Evaluation: {parsed.challenge}</h4>}
+                {parsed.analysisSummary && (
+                    <>
+                        <h4>Analysis Summary</h4>
+                        <div className="evaluation-reason">
+                            <MathHTML content={parsed.analysisSummary} />
+                        </div>
+                    </>
+                )}
+                {parsed.evaluations.map((evaluation, index) => (
+                    <div key={`${evaluation.id}-${index}`} className="strategy-evaluation-item">
+                        <div className="evaluation-header">
+                            <span className="strategy-id">{evaluation.id}</span>
+                            <span className={`decision-badge decision-${evaluation.decision.toLowerCase()}`}>{evaluation.decision}</span>
+                        </div>
+                        <div className="evaluation-reason">
+                            <MathHTML content={evaluation.reasoning} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        )
+        : <MathHTML content={parsed.narrative || emptyMessage} className="red-team-analysis" />;
+
+    if (!wrapperClassName) {
+        return <>{body}</>;
+    }
+
+    return <div className={wrapperClassName}>{body}</div>;
+};
+
+export const RedTeamReasoningContent: React.FC<{ agent: any; reasoningData?: unknown }> = ({ agent, reasoningData }) => {
+    const parsed = React.useMemo(
+        () => parseStructuredReasoning(reasoningData ?? agent.reasoning),
+        [agent.reasoning, reasoningData]
+    );
+    const verdictClass = parsed.verdict && /eliminate/i.test(parsed.verdict) ? 'verdict-eliminate' : 'verdict-keep';
 
     return (
         <div className="red-team-reasoning-display">
-            {strategyInfo && <div className="red-team-strategy-id">{strategyInfo}</div>}
-            {verdict && <div className={`red-team-verdict ${verdictClass}`}>{verdict}</div>}
-            <MathHTML content={contentToRender} className="red-team-analysis" />
+            {parsed.strategyInfo && <div className="red-team-strategy-id">{parsed.strategyInfo}</div>}
+            {parsed.verdict && <div className={`red-team-verdict ${verdictClass}`}>{parsed.verdict}</div>}
+            <StructuredReasoningContent
+                reasoning={reasoningData ?? agent.reasoning}
+                wrapperClassName=""
+            />
         </div>
     );
 };

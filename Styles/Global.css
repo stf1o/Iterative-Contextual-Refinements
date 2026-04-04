@@ -482,9 +482,9 @@ body.light-mode .input-label {
 
 /* Light mode inline code styling */
 /* Light mode inline code styling */
-body.light-mode .solution-markdown-content code,
-body.light-mode .deepthink-pipeline-container code,
-body.light-mode .markdown-content code {
+body.light-mode .solution-markdown-content :not(pre) > code,
+body.light-mode .deepthink-pipeline-container :not(pre) > code,
+body.light-mode .markdown-content :not(pre) > code {
     background-color: rgba(0, 0, 0, 0.03) !important;
     color: var(--accent-purple-dark) !important;
     border: 1px solid rgba(0, 0, 0, 0.06) !important;

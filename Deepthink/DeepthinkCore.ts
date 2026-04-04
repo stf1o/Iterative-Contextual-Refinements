@@ -9,7 +9,6 @@
 import { Part, GenerateContentResponse } from "@google/genai";
 import { AIProvider, ThinkingConfig } from '../Routing/AIProvider';
 import { CustomizablePromptsDeepthink } from './DeepthinkPrompts';
-import { renderMathContent } from '../Styles/Components/RenderMathMarkdownLogic';
 import { SolutionCritiqueHistoryManager, SolutionCorrectionHistoryManager, StructuredSolutionPoolHistoryManager, PostQualityFilterHistoryManager, StrategiesGeneratorHistoryManager } from './DeepthinkIterativeHistory';
 import { addSolutionPoolVersion } from './SolutionPool';
 import { extractPartsInOrder, formatPartsForDisplay } from '../Routing/ResponseParser';
@@ -320,48 +319,6 @@ export function setActiveDeepthinkPipelineInternal(pipeline: DeepthinkPipelineSt
     activeDeepthinkPipeline = pipeline;
 }
 
-// ========== UTILITY FUNCTIONS ==========
-
-export function parseKnowledgePacketForStyling(knowledgePacket: string): string {
-    if (!knowledgePacket) return '<div class="no-knowledge">No knowledge packet available</div>';
-
-    if (knowledgePacket.includes('<Full Information Packet>')) {
-        let html = '<div class="full-information-packet">';
-        const hypothesisRegex = /<Hypothesis (\d+)>\s*Hypothesis:\s*(.*?)\s*Hypothesis Testing:\s*(.*?)\s*<\/Hypothesis \d+>/gs;
-        let match;
-        let hypothesisCount = 0;
-
-        while ((match = hypothesisRegex.exec(knowledgePacket)) !== null) {
-            hypothesisCount++;
-            const [, number, hypothesis, testing] = match;
-            html += `<div class="hypothesis-block">
-                <div class="hypothesis-header">
-                    <span class="hypothesis-number">Hypothesis ${number}</span>
-                </div>
-                <div class="hypothesis-content">
-                    <div class="hypothesis-text">
-                        <strong>Hypothesis:</strong>
-                        <div class="hypothesis-description">${renderMathContent(hypothesis.trim())}</div>
-                    </div>
-                    <div class="hypothesis-testing">
-                        <strong>Hypothesis Testing:</strong>
-                        <div class="testing-output">${renderMathContent(testing.trim())}</div>
-                    </div>
-                </div>
-            </div>`;
-        }
-
-        if (hypothesisCount === 0 && knowledgePacket.includes('HYPOTHESIS EXPLORATION: Disabled')) {
-            html += '<div class="hypothesis-disabled">HYPOTHESIS EXPLORATION: Disabled - No hypotheses generated.</div>';
-        }
-
-        html += '</div>';
-        return html;
-    }
-
-    return renderMathContent(knowledgePacket);
-}
-
 // ========== RED TEAM EVALUATION FUNCTIONS ==========
 
 export function applyRedTeamResults(currentProcess: DeepthinkPipelineState): void {
@@ -460,33 +417,7 @@ export async function runConsolidatedRedTeamAnalysis(
             cleanedResponse = cleanedResponse.substring(jsonStart, jsonEnd + 1);
 
             const parsed = JSON.parse(cleanedResponse);
-            let reasoningHtml = '<div class="red-team-evaluation-results">';
-
-            if (parsed.challenge) {
-                reasoningHtml += `<h4>Challenge Evaluation: ${parsed.challenge}</h4>`;
-            }
-
-            if (Array.isArray(parsed.strategy_evaluations)) {
-                parsed.strategy_evaluations.forEach((evaluation: any) => {
-                    const decision = String(evaluation.decision || '').toLowerCase();
-                    const id = evaluation.id || 'Unknown ID';
-                    const reason = evaluation.reason || 'No reason provided';
-
-                    reasoningHtml += `
-                        <div class="strategy-evaluation-item">
-                            <div class="evaluation-header">
-                                <span class="strategy-id">${id}</span>
-                                <span class="decision-badge decision-${decision}">${decision}</span>
-                            </div>
-                            <div class="evaluation-reason">
-                                ${renderMathContent(reason)}
-                            </div>
-                        </div>`;
-                });
-            }
-
-            reasoningHtml += '</div>';
-            redTeamAgent.reasoning = reasoningHtml;
+            redTeamAgent.reasoning = JSON.stringify(parsed, null, 2);
 
             const killedStrategyIds: string[] = [];
             const killedSubStrategyIds: string[] = [];
@@ -1230,20 +1161,14 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                     // Extract decisions
                                     const updateIds: string[] = []; // Strategies that need updating
                                     const keepIds: string[] = []; // Strategies that are good
-                                    let reasoningHtml = '<div class="post-quality-filter-results">';
 
                                     // Create set of valid strategy IDs that were sent for evaluation
                                     const validStrategyIds = new Set(strategiesWithExecutions.map(s => s.strategyId.trim().toLowerCase()));
-
-                                    if (parsed.analysis_summary) {
-                                        reasoningHtml += `<h4>Analysis Summary</h4><p>${renderMathContent(parsed.analysis_summary)}</p>`;
-                                    }
 
                                     if (Array.isArray(parsed.strategies)) {
                                         parsed.strategies.forEach((strategyEval: any) => {
                                             const decision = String(strategyEval.decision || '').toLowerCase();
                                             const id = strategyEval.strategy_id || '';
-                                            const reasoning = strategyEval.reasoning || 'No reasoning provided';
 
                                             // CRITICAL: Validate that this strategy was actually sent for evaluation
                                             const cleanId = String(id).trim().toLowerCase();
@@ -1257,22 +1182,10 @@ export async function startDeepthinkAnalysisProcess(challengeText: string, image
                                             } else if (decision === 'keep') {
                                                 keepIds.push(id);
                                             }
-
-                                            reasoningHtml += `
-                                            <div class="strategy-evaluation-item">
-                                                <div class="evaluation-header">
-                                                    <span class="strategy-id">${id}</span>
-                                                    <span class="decision-badge decision-${decision}">${decision}</span>
-                                                </div>
-                                                <div class="evaluation-reason">
-                                                    ${renderMathContent(reasoning)}
-                                                </div>
-                                            </div>`;
                                         });
                                     }
 
-                                    reasoningHtml += '</div>';
-                                    pqfAgent.reasoning = reasoningHtml;
+                                    pqfAgent.reasoning = JSON.stringify(parsed, null, 2);
                                     pqfAgent.prunedStrategyIds = updateIds; // Reusing this field for updateIds
                                     pqfAgent.continuedStrategyIds = keepIds; // Reusing this field for keepIds
                                     pqfAgent.status = 'completed';

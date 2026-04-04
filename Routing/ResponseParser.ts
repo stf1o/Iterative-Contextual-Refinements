@@ -5,7 +5,7 @@
  * ResponseParser — Gemini native code execution response parsing utilities.
  * Extracts structured parts (text, code, output, images) from Gemini API
  * responses and formats them into markdown with HTML comment markers
- * that RenderMathMarkdownLogic can pick up and render.
+ * that RenderMathMarkdown can pick up and render.
  *
  * This lives in /Routing because it's a provider-level concern, not
  * mode-specific logic. Any mode (Contextual, Deepthink, Agentic, etc.)
@@ -69,7 +69,7 @@ export function extractPartsInOrder(response: any): ResponsePart[] {
 /**
  * Format extracted response parts into a markdown string with
  * HTML comment markers for code execution blocks, output blocks,
- * and image blocks. These markers are parsed by RenderMathMarkdownLogic.
+ * and image blocks. These markers are parsed by RenderMathMarkdown.
  */
 export function formatPartsForDisplay(parts: ResponsePart[]): string {
     if (parts.length === 0) return '';

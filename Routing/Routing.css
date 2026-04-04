@@ -320,7 +320,7 @@ nt Options Container */
     opacity: 0.8;
 }
 
-.refinement-options-header .material-symbols-outlined {
+.refinement-options-header .icon-slot {
     font-size: 18px;
     opacity: 0.7;
 }
@@ -425,7 +425,7 @@ nt Options Container */
     margin-bottom: 4px;
 }
 
-.strategy-execution-header .material-symbols-outlined {
+.strategy-execution-header .icon-slot {
     font-size: 20px;
     color: #e86b6b;
 }
@@ -461,7 +461,7 @@ nt Options Container */
     margin-bottom: 8px;
 }
 
-.refinement-options-header .material-symbols-outlined {
+.refinement-options-header .icon-slot {
     font-size: 20px;
     color: var(--accent-purple);
 }
@@ -694,7 +694,7 @@ nt Options Container */
     letter-spacing: 0.3px;
 }
 
-.red-team-options-header .material-symbols-outlined {
+.red-team-options-header .icon-slot {
     font-size: 20px;
     color: var(--accent-pink);
 }

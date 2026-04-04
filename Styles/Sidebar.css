@@ -58,14 +58,14 @@ body.light-mode .sidebar-collapse-button:hover {
     background: rgba(107, 91, 184, 0.2) !important;
 }
 
-.theme-toggle-button .material-symbols-outlined,
-.sidebar-collapse-button .material-symbols-outlined {
+.theme-toggle-button .icon-slot,
+.sidebar-collapse-button .icon-slot {
     font-size: 1.125rem;
     color: var(--text-color);
 }
 
-body.light-mode .theme-toggle-button .material-symbols-outlined,
-body.light-mode .sidebar-collapse-button .material-symbols-outlined {
+body.light-mode .theme-toggle-button .icon-slot,
+body.light-mode .sidebar-collapse-button .icon-slot {
     color: #666666;
 }
 
@@ -89,12 +89,12 @@ body.light-mode .sidebar-expand-button:hover {
     border-color: rgba(0, 0, 0, 0.1);
 }
 
-.sidebar-expand-button .material-symbols-outlined {
+.sidebar-expand-button .icon-slot {
     font-size: 1.125rem;
     color: var(--text-color);
 }
 
-body.light-mode .sidebar-expand-button .material-symbols-outlined {
+body.light-mode .sidebar-expand-button .icon-slot {
     color: #666666;
 }
 
@@ -441,7 +441,7 @@ body.light-mode .radio-label-modern:hover {
     margin-bottom: var(--space-3);
 }
 
-.code-execution-header .material-symbols-outlined {
+.code-execution-header .icon-slot {
     font-size: 1.125rem;
     color: var(--accent-purple);
 }
@@ -542,7 +542,7 @@ body.light-mode .code-execution-container:hover {
     border-color: rgba(0, 0, 0, 0.2);
 }
 
-body.light-mode .code-execution-header .material-symbols-outlined {
+body.light-mode .code-execution-header .icon-slot {
     color: var(--accent-blue);
 }
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { globalState } from '../../Core/State';
+import { Icon } from '../../UI/Icons';
 
 /**
  * Main content area component
@@ -32,7 +33,7 @@ export const MainContent: React.FC = () => {
                     title="Expand Sidebar"
                     style={{ display: 'none' }}
                 >
-                    <span className="material-symbols-outlined">dock_to_left</span>
+                    <Icon name="dock_to_left" />
                 </button>
                 <div
                     id="tabs-nav-container"

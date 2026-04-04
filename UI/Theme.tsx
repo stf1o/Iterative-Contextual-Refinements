@@ -1,5 +1,6 @@
 import React from 'react';
 import { isLightMode, getSavedTheme, ThemeMode } from './Theme';
+import { Icon } from './Icons';
 
 export const ThemeToggleButton: React.FC<{ onToggle: () => void }> = ({ onToggle }) => {
     const isLight = isLightMode();
@@ -10,9 +11,7 @@ export const ThemeToggleButton: React.FC<{ onToggle: () => void }> = ({ onToggle
             onClick={onToggle}
             title="Toggle theme"
         >
-            <span className="material-symbols-outlined">
-                {isLight ? 'dark_mode' : 'light_mode'}
-            </span>
+            <Icon name={isLight ? 'dark_mode' : 'light_mode'} />
         </button>
     );
 };

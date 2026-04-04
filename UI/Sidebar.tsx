@@ -1,5 +1,6 @@
 import React from 'react';
 import { isSidebarCollapsed, getExpandButton, getCollapseButton } from './Sidebar';
+import { Icon } from './Icons';
 
 export const SidebarExpandButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
     const isCollapsed = isSidebarCollapsed();
@@ -10,7 +11,7 @@ export const SidebarExpandButton: React.FC<{ onClick: () => void }> = ({ onClick
             style={{ display: isCollapsed ? 'flex' : 'none' }}
             onClick={onClick}
         >
-            <span className="material-symbols-outlined">chevron_right</span>
+            <Icon name="chevron_right" />
         </button>
     );
 };
@@ -22,7 +23,7 @@ export const SidebarCollapseButton: React.FC<{ onClick: () => void }> = ({ onCli
             className="sidebar-collapse-button"
             onClick={onClick}
         >
-            <span className="material-symbols-outlined">chevron_left</span>
+            <Icon name="chevron_left" />
         </button>
     );
 };

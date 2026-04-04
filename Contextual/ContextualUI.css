@@ -370,7 +370,7 @@
     border-color: rgba(var(--border-color-rgb), 0.5);
 }
 
-.action-btn .material-symbols-outlined {
+.action-btn .icon-slot {
     font-size: 16px;
 }
 

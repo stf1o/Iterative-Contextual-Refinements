@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createRoot, Root } from 'react-dom/client';
+import RenderMathMarkdown from '../RenderMathMarkdown';
 import { ContentState } from './types';
 import {
     HistoryEntry,
@@ -11,8 +12,8 @@ import {
     unregisterEvolutionViewer,
     hasEvolutionViewerOpen
 } from './EvolutionViewer';
-import { renderMathContent } from './utils';
 import { openSequentialViewer } from './SequentialViewer';
+import { Icon } from '../../../UI/Icons';
 
 // ─── Evolution Column ─────────────────────────────────────────────────────────
 
@@ -24,14 +25,6 @@ interface EvolutionColumnProps {
 }
 
 const EvolutionColumn: React.FC<EvolutionColumnProps> = ({ state, index, prevState, hideDiff }) => {
-    const renderedRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (hideDiff && renderedRef.current) {
-            renderedRef.current.innerHTML = renderMathContent(state.content);
-        }
-    }, [hideDiff, state.content]);
-
     const renderDiffLines = () => {
         if (index === 0) {
             // First column: plain content
@@ -62,7 +55,7 @@ const EvolutionColumn: React.FC<EvolutionColumnProps> = ({ state, index, prevSta
             </div>
             <div className="evolution-column-content">
                 {hideDiff
-                    ? <div ref={renderedRef} className="evolution-rendered-content" />
+                    ? <div className="evolution-rendered-content"><RenderMathMarkdown content={state.content} /></div>
                     : <pre><code>{renderDiffLines()}</code></pre>
                 }
             </div>
@@ -112,7 +105,7 @@ const EvolutionViewerModal: React.FC<EvolutionViewerProps> = ({
                 {/* Header */}
                 <div className="evolution-viewer-header">
                     <div className="evolution-header-content">
-                        <span className="material-symbols-outlined evolution-icon">movie</span>
+                        <Icon name="movie" className="evolution-icon" />
                         <h2 className="evolution-title">Content Evolution Timeline</h2>
                         <span className="evolution-subtitle">Scroll horizontally to view all iterations</span>
                     </div>
@@ -122,9 +115,7 @@ const EvolutionViewerModal: React.FC<EvolutionViewerProps> = ({
                             className={`hide-diff-button${hideDiff ? ' active' : ''}`}
                             onClick={() => setHideDiff(prev => !prev)}
                         >
-                            <span className="material-symbols-outlined">
-                                {hideDiff ? 'visibility' : 'visibility_off'}
-                            </span>
+                            <Icon name={hideDiff ? 'visibility' : 'visibility_off'} />
                             <span className="button-text">{hideDiff ? 'Show Diff' : 'Hide Diff'}</span>
                         </button>
                         <button
@@ -132,12 +123,12 @@ const EvolutionViewerModal: React.FC<EvolutionViewerProps> = ({
                             className="sequential-view-button"
                             onClick={handleSequentialView}
                         >
-                            <span className="material-symbols-outlined">play_circle</span>
+                            <Icon name="play_circle" />
                             <span className="button-text">View Iterations Sequentially</span>
                         </button>
                     </div>
                     <button className="evolution-close-button" onClick={onClose}>
-                        <span className="material-symbols-outlined">close</span>
+                        <Icon name="close" />
                     </button>
                 </div>
 

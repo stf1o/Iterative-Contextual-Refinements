@@ -451,7 +451,7 @@ textarea.prompt-textarea:focus {
     border-color: var(--accent-blue);
 }
 
-.prompt-refine-button .material-symbols-outlined {
+.prompt-refine-button .icon-slot {
     font-size: 1rem;
 }
 
@@ -477,6 +477,6 @@ textarea.prompt-textarea:focus {
     border-color: var(--accent-purple);
 }
 
-.prompt-diff-button .material-symbols-outlined {
+.prompt-diff-button .icon-slot {
     font-size: 1rem;
 }

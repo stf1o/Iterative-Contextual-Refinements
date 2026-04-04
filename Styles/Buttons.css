@@ -116,25 +116,25 @@ button:focus-visible {
 /* =========================================================================
    BUTTON ICONS (Material Symbols)
    ========================================================================= */
-.button .material-symbols-outlined,
-button .material-symbols-outlined,
-label.button .material-symbols-outlined {
+.button .icon-slot,
+button .icon-slot,
+label.button .icon-slot {
     font-size: 1.25em;
     line-height: 1;
     transform: translateY(1px);
     /* Optical alignment */
 }
 
-.button.primary-action .material-symbols-outlined {
+.button.primary-action .icon-slot {
     font-size: 1.1em;
 }
 
-.code-actions .button .material-symbols-outlined {
+.code-actions .button .icon-slot {
     font-size: 1.125rem;
     transform: translateY(2px);
 }
 
-.button.button-icon .material-symbols-outlined {
+.button.button-icon .icon-slot {
     font-size: 1.5rem;
     transform: none;
 }
@@ -149,7 +149,7 @@ label.button .material-symbols-outlined {
 }
 
 .button.copied .button-text,
-.button.copied .material-symbols-outlined {
+.button.copied .icon-slot {
     color: inherit !important;
 }
 
@@ -160,6 +160,6 @@ label.button .material-symbols-outlined {
 }
 
 .button.copy-failed .button-text,
-.button.copy-failed .material-symbols-outlined {
+.button.copy-failed .icon-slot {
     color: inherit !important;
 }

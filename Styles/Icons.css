@@ -1,4 +1,4 @@
-.material-symbols-outlined {
+.icon-slot {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -6,9 +6,9 @@
     vertical-align: middle;
 }
 
-.material-symbols-outlined .material-icon-svg {
+.icon-slot .app-icon {
     width: 1em;
     height: 1em;
-    fill: currentColor;
     display: block;
+    stroke: currentColor;
 }

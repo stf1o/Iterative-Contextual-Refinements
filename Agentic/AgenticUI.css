@@ -94,7 +94,7 @@
     color: var(--accent-purple);
 }
 
-.panel-action-btn .material-symbols-outlined {
+.panel-action-btn .icon-slot {
     font-size: var(--icon-size-sm);  /* 16px */
 }
 
@@ -107,7 +107,7 @@
     overflow-wrap: break-word;
 }
 
-/* Content rendered by renderMathContent - no custom styling needed */
+/* Shared markdown renderer output - no custom styling needed */
 
 /* Diff view styles */
 .diff-view {

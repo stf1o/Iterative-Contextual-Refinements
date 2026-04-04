@@ -5,6 +5,7 @@
 
 import React from 'react';
 import type { AgenticConfig } from './AgenticPromptsManager';
+import { Icon } from '../UI/Icons';
 
 interface AgenticImportExportProps {
     onImport: (config: AgenticConfig) => void;
@@ -67,12 +68,12 @@ export const AgenticImportExport: React.FC<AgenticImportExportProps> = ({
                     onClick={handleExport}
                     title="Export Agentic configuration and results"
                 >
-                    <span className="material-symbols-outlined">download</span>
+                    <Icon name="download" />
                     Export Config
                 </button>
 
                 <label className="import-button" title="Import Agentic configuration">
-                    <span className="material-symbols-outlined">upload</span>
+                    <Icon name="upload" />
                     Import Config
                     <input
                         type="file"
@@ -87,7 +88,7 @@ export const AgenticImportExport: React.FC<AgenticImportExportProps> = ({
                     onClick={onReset}
                     title="Reset to default system prompt"
                 >
-                    <span className="material-symbols-outlined">restart_alt</span>
+                    <Icon name="restart_alt" />
                     Reset Defaults
                 </button>
             </div>

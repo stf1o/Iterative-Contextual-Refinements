@@ -1020,7 +1020,7 @@ body.light-mode .refinement-master-description {
     font-size: 0.9rem;
 }
 
-.red-team-options-header .material-symbols-outlined {
+.red-team-options-header .icon-slot {
     font-size: 18px;
     color: var(--accent-pink);
 }

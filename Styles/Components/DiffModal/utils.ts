@@ -1,8 +1,6 @@
 import * as Diff from 'diff';
 import { highlightCodeSync } from '../../Shiki';
-import { renderMathContent } from '../RenderMathMarkdownLogic';
-
-export { renderMathContent };
+import { isHTMLContent } from '../../ContentDetection';
 
 export function createUnifiedDiff(oldText: string, newText: string): string {
     // Create a proper unified diff format with correct chunk headers
@@ -131,13 +129,4 @@ export function addDarkThemeStyles(htmlContent: string): string {
     }
 }
 
-/**
- * Detects if content is HTML
- */
-export function isHTMLContent(content: string): boolean {
-    const trimmed = content.trim();
-    return trimmed.includes('<html') ||
-        trimmed.includes('<!DOCTYPE') ||
-        (trimmed.includes('<body') && trimmed.includes('</body>')) ||
-        (trimmed.includes('<div') && trimmed.includes('</div>'));
-}
+export { isHTMLContent };

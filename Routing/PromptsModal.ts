@@ -6,6 +6,7 @@
 import { initializePromptStyling, updatePromptContent } from '../Styles/Components/PromptStyling';
 import { PromptRefiner } from './PromptRefiner';
 import { globalState } from '../Core/State';
+import { renderIconMarkup } from '../UI/Icons';
 
 export class PromptsModal {
     private elements: {
@@ -491,7 +492,7 @@ export class PromptsModal {
         customSelect.innerHTML = `
             <div class="custom-model-select-trigger" id="custom-model-select-trigger-${agentName}">
                 <span class="custom-model-select-text" id="custom-model-select-text-${agentName}">Use Global Model</span>
-                <span class="custom-model-select-arrow material-symbols-outlined">expand_more</span>
+                ${renderIconMarkup('expand_more', 'custom-model-select-arrow')}
             </div>
             <div class="custom-model-select-dropdown" id="custom-model-select-dropdown-${agentName}">
                 <!-- Options will be populated here -->
@@ -506,7 +507,7 @@ export class PromptsModal {
         refineButton.className = 'prompt-refine-button';
         refineButton.type = 'button';
         refineButton.innerHTML = `
-            <span class="material-symbols-outlined">edit</span>
+            ${renderIconMarkup('edit')}
             <span>Refine</span>
         `;
         refineButton.addEventListener('click', (e) => {
@@ -523,7 +524,7 @@ export class PromptsModal {
         diffButton.style.display = 'none';
         diffButton.dataset.agent = agentName;
         diffButton.innerHTML = `
-            <span class="material-symbols-outlined">difference</span>
+            ${renderIconMarkup('difference')}
             <span>Diff</span>
         `;
 
@@ -623,7 +624,7 @@ export class PromptsModal {
 
         globalOption.innerHTML = `
             <span class="custom-model-select-option-text">Use Global Model</span>
-            <span class="material-symbols-outlined option-check">check</span>
+            ${renderIconMarkup('check', 'option-check')}
         `;
 
         globalOption.addEventListener('click', () => {
@@ -706,7 +707,7 @@ export class PromptsModal {
 
                 option.innerHTML = `
                     <span class="custom-model-select-option-text">${model.value}</span>
-                    <span class="material-symbols-outlined option-check">check</span>
+                    ${renderIconMarkup('check', 'option-check')}
                 `;
 
                 option.addEventListener('click', () => {

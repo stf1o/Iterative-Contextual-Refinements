@@ -10,6 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { AgenticState } from '../Agentic/AgenticCore';
 import { AgentActivityPanel } from '../Agentic/AgenticUI';
+import { Icon } from '../UI/Icons';
 import {
     AdaptiveDeepthinkStoreState,
     subscribeToAdaptiveDeepthinkState,
@@ -89,7 +90,7 @@ const DeepthinkEmbeddedPanel: React.FC<{ state: AdaptiveDeepthinkStoreState }> =
                         onClick={handleSidebarToggle}
                         title="Expand Sidebar"
                     >
-                        <span className="material-symbols-outlined">dock_to_right</span>
+                        <Icon name="dock_to_right" />
                     </button>
                 )}
                 {allTabs.map(tab => {
@@ -100,7 +101,7 @@ const DeepthinkEmbeddedPanel: React.FC<{ state: AdaptiveDeepthinkStoreState }> =
                             className={`tab-button deepthink-mode-tab ${currentTab === tab.id ? 'active' : ''} ${tab.statusClass} ${tab.alignRight ? 'align-right' : ''}`}
                             onClick={() => updateAdaptiveDeepthinkTab(tab.id)}
                         >
-                            <span className="material-symbols-outlined">{tab.icon}</span>
+                            <Icon name={tab.icon} />
                             {tab.label}
                         </button>
                     );

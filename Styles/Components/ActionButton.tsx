@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { copyToClipboard, downloadFile, openLivePreviewFullscreen } from './ActionButtonLogic';
+import { Icon, renderIconMarkup, setIconSlot } from '../../UI/Icons';
 
 export { copyToClipboard, downloadFile, openLivePreviewFullscreen };
 
@@ -70,9 +71,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
             disabled={disabled}
             onClick={handleClick}
         >
-            <span className="material-symbols-outlined">
-                {status === 'success' ? 'check' : icon}
-            </span>
+            <Icon name={status === 'success' ? 'check' : icon} />
             <span className="button-text">
                 {status === 'success' ? 'Copied!' : text}
             </span>
@@ -133,11 +132,11 @@ export const createActionButtons = (type: 'source' | 'target', view: 'instant' |
     let buttons = `
         <div class="code-actions">
             <button id="${copyId}" class="button copy-solution-btn" type="button" title="Copy">
-                <span class="material-symbols-outlined">content_copy</span>
+                ${renderIconMarkup('content_copy')}
                 <span class="button-text">Copy</span>
             </button>
             <button id="${downloadId}" class="button download-solution-btn" type="button" title="Download">
-                <span class="material-symbols-outlined">download</span>
+                ${renderIconMarkup('download')}
                 <span class="button-text">Download</span>
             </button>
     `;
@@ -145,7 +144,7 @@ export const createActionButtons = (type: 'source' | 'target', view: 'instant' |
     if (view === 'preview') {
         buttons += `
             <button id="${fullscreenId}" class="button" type="button" title="View Fullscreen">
-                <span class="material-symbols-outlined">preview</span>
+                ${renderIconMarkup('preview')}
                 <span class="button-text">Preview</span>
             </button>
         `;
@@ -173,16 +172,16 @@ export const bindDiffModalButtons = (
             if (content) {
                 const success = await copyToClipboard(content);
                 if (success && btn) {
-                    const originalIcon = btn.querySelector('.material-symbols-outlined');
+                    const originalIcon = btn.querySelector('.icon-slot');
                     const buttonText = btn.querySelector('.button-text');
                     if (originalIcon && buttonText) {
-                        const originalIconText = originalIcon.textContent;
                         const originalButtonText = buttonText.textContent;
-                        originalIcon.textContent = 'check';
+                        const originalIconName = (originalIcon as HTMLElement).dataset.iconName || 'content_copy';
+                        setIconSlot(originalIcon, 'check');
                         buttonText.textContent = 'Copied!';
                         btn.classList.add('copied');
                         setTimeout(() => {
-                            originalIcon.textContent = originalIconText;
+                            setIconSlot(originalIcon, originalIconName);
                             buttonText.textContent = originalButtonText;
                             btn.classList.remove('copied');
                         }, 1500);
@@ -237,16 +236,16 @@ export const bindCopyDownloadButtons = (container: HTMLElement | Document = docu
             const content = btn.getAttribute('data-content') || '';
             const success = await copyToClipboard(content);
             if (success) {
-                const originalIcon = btn.querySelector('.material-symbols-outlined');
+                const originalIcon = btn.querySelector('.icon-slot');
                 const buttonText = btn.querySelector('.button-text');
                 if (originalIcon && buttonText) {
-                    const originalIconText = originalIcon.textContent;
                     const originalButtonText = buttonText.textContent;
-                    originalIcon.textContent = 'check';
+                    const originalIconName = (originalIcon as HTMLElement).dataset.iconName || 'content_copy';
+                    setIconSlot(originalIcon, 'check');
                     buttonText.textContent = 'Copied!';
                     btn.classList.add('copied');
                     setTimeout(() => {
-                        originalIcon.textContent = originalIconText;
+                        setIconSlot(originalIcon, originalIconName);
                         buttonText.textContent = originalButtonText;
                         btn.classList.remove('copied');
                     }, 1500);

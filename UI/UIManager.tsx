@@ -2,6 +2,7 @@ import React from 'react';
 import { PipelineTabData, getPipelineTabsData, getCurrentMode, getModeTitle, getActivePipelineId, isWebsiteMode, isGenerating, getPipelinesCount } from './UIManager';
 import { activateTab } from './Tabs';
 import { globalState } from '../Core/State';
+import { Icon } from './Icons';
 
 export const ModeHeaderTitle: React.FC = () => {
     const mode = getCurrentMode();
@@ -11,7 +12,7 @@ export const ModeHeaderTitle: React.FC = () => {
 export const EmptyState: React.FC = () => {
     return (
         <div className="empty-state">
-            <div className="empty-state-icon"><span className="material-symbols-outlined">lightbulb</span></div>
+            <div className="empty-state-icon"><Icon name="lightbulb" /></div>
             <h3>Ready to Create</h3>
             <p>Enter your idea above and click "Generate" to start the iterative refinement process.</p>
         </div>
@@ -45,7 +46,7 @@ export const PipelineTab: React.FC<PipelineTabProps> = ({ pipeline, onStop }) =>
                         className="button stop-button" 
                         style={{ display: showStopButton ? 'none' : 'none' }}
                         onClick={() => onStop(pipeline.id)}>
-                        <span className="material-symbols-outlined">stop_circle</span>
+                        <Icon name="stop_circle" />
                         <span className="button-text">Stop</span>
                     </button>
                 </div>

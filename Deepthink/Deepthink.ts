@@ -22,6 +22,7 @@ import {
     openCurrentSolutionPool,
 } from './SolutionPool.tsx';
 import { parseJsonSafe } from "../Core/JsonParser";
+import { renderIconMarkup } from '../UI/Icons';
 
 // React component imports
 import {
@@ -30,6 +31,7 @@ import {
     SubStrategyComparisonUI,
     EmbeddedModalContent,
     RedTeamReasoningContent,
+    StructuredReasoningContent,
     StrategicSolverTab,
     HypothesisExplorerTab,
     DissectedObservationsTab,
@@ -123,6 +125,7 @@ let pipelineContentRoot: Root | null = null;
 let pipelineContentContainerNode: HTMLElement | null = null;
 let modalRoot: Root | null = null;
 let modalContainer: HTMLElement | null = null;
+let deepthinkEventHandlerContainer: HTMLElement | null = null;
 
 // ============================================================================ 
 // Initialization
@@ -195,24 +198,50 @@ function ensureModalContainer(): HTMLElement {
     return modalContainer;
 }
 
-function mountModal(element: React.ReactElement): void {
+function ensureModalRoot(): Root {
     const container = ensureModalContainer();
-    unmountModal(); // Use the safe async unmount function instead of synchronous unmount
-    modalRoot = createRoot(container);
-    modalRoot.render(element);
+    if (!modalRoot) {
+        modalRoot = createRoot(container);
+    }
+    return modalRoot;
+}
+
+function mountModal(element: React.ReactElement): void {
+    ensureModalRoot().render(element);
 }
 
 function unmountModal(): void {
     if (modalRoot) {
-        const rootToUnmount = modalRoot;
-        modalRoot = null;
-        // Schedule unmount to avoid React 18 synchronous unmount race condition
-        setTimeout(() => {
-            rootToUnmount.unmount();
-        }, 0);
+        modalRoot.render(null);
     }
     activeSolutionModalSubStrategyId = null;
     if (cleanupIterativeCorrectionsRoot) cleanupIterativeCorrectionsRoot();
+}
+
+function removeIterativeSolutionOverlay(immediate = true): void {
+    const overlay = document.getElementById('solution-modal-overlay') as (HTMLElement & {
+        cleanup?: () => void;
+    }) | null;
+
+    if (!overlay) {
+        return;
+    }
+
+    overlay.cleanup?.();
+
+    if (immediate) {
+        overlay.remove();
+    } else {
+        overlay.classList.remove('is-visible');
+        setTimeout(() => {
+            if (overlay.isConnected) {
+                overlay.remove();
+            }
+        }, 200);
+    }
+
+    activeSolutionModalSubStrategyId = null;
+    cleanupIterativeCorrectionsRoot();
 }
 
 export async function openDeepthinkSolutionModal(subStrategyId: string) {
@@ -223,6 +252,8 @@ export async function openDeepthinkSolutionModal(subStrategyId: string) {
     const iterativeCorrectionsEnabled = moduleState.getIterativeCorrectionsEnabled();
 
     if (iterativeCorrectionsEnabled) {
+        removeIterativeSolutionOverlay(true);
+        unmountModal();
         activeSolutionModalSubStrategyId = subStrategyId;
 
         // For iterative corrections, we keep the imperative approach because it uses
@@ -246,7 +277,7 @@ export async function openDeepthinkSolutionModal(subStrategyId: string) {
 
         const closeBtn = document.createElement('button');
         closeBtn.className = 'modal-close-button';
-        closeBtn.innerHTML = '<span class="material-symbols-outlined">close</span>';
+        closeBtn.innerHTML = renderIconMarkup('close');
         header.appendChild(closeBtn);
 
         const body = document.createElement('div');
@@ -261,13 +292,7 @@ export async function openDeepthinkSolutionModal(subStrategyId: string) {
         overlay.appendChild(content);
         document.body.appendChild(overlay);
 
-        const cleanup = () => {
-            document.removeEventListener('keydown', onKey);
-            overlay.remove();
-            activeSolutionModalSubStrategyId = null;
-            cleanupIterativeCorrectionsRoot();
-        };
-        const close = () => { overlay.classList.remove('is-visible'); setTimeout(cleanup, 200); };
+        const close = () => removeIterativeSolutionOverlay(false);
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
 
         closeBtn.addEventListener('click', close);
@@ -294,10 +319,7 @@ export async function openDeepthinkSolutionModal(subStrategyId: string) {
 }
 
 export function closeSolutionModal() {
-    const modalOverlay = document.getElementById('solution-modal-overlay');
-    if (modalOverlay) {
-        modalOverlay.click();
-    }
+    removeIterativeSolutionOverlay(false);
     unmountModal();
 }
 
@@ -393,18 +415,13 @@ export function openHypothesisArgumentModal(hypothesisId: string) {
 export function openRedTeamReasoningModal(agent: any) {
     if (document.querySelector('.embedded-modal-overlay')) return;
 
-    let reasoningData: any = {};
-    try {
-        reasoningData = typeof agent.reasoning === 'string' ? JSON.parse(agent.reasoning) : agent.reasoning;
-    } catch { reasoningData = { raw: agent.reasoning }; }
-
     const close = () => unmountModal();
     mountModal(
         React.createElement(BaseModal, {
             title: `Red Team Agent ${agent.id} - Evaluation`,
             isEmbedded: true,
             onClose: close,
-            children: React.createElement(RedTeamReasoningContent, { agent, reasoningData })
+            children: React.createElement(RedTeamReasoningContent, { agent, reasoningData: agent.reasoning })
         })
     );
 }
@@ -418,8 +435,10 @@ export function openPostQualityFilterModal(agent: any) {
             title: `PostQualityFilter Iteration ${agent.iterationNumber} - Analysis`,
             isEmbedded: true,
             onClose: close,
-            children: React.createElement(EmbeddedModalContent, {
-                content: agent.reasoning || 'No analysis available',
+            children: React.createElement(StructuredReasoningContent, {
+                reasoning: agent.reasoning,
+                resultsClassName: 'post-quality-filter-results',
+                emptyMessage: 'No analysis available',
             })
         })
     );
@@ -466,59 +485,34 @@ export function activateDeepthinkStrategyTab(strategyIndex: number) {
 }
 
 function addDeepthinkEventHandlers() {
-    if (!moduleState.pipelinesContentContainer) return;
-    moduleState.pipelinesContentContainer.removeEventListener('click', deepthinkClickHandler);
-    moduleState.pipelinesContentContainer.addEventListener('click', deepthinkClickHandler);
+    const container = moduleState.pipelinesContentContainer;
+    if (!container) return;
+
+    if (deepthinkEventHandlerContainer === container) {
+        return;
+    }
+
+    if (deepthinkEventHandlerContainer) {
+        deepthinkEventHandlerContainer.removeEventListener('click', deepthinkClickHandler);
+    }
+
+    container.addEventListener('click', deepthinkClickHandler);
+    deepthinkEventHandlerContainer = container;
 }
 
 function deepthinkClickHandler(event: Event) {
     const target = event.target as HTMLElement;
-    const pipeline = getActiveDeepthinkPipeline();
-    if (!target || !pipeline) return;
+    if (!target || !getActiveDeepthinkPipeline()) return;
 
     const closest = (cls: string) => target.closest('.' + cls) as HTMLElement;
 
-    if (closest('sub-tab-button')) {
-        const idxAttr = closest('sub-tab-button').getAttribute('data-strategy-index');
-        if (idxAttr !== null) {
-            pipeline.activeStrategyTab = parseInt(idxAttr);
-            renderActiveDeepthinkPipeline();
-        }
-        return;
-    }
-
-    if (closest('view-solution-button')) {
-        event.preventDefault(); event.stopPropagation();
-        const id = closest('view-solution-button').getAttribute('data-sub-strategy-id');
-        if (id) openSubStrategySolutionModal(id);
-        return;
-    }
-
-    if (closest('view-argument-button')) {
+    if (closest('view-pool-button')) {
         event.preventDefault(); event.stopPropagation();
         if (document.querySelector('.embedded-modal-overlay')) return;
-        const btn = closest('view-argument-button');
-        if (btn.classList.contains('view-pool-button')) {
-            const sid = btn.getAttribute('data-strategy-id');
-            const iter = btn.getAttribute('data-iteration');
-            if (sid && iter) openSolutionPoolModal(sid, parseInt(iter));
-        } else {
-            const hid = btn.getAttribute('data-hypothesis-id');
-            if (hid) openHypothesisArgumentModal(hid);
-        }
-        return;
-    }
-
-    if (closest('view-critique-button')) {
-        event.preventDefault(); event.stopPropagation();
-        if (document.querySelector('.embedded-modal-overlay')) return;
-        const btn = closest('view-critique-button');
-        const subId = btn.getAttribute('data-critique-substrategy-id');
-        if (subId) openSubStrategyCritiqueModal(subId);
-        else {
-            const cId = btn.getAttribute('data-critique-id');
-            if (cId) openCritiqueModal(cId);
-        }
+        const btn = closest('view-pool-button');
+        const sid = btn.getAttribute('data-strategy-id');
+        const iter = btn.getAttribute('data-iteration');
+        if (sid && iter) openSolutionPoolModal(sid, parseInt(iter, 10));
         return;
     }
 
@@ -542,18 +536,19 @@ function deepthinkClickHandler(event: Event) {
         if (pid) downloadSolutionPoolAsJSON(pid);
         return;
     }
+}
 
-    if (closest('red-team-fullscreen-btn')) {
-        if (document.querySelector('.embedded-modal-overlay')) return;
-        const id = closest('red-team-fullscreen-btn').getAttribute('data-agent-id');
-        if (id) {
-            const rtAgent = pipeline.redTeamEvaluations.find(a => a.id === id);
-            if (rtAgent && rtAgent.reasoning) { openRedTeamReasoningModal(rtAgent); return; }
-            const pqfAgent = pipeline.postQualityFilterAgents.find(a => a.id === id);
-            if (pqfAgent && pqfAgent.reasoning) { openPostQualityFilterModal(pqfAgent); return; }
-        }
-        return;
+function syncDeepthinkDomReferences() {
+    const nextTabsNavContainer = document.getElementById('tabs-nav-container');
+    const nextPipelinesContentContainer = document.getElementById('pipelines-content-container');
+
+    if (deepthinkEventHandlerContainer && deepthinkEventHandlerContainer !== nextPipelinesContentContainer) {
+        deepthinkEventHandlerContainer.removeEventListener('click', deepthinkClickHandler);
+        deepthinkEventHandlerContainer = null;
     }
+
+    moduleState.tabsNavContainer = nextTabsNavContainer;
+    moduleState.pipelinesContentContainer = nextPipelinesContentContainer;
 }
 
 // ============================================================================ 
@@ -562,11 +557,10 @@ function deepthinkClickHandler(event: Event) {
 
 export function renderActiveDeepthinkPipeline() {
     const deepthinkProcess = getActiveDeepthinkPipeline();
+    syncDeepthinkDomReferences();
     const { tabsNavContainer, pipelinesContentContainer } = moduleState;
 
     if (!deepthinkProcess || !tabsNavContainer || !pipelinesContentContainer) {
-        if (!moduleState.tabsNavContainer) moduleState.tabsNavContainer = document.getElementById('tabs-nav-container');
-        if (!moduleState.pipelinesContentContainer) moduleState.pipelinesContentContainer = document.getElementById('pipelines-content-container');
         if (!moduleState.tabsNavContainer || !moduleState.pipelinesContentContainer || !deepthinkProcess) return;
     }
 
@@ -601,7 +595,7 @@ export function renderActiveDeepthinkPipeline() {
         const btn = document.createElement('button');
         btn.id = `deepthink-tab-${tab.id}`;
         btn.className = `tab-button deepthink-mode-tab ${deepthinkProcess.activeTabId === tab.id ? 'active' : ''} ${tab.statusClass} ${tab.alignRight ? 'align-right' : ''}`;
-        btn.innerHTML = `<span class="material-symbols-outlined">${tab.icon}</span>${tab.label}`;
+        btn.innerHTML = `${renderIconMarkup(tab.icon)}${tab.label}`;
         btn.addEventListener('click', () => {
             deepthinkProcess.activeTabId = tab.id;
             renderActiveDeepthinkPipeline();

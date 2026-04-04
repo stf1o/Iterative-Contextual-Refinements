@@ -20,6 +20,7 @@ import {
     computeIterationCount,
 } from './SolutionPool';
 import RenderMathMarkdown from '../Styles/Components/RenderMathMarkdown';
+import { Icon } from '../UI/Icons';
 
 // @ts-ignore — CSS module import handled by Vite
 import './SolutionPool.css';
@@ -27,10 +28,6 @@ import './SolutionPool.css';
 // ═══════════════════════════════════════════════════════════════════════
 // Shared Sub-components
 // ═══════════════════════════════════════════════════════════════════════
-
-const MaterialIcon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
-    <span className={`material-symbols-outlined${className ? ` ${className}` : ''}`}>{name}</span>
-);
 
 const Collapsible: React.FC<{
     toggleClassName: string;
@@ -42,9 +39,9 @@ const Collapsible: React.FC<{
     return (
         <>
             <button className={toggleClassName} onClick={() => setCollapsed(c => !c)}>
-                <MaterialIcon name={icon} />
+                <Icon name={icon} />
                 {label}
-                <MaterialIcon name={collapsed ? 'expand_more' : 'expand_less'} className="sp-critique-chevron" />
+                <Icon name={collapsed ? 'expand_more' : 'expand_less'} className="sp-critique-chevron" />
             </button>
             <div className={`sp-critique-body${collapsed ? ' sp-collapsed' : ''}`}>
                 {children}
@@ -95,7 +92,7 @@ const SolutionCard: React.FC<{ solution: SolutionPoolParsedSolution; index: numb
 const RawTextFallback: React.FC<{ content: string }> = ({ content }) => (
     <div className="sp-raw-fallback">
         <div className="sp-raw-notice">
-            <MaterialIcon name="info" />
+            <Icon name="info" />
             <span>Pool response could not be parsed as structured JSON. Showing raw content.</span>
         </div>
         <pre className="sp-raw-content">{content}</pre>
@@ -122,11 +119,11 @@ const SolutionPoolPanel: React.FC<{
             <div className="sp-fullscreen-panel">
                 <div className="sp-fullscreen-header">
                     <div className="sp-fullscreen-header-left">
-                        <MaterialIcon name="workspaces" className="sp-header-icon" />
+                        <Icon name="workspaces" className="sp-header-icon" />
                         <h2 className="sp-fullscreen-title">{title}</h2>
                     </div>
                     <button className="sp-close-btn" onClick={onClose}>
-                        <MaterialIcon name="close" />
+                        <Icon name="close" />
                     </button>
                 </div>
                 <div className="sp-fullscreen-body custom-scrollbar">
@@ -192,7 +189,7 @@ const TimelineSection: React.FC<{ content: string; className: string }> = ({ con
 
 const PoolLabel: React.FC<{ icon: string; text: string; className?: string }> = ({ icon, text, className = 'sp-pool-label' }) => (
     <div className={className}>
-        <MaterialIcon name={icon} /> {text}
+        <Icon name={icon} /> {text}
     </div>
 );
 
@@ -237,7 +234,7 @@ const StrategySection: React.FC<{
     return (
         <div className="sp-strategy-section" style={{ animationDelay: `${stratIdx * 0.08}s` }}>
             <div className="sp-strategy-section-header">
-                <MaterialIcon name="deployed_code" />
+                <Icon name="deployed_code" />
                 <h3>{strategy.strategy_id?.toUpperCase() || `Strategy ${stratIdx + 1}`}</h3>
                 {strategyText && <span className="sp-strategy-subtitle">{subtitle}</span>}
             </div>
@@ -269,7 +266,7 @@ const StrategySection: React.FC<{
             {/* 4. Compressed iterations banner */}
             {strategy.compressed_iterations_note && (
                 <div className="sp-compressed-banner">
-                    <MaterialIcon name="compress" />
+                    <Icon name="compress" />
                     <span>{strategy.compressed_iterations_note}</span>
                 </div>
             )}
@@ -333,7 +330,7 @@ export const SolutionPoolTabContent: React.FC<{ process: DeepthinkPipelineState 
             <div className="solution-pool-container">
                 <SolutionPoolHeader processId={process.id} />
                 <div className="solution-pool-disabled-state">
-                    <span className="material-symbols-outlined disabled-icon">block</span>
+                    <Icon name="block" className="disabled-icon" />
                     <h4>Structured Solution Pool Disabled</h4>
                     <p>This feature is currently disabled for this session.</p>
                     <p className="disabled-hint">Enable "Iterative Corrections" in settings to use this feature.</p>
@@ -347,7 +344,7 @@ export const SolutionPoolTabContent: React.FC<{ process: DeepthinkPipelineState 
             <div className="solution-pool-container">
                 <SolutionPoolHeader processId={process.id} />
                 <div className="solution-pool-empty-state">
-                    <span className="material-symbols-outlined empty-icon">pending</span>
+                    <Icon name="pending" className="empty-icon" />
                     <h4>Pool Initializing</h4>
                     <p>Waiting for initial solutions to be generated...</p>
                 </div>
@@ -397,12 +394,12 @@ export const SolutionPoolTabContent: React.FC<{ process: DeepthinkPipelineState 
                                                             data-strategy-id={strategy.id}
                                                             data-iteration={iteration}
                                                         >
-                                                            <MaterialIcon name="visibility" /> View Solution Pool
+                                                            <Icon name="visibility" /> View Solution Pool
                                                         </button>
                                                     </>
                                                 ) : (
                                                     <div className="pool-empty-state-mini">
-                                                        <MaterialIcon name="hourglass_empty" />
+                                                        <Icon name="hourglass_empty" />
                                                         <span>{isError ? 'Failed' : 'Processing...'}</span>
                                                     </div>
                                                 )}
@@ -422,7 +419,7 @@ export const SolutionPoolTabContent: React.FC<{ process: DeepthinkPipelineState 
 const SolutionPoolHeader: React.FC<{ processId: string }> = ({ processId }) => (
     <div className="solution-pool-header">
         <div className="solution-pool-header-left">
-            <span className="material-symbols-outlined solution-pool-icon">workspaces</span>
+            <Icon name="workspaces" className="solution-pool-icon" />
             <div className="solution-pool-title-group">
                 <h3 className="solution-pool-title">Structured Solution Pool</h3>
                 <p className="solution-pool-subtitle">Cross-strategy collaborative solution repository</p>
@@ -430,13 +427,13 @@ const SolutionPoolHeader: React.FC<{ processId: string }> = ({ processId }) => (
         </div>
         <div className="solution-pool-header-buttons">
             <button className="solution-pool-current-button" data-pipeline-id={processId}>
-                <MaterialIcon name="database" /> Current Pool
+                <Icon name="database" /> Current Pool
             </button>
             <button className="solution-pool-download-button" data-pipeline-id={processId}>
-                <MaterialIcon name="download" /> Download Pool (JSON)
+                <Icon name="download" /> Download Pool (JSON)
             </button>
             <button className="solution-pool-evolution-button" data-pipeline-id={processId}>
-                <MaterialIcon name="timeline" /> View Evolution
+                <Icon name="timeline" /> View Evolution
             </button>
         </div>
     </div>
@@ -514,5 +511,4 @@ export function openCurrentSolutionPool(pipelineId: string): void {
         </SolutionPoolPanel>
     );
 }
-
 

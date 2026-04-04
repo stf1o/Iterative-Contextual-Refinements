@@ -52,7 +52,7 @@ export default defineConfig(({ mode }) => {
             }
             // Markdown/math rendering
             if (id.includes('remark-') || id.includes('rehype-') || id.includes('unified') ||
-              id.includes('katex') || id.includes('node_modules/marked')) {
+              id.includes('katex') || id.includes('react-markdown') || id.includes('node_modules/marked')) {
               return 'vendor-markdown';
             }
             // Diff utilities
@@ -64,8 +64,7 @@ export default defineConfig(({ mode }) => {
               return 'vendor-shiki';
             }
             // Other utilities
-            if (id.includes('jszip') || id.includes('dompurify') || id.includes('nanoid') ||
-              id.includes('node_modules/he/') || id.includes('fuzzball') || id.includes('fast-')) {
+            if (id.includes('jszip') || id.includes('nanoid') || id.includes('fuzzball') || id.includes('fast-')) {
               return 'vendor-utils';
             }
           }

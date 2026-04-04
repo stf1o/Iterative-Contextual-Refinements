@@ -124,7 +124,7 @@
     transform: translateY(-1px);
 }
 
-.red-team-fullscreen-btn.red-team-reasoning-pill .material-symbols-outlined {
+.red-team-fullscreen-btn.red-team-reasoning-pill .icon-slot {
     font-size: 1.1rem;
 }
 
@@ -513,7 +513,7 @@
     transform: translateY(-1px);
 }
 
-.red-team-reasoning-btn .material-symbols-outlined {
+.red-team-reasoning-btn .icon-slot {
     font-size: 18px;
 }
 

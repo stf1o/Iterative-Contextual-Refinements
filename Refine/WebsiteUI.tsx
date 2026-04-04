@@ -6,6 +6,7 @@ import { IterationData, PipelineState } from '../Core/Types';
 import RenderMathMarkdown from '../Styles/Components/RenderMathMarkdown';
 import { getEmptyStateMessage } from '../UI/CommonUI';
 import { activateTab } from '../Core/AppRouter';
+import { Icon } from '../UI/Icons';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,7 +82,7 @@ const LivePreviewPane: React.FC<LivePreviewPaneProps> = ({ pipelineId, iteration
                         aria-label="Toggle Fullscreen Preview"
                         onClick={handleFullscreen}
                     >
-                        <span className="icon-fullscreen material-symbols-outlined">fullscreen</span>
+                        <Icon name="fullscreen" className="icon-fullscreen" />
                     </button>
                 </div>
                 <div className="preview-container diff-preview-container">
@@ -157,7 +158,7 @@ const IterationCard: React.FC<IterationCardProps> = ({ pipelineId, iter }) => {
                                         disabled={!hasContent}
                                         onClick={handleCompare}
                                     >
-                                        <span className="material-symbols-outlined">compare_arrows</span>
+                                        <Icon name="compare_arrows" />
                                         <span className="button-text">Compare</span>
                                     </button>
                                 </div>
@@ -279,7 +280,7 @@ const TabBar: React.FC<TabBarProps> = ({ pipelines, activePipelineId, onTabClick
                     title="View content evolution timeline"
                     onClick={onViewEvolution}
                 >
-                    <span className="material-symbols-outlined">movie</span>
+                    <Icon name="movie" />
                     <span className="button-text">View Evolution</span>
                 </button>
             )}
@@ -368,5 +369,4 @@ export function renderWebsiteMode(
     refinePipelinesRoot = createRoot(pipelinesContentContainer);
     refinePipelinesRoot.render(React.createElement(RefinePipelineTabs));
 }
-
 

@@ -36,7 +36,7 @@ type AgenticModule = typeof import('../Agentic/AgenticUI_Bridge');
 type ContextualModule = typeof import('../Contextual/Contextual');
 type AdaptiveDeepthinkModule = typeof import('../AdaptiveDeepthink/AdaptiveDeepthinkMode');
 type WebsiteLogicModule = typeof import('../Refine/WebsiteLogic');
-type WebsiteUIModule = typeof import('../Refine/WebsiteUI');
+type WebsiteUIModule = any;
 
 let deepthinkModule: DeepthinkModule | null = null;
 let deepthinkModulePromise: Promise<DeepthinkModule> | null = null;
@@ -132,7 +132,7 @@ export async function loadWebsiteLogic(): Promise<WebsiteLogicModule> {
 
 export async function loadWebsiteUI(): Promise<WebsiteUIModule> {
     if (!websiteUIModulePromise) {
-        websiteUIModulePromise = import('../Refine/WebsiteUI').then((mod) => {
+        websiteUIModulePromise = import('../Refine/WebsiteUI.tsx').then((mod) => {
             websiteUIModule = mod;
             return mod;
         });

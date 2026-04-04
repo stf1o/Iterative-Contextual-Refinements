@@ -1,4 +1,5 @@
 import React from 'react';
+import { Icon } from '../../UI/Icons';
 
 /**
  * Prompts Modal Layout component
@@ -11,7 +12,7 @@ export const PromptsModalLayout: React.FC<{ children?: React.ReactNode }> = ({ c
                 <header className="modal-header">
                     <h2 id="prompts-modal-title" className="modal-title">Customize Prompts</h2>
                     <button id="prompts-modal-close-button" className="modal-close-button" aria-label="Close Custom Prompts">
-                        <span className="material-symbols-outlined">close</span>
+                        <Icon name="close" />
                     </button>
                 </header>
                 <div id="prompts-modal-body" className="modal-body">

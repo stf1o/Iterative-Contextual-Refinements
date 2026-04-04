@@ -405,132 +405,122 @@
 .code-block-container {
     margin: 1.5rem 0;
     max-width: 100%;
-    background: var(--bg-glass);
-    backdrop-filter: var(--card-blur-effect, blur(10px));
-    -webkit-backdrop-filter: var(--card-blur-effect, blur(10px));
-    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-    border-radius: 12px;
-    box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.1));
+    background: rgba(7, 10, 18, 0.96);
+    border: 1px solid rgba(105, 116, 165, 0.18);
+    border-radius: 18px;
+    box-shadow: 0 18px 42px rgba(2, 6, 23, 0.28);
     overflow: hidden;
     position: relative;
-}
-
-.code-block-container::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-    pointer-events: none;
 }
 
 .code-block-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 16px;
+    gap: 0.75rem;
+    padding: 0.8rem 1rem;
     background: transparent;
-    cursor: pointer;
-    min-height: 48px;
-    border-bottom: 1px solid transparent;
-    position: relative;
-}
-
-.code-block-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 12px;
-    right: 12px;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    min-height: 0;
+    border-bottom: 1px solid rgba(105, 116, 165, 0.14);
 }
 
 .code-block-title {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-secondary-color, #a1a1aa);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: rgba(226, 232, 240, 0.72);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.08em;
 }
 
 .code-copy-icon {
-    background: transparent;
-    border: none;
-    color: var(--text-secondary-color, #a1a1aa);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    opacity: 0.8;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    color: rgba(226, 232, 240, 0.78);
+    cursor: pointer;
+    padding: 0;
+    border-radius: 10px;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .code-copy-icon:hover {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-color, #fff);
+    background: rgba(148, 163, 184, 0.08);
+    border-color: rgba(148, 163, 184, 0.22);
+    color: #f8fafc;
+    transform: translateY(-1px);
 }
 
 .code-copy-icon:focus {
     outline: none !important;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) !important;
+    box-shadow: 0 0 0 2px rgba(138, 127, 248, 0.28) !important;
 }
 
 .code-copy-icon:focus-visible {
     outline: none !important;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 0 0 2px rgba(138, 127, 248, 0.4) !important;
 }
 
 .code-block-content {
     margin: 0 !important;
     padding: 0 !important;
     background: transparent !important;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    overflow-x: auto;
 }
 
-/* Overrides for code content */
-.code-block-content code {
-    display: block;
-    padding: 12px 20px 20px 20px !important;
+.code-block-content > pre,
+.code-block-content > .shiki {
+    margin: 0 !important;
+    padding: 0 !important;
     background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow-x: auto;
+}
+
+.code-block-content > .shiki {
+    background-color: transparent !important;
+}
+
+.render-math-markdown .code-block-container .code-block-content > pre.shiki,
+.render-math-markdown .code-block-container .code-block-content > pre.shiki code,
+.render-math-markdown .code-block-container .code-block-content > pre.shiki .line {
+    background: transparent !important;
+    background-color: transparent !important;
     border: none !important;
     border-radius: 0 !important;
-    font-family: 'SF Pro Rounded Medium', sans-serif !important;
-    font-size: 20px !important;
-    line-height: 1.7 !important;
-    color: var(--text-color, #EAEBF5) !important;
-    white-space: pre-wrap !important;
-    word-wrap: break-word !important;
+    box-shadow: none !important;
+}
+
+.code-block-content :where(pre, code, .shiki) {
+    font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace !important;
+    font-size: 13.5px !important;
+    line-height: 1.65 !important;
+}
+
+.render-math-markdown .code-block-container .code-block-content > pre > code,
+.render-math-markdown .code-block-container .code-block-content > .shiki > code,
+.render-math-markdown .code-block-container .code-block-content .shiki code {
+    display: block;
+    padding: 0.1rem 1.15rem 1.15rem !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    color: inherit !important;
+    white-space: pre !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
     box-shadow: none !important;
     text-shadow: none !important;
-    font-weight: 400 !important;
 }
 
-.code-block-content pre {
-    margin: 0 !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-}
-
-/* Expansion States */
-.code-block-container.expanded .code-block-header {
-    border-bottom: 1px solid transparent;
-    border-radius: 12px 12px 0 0;
-}
-
-.code-block-container.collapsed {
-    box-shadow: var(--shadow-sm);
-}
-
-.code-block-container.collapsed .code-block-content {
-    display: none;
+.code-block-content .line {
+    display: block;
 }
 
 /* KaTeX Math */
@@ -696,24 +686,35 @@ body.light-mode .latex-content-wrapper td {
 
 /* Light Mode Code Blocks */
 body.light-mode .code-block-container {
-    background: #f6f8fa;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    background: #f8fafc;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
 }
 
 body.light-mode .code-block-container .code-block-header {
-    background: #f6f8fa !important;
-    border: none !important;
+    background: transparent !important;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
 }
 
-body.light-mode .code-block-content code,
-body.light-mode .code-block-content code:hover {
-    background: #f6f8fa !important;
-    color: #24292e !important;
+body.light-mode .code-block-title,
+body.light-mode .code-copy-icon {
+    color: #475569;
 }
 
-body.light-mode .code-block-container::before {
-    display: none !important;
+body.light-mode .code-copy-icon {
+    border-color: rgba(15, 23, 42, 0.1);
+}
+
+body.light-mode .code-copy-icon:hover {
+    background: rgba(148, 163, 184, 0.1);
+    border-color: rgba(15, 23, 42, 0.14);
+    color: #0f172a;
+}
+
+body.light-mode .code-block-content > pre,
+body.light-mode .code-block-content > .shiki,
+body.light-mode .code-block-content :where(pre > code, .shiki code) {
+    color: #1e293b !important;
 }
 
 /* --- Light Mode Text Visibility Overrides --- */
@@ -755,71 +756,66 @@ body.light-mode .latex-content-wrapper a::after {
  */
 
 /* === Output Block Styling === */
-.exec-output-block .code-block-content {
-    background: rgba(0, 0, 0, 0.08);
-    overflow-x: auto;
-}
-
 .exec-output-content {
     background: transparent;
     overflow-x: auto;
 }
 
-/* Specific selector to override .code-block-content code (0-1-1) */
+.render-math-markdown .exec-output-content > pre {
+    margin: 0 !important;
+    padding: 0.6rem 1.15rem 1.15rem !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow-x: auto !important;
+}
+
 .code-block-content .exec-output-text {
     display: block;
-    padding: 20px !important;
     margin: 0 !important;
+    padding: 0 !important;
     background: transparent !important;
     border: none !important;
     border-radius: 0 !important;
     font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace !important;
-    font-size: 13px !important;
-    line-height: 1.5 !important;
+    font-size: 13.5px !important;
+    line-height: 1.65 !important;
     color: #cbd5e1 !important;
     white-space: pre !important;
-    /* Preserve exact whitespace for table alignment */
     overflow-x: auto !important;
-    /* Allow horizontal scroll for wide tables */
     box-shadow: none !important;
     tab-size: 4;
-
-    /* Enforce strict monospace rendering */
     font-variant-ligatures: none;
     font-feature-settings: normal;
     letter-spacing: 0;
     -webkit-font-smoothing: auto;
-    /* Avoid subpixel rendering issues */
 }
 
 /* === Output Error State === */
 .exec-output-error .code-block-header {
-    background: rgba(239, 68, 68, 0.1);
+    background: transparent;
+    border-bottom-color: rgba(239, 68, 68, 0.18);
 }
 
 .exec-output-error .code-block-title {
-    color: #f87171 !important;
-}
-
-.exec-output-error .exec-output-text {
     color: #fca5a5 !important;
 }
 
-/* === Image Grid Block === */
-.exec-image-block .code-block-header {
-    border-bottom: none;
+.exec-output-error .exec-output-text {
+    color: #fecaca !important;
 }
 
+/* === Image Grid Block === */
 .exec-image-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 16px;
-    padding: 16px 20px 20px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    padding: 1rem;
 }
 
-/* When only 1 image, center it */
 .exec-image-grid:has(.exec-image-item:only-child) {
-    display: flex;
+    grid-template-columns: minmax(0, 720px);
     justify-content: center;
 }
 
@@ -828,21 +824,26 @@ body.light-mode .latex-content-wrapper a::after {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    border-radius: 8px;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 14px;
     overflow: hidden;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .exec-image-item:hover {
-    transform: scale(1.02);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    transform: translateY(-1px);
+    border-color: rgba(148, 163, 184, 0.24);
+    box-shadow: 0 12px 26px rgba(2, 6, 23, 0.18);
 }
 
 .exec-rendered-image {
+    display: block;
     max-width: 100%;
     height: auto;
-    border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    box-shadow: none;
 }
 
 /* === Image Error State === */
@@ -856,14 +857,14 @@ body.light-mode .latex-content-wrapper a::after {
 }
 
 .exec-image-error {
-    padding: 24px;
+    padding: 1rem;
     text-align: center;
     color: #f87171;
     background: rgba(239, 68, 68, 0.05);
     font-family: 'SF Mono', monospace;
     font-size: 12px;
     border: 1px dashed rgba(239, 68, 68, 0.3);
-    border-radius: 8px;
+    border-radius: 10px;
     width: 100%;
 }
 
@@ -871,16 +872,12 @@ body.light-mode .latex-content-wrapper a::after {
 /* === LIGHT MODE OVERRIDES ================================================= */
 /* ========================================================================== */
 
-body.light-mode .exec-output-block .code-block-content {
-    background: #f9fafb;
-}
-
 body.light-mode .exec-output-text {
     color: #374151 !important;
 }
 
 body.light-mode .exec-output-error .code-block-header {
-    background: rgba(239, 68, 68, 0.05);
+    background: rgba(239, 68, 68, 0.06);
 }
 
 body.light-mode .exec-output-error .code-block-title {
@@ -892,11 +889,17 @@ body.light-mode .exec-output-error .exec-output-text {
 }
 
 body.light-mode .exec-image-grid {
-    background: #f8fafc;
+    background: transparent;
 }
 
-body.light-mode .exec-rendered-image {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+body.light-mode .exec-image-item {
+    background: rgba(248, 250, 252, 0.8);
+    border-color: rgba(15, 23, 42, 0.08);
+}
+
+body.light-mode .exec-image-item:hover {
+    border-color: rgba(15, 23, 42, 0.12);
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
 }
 
 body.light-mode .exec-image-error {

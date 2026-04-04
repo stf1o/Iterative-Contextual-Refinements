@@ -8,19 +8,18 @@
  * Additional languages are loaded dynamically when needed.
  */
 
+import { bundledLanguagesInfo } from 'shiki';
 import { createBundledHighlighter, type HighlighterCore } from 'shiki/core';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 
-// Fine-grained bundle: only load the languages + themes we explicitly list.
-const createHighlighter = createBundledHighlighter({
-    langs: {
+const BUNDLED_LANGUAGE_LOADERS = {
         javascript: () => import('shiki/langs/javascript.mjs'),
         typescript: () => import('shiki/langs/typescript.mjs'),
         python: () => import('shiki/langs/python.mjs'),
         css: () => import('shiki/langs/css.mjs'),
         html: () => import('shiki/langs/html.mjs'),
         json: () => import('shiki/langs/json.mjs'),
-        bash: () => import('shiki/langs/bash.mjs'),
+        shellscript: () => import('shiki/langs/shellscript.mjs'),
         markdown: () => import('shiki/langs/markdown.mjs'),
         sql: () => import('shiki/langs/sql.mjs'),
         java: () => import('shiki/langs/java.mjs'),
@@ -32,7 +31,36 @@ const createHighlighter = createBundledHighlighter({
         xml: () => import('shiki/langs/xml.mjs'),
         jsx: () => import('shiki/langs/jsx.mjs'),
         tsx: () => import('shiki/langs/tsx.mjs')
-    },
+} as const;
+
+const BUNDLED_LANGUAGE_IDS = Object.keys(BUNDLED_LANGUAGE_LOADERS) as Array<keyof typeof BUNDLED_LANGUAGE_LOADERS>;
+const PLAIN_TEXT_ALIASES = new Set(['plaintext', 'text', 'txt']);
+
+const LANGUAGE_INFO = new Map(
+    bundledLanguagesInfo
+        .filter((info) => BUNDLED_LANGUAGE_IDS.includes(info.id as keyof typeof BUNDLED_LANGUAGE_LOADERS))
+        .map((info) => [info.id, info])
+);
+
+const LANGUAGE_LOOKUP = new Map<string, string>();
+
+for (const id of BUNDLED_LANGUAGE_IDS) {
+    LANGUAGE_LOOKUP.set(id, id);
+}
+
+for (const info of LANGUAGE_INFO.values()) {
+    info.aliases?.forEach((alias) => {
+        LANGUAGE_LOOKUP.set(alias, info.id);
+    });
+}
+
+for (const alias of PLAIN_TEXT_ALIASES) {
+    LANGUAGE_LOOKUP.set(alias, 'plaintext');
+}
+
+// Fine-grained bundle: only load the languages + themes we explicitly list.
+const createHighlighter = createBundledHighlighter({
+    langs: BUNDLED_LANGUAGE_LOADERS,
     themes: {
         'github-dark': () => import('shiki/themes/github-dark.mjs'),
         'github-light': () => import('shiki/themes/github-light.mjs')
@@ -46,28 +74,6 @@ let highlighterInstance: HighlighterCore | null = null;
 let initPromise: Promise<HighlighterCore> | null = null;
 const readinessListeners: (() => void)[] = [];
 
-// Language aliases for common variations
-const LANGUAGE_ALIASES: Record<string, string> = {
-    'js': 'javascript',
-    'ts': 'typescript',
-    'py': 'python',
-    'sh': 'bash',
-    'shell': 'bash',
-    'md': 'markdown',
-    'yml': 'yaml',
-    'c++': 'cpp',
-    'cs': 'csharp',
-    'text': 'plaintext',
-    'txt': 'plaintext'
-};
-
-// Languages we bundle
-const BUNDLED_LANGUAGES = [
-    'javascript', 'typescript', 'python', 'css', 'html', 'json',
-    'bash', 'markdown', 'sql', 'java', 'cpp', 'c', 'go', 'rust',
-    'yaml', 'xml', 'jsx', 'tsx'
-];
-
 /**
  * Initialize the Shiki highlighter with dual themes for light/dark mode
  */
@@ -79,7 +85,7 @@ export async function initHighlighter(): Promise<HighlighterCore> {
         try {
             const highlighter = await createHighlighter({
                 themes: ['github-dark', 'github-light'],
-                langs: [...BUNDLED_LANGUAGES]
+                langs: [...BUNDLED_LANGUAGE_IDS]
             });
             highlighterInstance = highlighter as HighlighterCore; // Cast to Core type
             // Notify listeners
@@ -129,16 +135,23 @@ export function isHighlighterReady(): boolean {
  * Resolve language alias to actual language name
  */
 export function resolveLanguage(lang: string): string {
-    const lowered = lang.toLowerCase();
-    return LANGUAGE_ALIASES[lowered] || (BUNDLED_LANGUAGES.includes(lowered) ? lowered : 'plaintext');
+    const lowered = lang.toLowerCase().trim();
+    return LANGUAGE_LOOKUP.get(lowered) || 'plaintext';
 }
 
 /**
  * Check if a language is supported
  */
 export function isLanguageSupported(lang: string): boolean {
-    const lowered = lang.toLowerCase();
-    return LANGUAGE_ALIASES[lowered] !== undefined || BUNDLED_LANGUAGES.includes(lowered);
+    return resolveLanguage(lang) !== 'plaintext' || PLAIN_TEXT_ALIASES.has(lang.toLowerCase().trim());
+}
+
+export function getLanguageDisplayName(lang: string): string {
+    const resolved = resolveLanguage(lang);
+    if (resolved === 'plaintext') {
+        return 'Plain Text';
+    }
+    return LANGUAGE_INFO.get(resolved)?.name || resolved.toUpperCase();
 }
 
 /**
@@ -217,5 +230,6 @@ export default {
     highlightCodeAsync,
     resolveLanguage,
     isLanguageSupported,
+    getLanguageDisplayName,
     onHighlighterReady
 };

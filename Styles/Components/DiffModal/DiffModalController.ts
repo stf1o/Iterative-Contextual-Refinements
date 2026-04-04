@@ -1,10 +1,10 @@
 import * as Diff from 'diff';
 import { html as diff2htmlHtml } from 'diff2html';
 import { DiffSourceData, DiffContentType, Iteration, Pipeline } from './types';
-import { createUnifiedDiff, applyCustomThemeToD2H, addDarkThemeStyles, renderMathContent } from './utils';
-import { highlightCodeSync } from '../../Shiki';
+import { createUnifiedDiff, applyCustomThemeToD2H, addDarkThemeStyles } from './utils';
+import { renderIconMarkup } from '../../../UI/Icons';
 
-export { renderMathContent, addDarkThemeStyles };
+export { addDarkThemeStyles };
 
 // ─── Pure Diff Logic ─────────────────────────────────────────────────────────
 
@@ -47,24 +47,6 @@ export function generateSplitDiffHTML(sourceText: string, targetText: string): s
 
 export function applyDiffTheme(container: HTMLElement): void {
     applyCustomThemeToD2H(container);
-}
-
-export function renderMathIntoElement(container: HTMLElement, text: string): void {
-    container.innerHTML = renderMathContent(text);
-}
-
-export function highlightCodeBlocks(container: HTMLElement): void {
-    container.querySelectorAll('pre code').forEach(block => {
-        const code = block.textContent || '';
-        if (!code.trim()) return;
-        try {
-            const highlighted = highlightCodeSync(code, 'html');
-            const match = highlighted.match(/<code[^>]*>([\s\S]*)<\/code>/);
-            if (match?.[1]) block.innerHTML = match[1];
-        } catch {
-            // Ignore highlighting errors
-        }
-    });
 }
 
 // ─── Iteration Content Extraction ────────────────────────────────────────────
@@ -203,7 +185,7 @@ export function openFullscreenPreview(content: string, sessionId: string): void 
     `;
     header.innerHTML = `
         <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-color);">
-            <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 0.5rem;">preview</span>
+            ${renderIconMarkup('preview', '', { style: 'vertical-align: middle; margin-right: 0.5rem;' })}
             Live Preview
         </h3>
         <button class="preview-close-btn" style="
@@ -214,7 +196,7 @@ export function openFullscreenPreview(content: string, sessionId: string): void 
             border-radius: var(--border-radius-md);
             cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-weight: 500;
         ">
-            <span class="material-symbols-outlined">close</span>
+            ${renderIconMarkup('close')}
             Close
         </button>
     `;

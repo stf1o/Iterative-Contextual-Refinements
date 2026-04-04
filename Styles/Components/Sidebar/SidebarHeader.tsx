@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { mountProviderButtons, createPollingInterval } from './SidebarHeaderLogic';
+import { Icon } from '../../../UI/Icons';
 
 export const SidebarHeader: React.FC = () => {
     const buttonsContainerRef = useRef<HTMLDivElement>(null);
@@ -32,7 +33,7 @@ export const SidebarHeader: React.FC = () => {
                         aria-label="Toggle Theme"
                         title="Toggle Light/Dark Mode"
                     >
-                        <span className="material-symbols-outlined">light_mode</span>
+                        <Icon name="light_mode" />
                     </button>
                     <button
                         id="sidebar-collapse-button"
@@ -40,7 +41,7 @@ export const SidebarHeader: React.FC = () => {
                         aria-label="Collapse Sidebar"
                         title="Collapse Sidebar"
                     >
-                        <span className="material-symbols-outlined">dock_to_right</span>
+                        <Icon name="dock_to_right" />
                     </button>
                 </div>
             </div>

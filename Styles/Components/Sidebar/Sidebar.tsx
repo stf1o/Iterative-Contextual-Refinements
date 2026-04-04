@@ -5,6 +5,7 @@ import ModelParameters from './ModelParameters';
 import SidebarFooter from './SidebarFooter';
 import { FileUpload } from './FileUpload';
 import { AppMode, getShowFileUploadForMode, createModeChangeHandler, attachModeChangeListener } from './SidebarLogic';
+import { Icon } from '../../../UI/Icons';
 
 export const Sidebar: React.FC = () => {
     const [currentMode, setCurrentMode] = useState<AppMode>('deepthink');
@@ -65,12 +66,12 @@ export const Sidebar: React.FC = () => {
                     <div className="sidebar-section-content">
                         <div className="config-buttons-container" style={{ display: 'flex', gap: '1rem' }}>
                             <button id="export-config-button" className="button" type="button" onClick={() => import('../../../Core/App').then(m => m.App.handleExportConfig())}>
-                                <span className="material-symbols-outlined">upload</span>
+                                <Icon name="upload" />
                                 <span className="button-text">Export</span>
                             </button>
                             <input type="file" id="import-config-input" className="sr-only" accept=".json,.gz,.msgpack,.msgpack.gz" onChange={(e) => import('../../../Core/App').then(m => m.App.handleImportConfig(e.nativeEvent))} />
                             <label htmlFor="import-config-input" id="import-config-label" className="button" role="button" tabIndex={0}>
-                                <span className="material-symbols-outlined">download</span>
+                                <Icon name="download" />
                                 <span className="button-text">Import</span>
                             </label>
                         </div>

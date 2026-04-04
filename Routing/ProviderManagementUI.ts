@@ -4,6 +4,7 @@
  */
 
 import { ProviderManager, ProviderConfig } from './ProviderManager';
+import { renderIconMarkup } from '../UI/Icons';
 
 export class ProviderManagementUI {
     private providerManager: ProviderManager;
@@ -53,7 +54,7 @@ export class ProviderManagementUI {
         triggerButton.id = 'add-providers-trigger';
         triggerButton.className = 'add-providers-button';
         triggerButton.innerHTML = `
-            <span class="material-symbols-outlined">key</span>
+            ${renderIconMarkup('key_round')}
             <span>Providers</span>
         `;
 
@@ -62,7 +63,7 @@ export class ProviderManagementUI {
         promptsButton.id = 'prompts-trigger';
         promptsButton.className = 'prompts-button';
         promptsButton.innerHTML = `
-            <span class="material-symbols-outlined">edit</span>
+            ${renderIconMarkup('edit')}
             <span>Prompts</span>
         `;
 
@@ -93,11 +94,11 @@ export class ProviderManagementUI {
             <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="provider-management-title">
                 <header class="modal-header">
                     <h2 id="provider-management-title" class="modal-title">
-                        <span class="material-symbols-outlined">key</span>
+                        ${renderIconMarkup('key')}
                         Provider Management
                     </h2>
                     <button id="provider-management-close" class="modal-close-button" aria-label="Close Provider Management">
-                        <span class="material-symbols-outlined">close</span>
+                        ${renderIconMarkup('close')}
                     </button>
                 </header>
                 <div class="modal-body">
@@ -206,7 +207,7 @@ export class ProviderManagementUI {
             <div class="configured-content">
                 ${isLocal && provider.apiKey ? `
                     <div class="endpoint-info">
-                        <span class="material-symbols-outlined">link</span>
+                        ${renderIconMarkup('link')}
                         <span class="endpoint-url">Endpoint: ${provider.apiKey}</span>
                     </div>
                 ` : ''}
@@ -219,7 +220,7 @@ export class ProviderManagementUI {
                                 <span class="model-name">${model}</span>
                                 ${isLocal || !defaultModels.includes(model) ? `
                                     <button class="remove-model-btn" data-provider="${provider.name}" data-model="${model}">
-                                        <span class="material-symbols-outlined">close</span>
+                                        ${renderIconMarkup('close')}
                                     </button>
                                 ` : ''}
                             </div>
@@ -246,7 +247,7 @@ export class ProviderManagementUI {
                     </div>
                     ${isEnvironmentKey ? `
                         <div class="env-key-notice">
-                            <span class="material-symbols-outlined">info</span>
+                            ${renderIconMarkup('info')}
                             API key loaded from environment
                         </div>
                     ` : ''}
@@ -486,12 +487,12 @@ export class ProviderManagementUI {
             openrouter: '<img src="./Logos/Openrouter.png" alt="OpenRouter" class="provider-logo">',
             local: '<img src="./Logos/Local.png" alt="Local Models" class="provider-logo">'
         };
-        return icons[providerName] || '<span class="material-symbols-outlined">api</span>';
+        return icons[providerName] || renderIconMarkup('api');
     }
 
     private getDefaultModels(providerName: string): string[] {
         const defaultModels: Record<string, string[]> = {
-            gemini: ['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+            gemini: ['gemini-3-pro-preview', 'gemini-3-flash-preview',   'gemini-3.1-flash-lite-preview', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
             openrouter: ['deepseek/deepseek-chat-v3.1:free', 'deepseek/deepseek-r1-0528:free', 'qwen/qwen3-coder:free', 'z-ai/glm-4.5-air:free'],
             anthropic: ['claude-opus-4-1-20250805', 'claude-sonnet-4-20250514'],
             openai: ['o3-2025-04-16', 'gpt-5-2025-08-07', 'gpt-4.1-2025-04-14', 'gpt-5-mini-2025-08-07']

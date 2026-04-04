@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import './FileUpload.css';
+import { Icon } from '../../../UI/Icons';
 import {
     FileData,
     ACCEPTED_FILES,
@@ -50,19 +51,14 @@ const FilePreviewModal: React.FC<{
             <div className="file-preview-modal" onClick={e => e.stopPropagation()}>
                 <div className="preview-modal-header">
                     <div className="preview-file-info">
-                        <span
-                            className="material-symbols-outlined"
-                            style={{ color: config.color }}
-                        >
-                            {config.icon}
-                        </span>
+                        <Icon name={config.icon} style={{ color: config.color }} />
                         <span className="preview-file-name">{file.name}</span>
                         <span className="preview-file-badge" style={{ backgroundColor: `${config.color}20`, color: config.color }}>
                             {config.label}
                         </span>
                     </div>
                     <button className="preview-close-btn" onClick={onClose} title="Close (Esc)">
-                        <span className="material-symbols-outlined">close</span>
+                        <Icon name="close" />
                     </button>
                 </div>
 
@@ -102,16 +98,14 @@ const FilePreviewModal: React.FC<{
 
                     {!isImage(file.mimeType) && !isVideo(file.mimeType) && !isPdf(file.mimeType) && !isText(file.mimeType) && (
                         <div className="preview-unsupported">
-                            <span className="material-symbols-outlined" style={{ fontSize: '4rem', color: config.color }}>
-                                {config.icon}
-                            </span>
+                            <Icon name={config.icon} style={{ fontSize: '4rem', color: config.color }} />
                             <p>Preview not available for this file type</p>
                             <a
                                 href={`data:${file.mimeType};base64,${file.base64}`}
                                 download={file.name}
                                 className="preview-download-btn"
                             >
-                                <span className="material-symbols-outlined">download</span>
+                                <Icon name="download" />
                                 Download File
                             </a>
                         </div>
@@ -211,7 +205,7 @@ export const FileUpload: React.FC = () => {
 
                     {files.length === 0 ? (
                         <div className="drop-zone-content">
-                            <span className="material-symbols-outlined drop-icon">cloud_upload</span>
+                            <Icon name="cloud_upload" className="drop-icon" />
                             <div className="drop-text">
                                 <span className="drop-primary">Drop files here or click to upload</span>
                                 <span className="drop-secondary">Images, PDFs, Documents, Code, Video</span>
@@ -219,7 +213,7 @@ export const FileUpload: React.FC = () => {
                         </div>
                     ) : (
                         <div className="drop-zone-mini">
-                            <span className="material-symbols-outlined">add</span>
+                            <Icon name="add" />
                             <span>Add more files</span>
                         </div>
                     )}
@@ -230,14 +224,14 @@ export const FileUpload: React.FC = () => {
                         <div className="file-list-header">
                             <span className="file-count">{files.length} file{files.length !== 1 ? 's' : ''} • {formatFileSize(totalSize)}</span>
                             <button className="clear-all-btn" onClick={clearAll}>
-                                <span className="material-symbols-outlined">delete_sweep</span>
+                                <Icon name="delete_sweep" />
                                 Clear all
                             </button>
                         </div>
 
                         {sizeWarning && (
                             <div className="size-warning">
-                                <span className="material-symbols-outlined">warning</span>
+                                <Icon name="warning" />
                                 <span>Large upload ({formatFileSize(totalSize)}). Some providers may reject requests over 20MB.</span>
                             </div>
                         )}
@@ -257,7 +251,7 @@ export const FileUpload: React.FC = () => {
                                             onClick={(e) => removeFile(idx, e)}
                                             title="Remove file"
                                         >
-                                            <span className="material-symbols-outlined">close</span>
+                                            <Icon name="close" />
                                         </button>
 
                                         <div className="file-preview-thumb">
@@ -269,16 +263,11 @@ export const FileUpload: React.FC = () => {
                                                 />
                                             ) : (
                                                 <div className="file-icon-wrapper" style={{ backgroundColor: `${config.color}15` }}>
-                                                    <span
-                                                        className="material-symbols-outlined file-type-icon"
-                                                        style={{ color: config.color }}
-                                                    >
-                                                        {config.icon}
-                                                    </span>
+                                                    <Icon name={config.icon} className="file-type-icon" style={{ color: config.color }} />
                                                 </div>
                                             )}
                                             <div className="file-preview-overlay">
-                                                <span className="material-symbols-outlined">visibility</span>
+                                                <Icon name="visibility" />
                                             </div>
                                         </div>
 

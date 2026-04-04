@@ -5,12 +5,13 @@
 
 import React from 'react';
 import { AgenticState, AgenticMessage } from './AgenticCore';
-import { renderMathContent } from '../Styles/Components/RenderMathMarkdownLogic';
+import RenderMathMarkdown from '../Styles/Components/RenderMathMarkdown';
 import {
     getAdaptiveDeepthinkAgentDisplayName,
     getAdaptiveDeepthinkAgentIcon,
     isAdaptiveDeepthinkAgentTool
 } from '../AdaptiveDeepthink/AdaptiveDeepthinkAgentMeta';
+import { Icon, setIconSlot } from '../UI/Icons';
 
 interface AgenticUIProps {
     state: AgenticState;
@@ -19,10 +20,6 @@ interface AgenticUIProps {
 
 // Track multi-edit expansion state per message block across re-renders
 const multiEditExpansionState = new Map<string, boolean>();
-
-const MaterialIcon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
-    <span className={`material-symbols-outlined${className ? ` ${className}` : ''}`}>{name}</span>
-);
 
 function getToolResultSummary(toolName: string, result: string): string {
     // Extract meaningful counts from the actual results
@@ -67,10 +64,10 @@ function getToolResultSummary(toolName: string, result: string): string {
 export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) => {
     const getMessageIcon = () => {
         switch (message.role) {
-            case 'agent': return <MaterialIcon name="smart_toy" />;
-            case 'system': return message.status === 'error' ? <MaterialIcon name="warning" /> : <MaterialIcon name="check_circle" />;
-            case 'user': return <MaterialIcon name="person" />;
-            default: return <MaterialIcon name="person" />;
+            case 'agent': return <Icon name="smart_toy" />;
+            case 'system': return message.status === 'error' ? <Icon name="warning" /> : <Icon name="check_circle" />;
+            case 'user': return <Icon name="person" />;
+            default: return <Icon name="person" />;
         }
     };
 
@@ -169,7 +166,7 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
         return (
             <div className="arxiv-search-results">
                 <div className="arxiv-header">
-                    <MaterialIcon name="description" className="arxiv-icon" />
+                    <Icon name="description" className="arxiv-icon" />
                     <span>arXiv Search Results</span>
                     <span className="result-count">{totalCount} papers found</span>
                 </div>
@@ -182,19 +179,19 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
                                     <div className="paper-authors">{paper.authors}</div>
                                     <div className="paper-meta">
                                         <span className="paper-date">
-                                            <MaterialIcon name="event" className="meta-icon" />
+                                            <Icon name="event" className="meta-icon" />
                                             {paper.published}
                                         </span>
                                         <span className="paper-categories">
-                                            <MaterialIcon name="label" className="meta-icon" />
+                                            <Icon name="label" className="meta-icon" />
                                             {paper.categories}
                                         </span>
                                     </div>
                                 </div>
                                 <button className="expand-btn">
                                     {expandedPapers.has(paper.index)
-                                        ? <MaterialIcon name="keyboard_arrow_down" />
-                                        : <MaterialIcon name="chevron_right" />}
+                                        ? <Icon name="keyboard_arrow_down" />
+                                        : <Icon name="chevron_right" />}
                                 </button>
                             </div>
                             {expandedPapers.has(paper.index) && (
@@ -215,11 +212,11 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
                                     )}
                                     <div className="paper-links">
                                         <a href={paper.pdfUrl} target="_blank" rel="noopener noreferrer" className="paper-link pdf-link">
-                                            <MaterialIcon name="picture_as_pdf" className="link-icon" />
+                                            <Icon name="picture_as_pdf" className="link-icon" />
                                             PDF
                                         </a>
                                         <a href={paper.arxivUrl} target="_blank" rel="noopener noreferrer" className="paper-link arxiv-link">
-                                            <MaterialIcon name="open_in_new" className="link-icon" />
+                                            <Icon name="open_in_new" className="link-icon" />
                                             arXiv Page
                                         </a>
                                         <span className="paper-id">ID: {paper.arxivId}</span>
@@ -296,9 +293,9 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
                             <div key={op.idx} className={`operation-item ${op.isOk ? 'success' : op.isFail ? 'failure' : 'neutral'}`}>
                                 <div className="operation-status">
                                     {op.isOk ? (
-                                        <MaterialIcon name="check_circle" className="operation-status-icon" />
+                                        <Icon name="check_circle" className="operation-status-icon" />
                                     ) : op.isFail ? (
-                                        <MaterialIcon name="warning" className="operation-status-icon" />
+                                        <Icon name="warning" className="operation-status-icon" />
                                     ) : null}
                                 </div>
                                 <div className="operation-text">{[op.header, ...op.details].join(' ').replace(/\s+/g, ' ').trim()}</div>
@@ -319,9 +316,9 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
                 {message.segments.map((segment, idx) => {
                     if (segment.kind === 'text') {
                         return (
-                            <div key={`seg-${idx}`}
-                                className="agent-text-segment"
-                                dangerouslySetInnerHTML={{ __html: renderMathContent(segment.text) }} />
+                            <div key={`seg-${idx}`} className="agent-text-segment">
+                                <RenderMathMarkdown content={segment.text} />
+                            </div>
                         );
                     } else if (segment.kind === 'tool') {
                         // Render tool call indicator
@@ -351,7 +348,7 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
                         return (
                             <div key={`seg-${idx}`} className={`tool-call-indicator ${isDeepthinkTool ? 'deepthink-tool-indicator' : ''}`}>
                                 {isDeepthinkTool && agentIcon && (
-                                    <span className="material-symbols-outlined tool-indicator-icon">{agentIcon}</span>
+                                    <Icon name={agentIcon} className="tool-indicator-icon" />
                                 )}
                                 <span className="tool-name">{toolLabel}</span>
                             </div>
@@ -374,7 +371,7 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
                     if (block.kind === 'error') {
                         return (
                             <div key={`block-${idx}`} className="system-block error">
-                                <MaterialIcon name="warning" className="block-icon" />
+                                <Icon name="warning" className="block-icon" />
                                 <span>{block.message}</span>
                             </div>
                         );
@@ -384,7 +381,7 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
                             return (
                                 <div key={`block-${idx}`} className="tool-result deepthink-agent-result concise">
                                     <div className="tool-result-header deepthink-agent-header">
-                                        <MaterialIcon name="verified_user" className="deepthink-agent-icon" />
+                                        <Icon name="verified_user" className="deepthink-agent-icon" />
                                         <span>{getAdaptiveDeepthinkAgentDisplayName(block.tool)} completed</span>
                                     </div>
                                     <div className="tool-result-summary">
@@ -400,7 +397,7 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
                             return (
                                 <div key={`block-${idx}`} className="tool-result verifier-result">
                                     <div className="tool-result-header verifier-header">
-                                        <MaterialIcon name="verified_user" className="verifier-icon" />
+                                        <Icon name="verified_user" className="verifier-icon" />
                                         <span>Verification Report</span>
                                     </div>
                                     <CollapsibleContent content={block.result} maxLines={50} />
@@ -431,8 +428,9 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
                             return (
                                 <div key={`block-${idx}`} className="tool-result">
                                     <div className="tool-result-header">Tool Result: {block.tool}</div>
-                                    <div className="tool-result-content"
-                                        dangerouslySetInnerHTML={{ __html: renderMathContent(block.result) }} />
+                                    <div className="tool-result-content">
+                                        <RenderMathMarkdown content={block.result} />
+                                    </div>
                                 </div>
                             );
                         }
@@ -452,7 +450,7 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
         if (!needsCollapse || expanded) {
             return (
                 <div className="tool-result-content">
-                    <div dangerouslySetInnerHTML={{ __html: renderMathContent(content) }} />
+                    <RenderMathMarkdown content={content} />
                     {needsCollapse && (
                         <button className="action-btn" onClick={() => setExpanded(false)}>
                             Show less
@@ -465,7 +463,7 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
         const preview = lines.slice(0, maxLines).join('\n');
         return (
             <div className="tool-result-content">
-                <div dangerouslySetInnerHTML={{ __html: renderMathContent(preview) }} />
+                <RenderMathMarkdown content={preview} />
                 <div className="content-truncated">... {lines.length - maxLines} more lines ...</div>
                 <button className="action-btn" onClick={() => setExpanded(true)}>
                     Show all
@@ -490,11 +488,13 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
                 return (
                     <div className="tool-result verifier-result">
                         <div className="tool-result-header verifier-header">
-                            <MaterialIcon name="verified_user" className="verifier-icon" />
+                            <Icon name="verified_user" className="verifier-icon" />
                             <span>Verification Report</span>
                         </div>
                         <div className="verifier-content-wrapper">
-                            <div className="tool-result-content verifier-result-content" dangerouslySetInnerHTML={{ __html: renderMathContent(result) }} />
+                            <div className="tool-result-content verifier-result-content">
+                                <RenderMathMarkdown content={result} />
+                            </div>
                         </div>
                     </div>
                 );
@@ -503,7 +503,9 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
             return (
                 <div className="tool-result">
                     <div className="tool-result-header">Tool Result: {toolName}</div>
-                    <div className="tool-result-content" dangerouslySetInnerHTML={{ __html: renderMathContent(result) }} />
+                    <div className="tool-result-content">
+                        <RenderMathMarkdown content={result} />
+                    </div>
                 </div>
             );
         }
@@ -517,7 +519,7 @@ export const MessageCard: React.FC<{ message: AgenticMessage }> = ({ message }) 
             .replace(/\n{3,}/g, '\n\n')
             .trim();
 
-        return <div dangerouslySetInnerHTML={{ __html: renderMathContent(sanitized) }} />;
+        return <RenderMathMarkdown content={sanitized} />;
     };
 
     // Note: We intentionally do not render pre-execution tool/diff chips inside agent messages.
@@ -590,7 +592,7 @@ export const AgentActivityPanel: React.FC<{ state: AgenticState; onStop?: () => 
                 <h3>Agent Activity</h3>
                 {state.isProcessing && (
                     <button className="stop-button" onClick={onStop}>
-                        <MaterialIcon name="stop_circle" />
+                        <Icon name="stop_circle" />
                         Stop
                     </button>
                 )}
@@ -611,7 +613,7 @@ export const AgentActivityPanel: React.FC<{ state: AgenticState; onStop?: () => 
             </div>
             {state.error && (
                 <div className="error-message">
-                    <MaterialIcon name="warning" />
+                    <Icon name="warning" />
                     {state.error}
                 </div>
             )}
@@ -654,7 +656,7 @@ export const CurrentTextPanel: React.FC<{ content: string; state: AgenticState }
     };
 
     const renderContent = () => {
-        return <div dangerouslySetInnerHTML={{ __html: renderMathContent(content) }} />;
+        return <RenderMathMarkdown content={content} />;
     };
 
     return (
@@ -683,7 +685,7 @@ export const CurrentTextPanel: React.FC<{ content: string; state: AgenticState }
                                 onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
                                 onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
                             >
-                                <span className="material-symbols-outlined" style={{ fontSize: '1.1rem', lineHeight: 1 }}>dock_to_left</span>
+                                <Icon name="dock_to_left" style={{ fontSize: '1.1rem', lineHeight: 1 }} />
                             </button>
                             <div
                                 style={{
@@ -707,23 +709,23 @@ export const CurrentTextPanel: React.FC<{ content: string; state: AgenticState }
                         }}
                         title="View content evolution timeline (updates live)"
                     >
-                        <span className="material-symbols-outlined">movie</span>
+                        <Icon name="movie" />
                     </button>
                     <button
                         className="action-btn"
                         onClick={async (e) => {
                             const button = e.currentTarget;
-                            const icon = button.querySelector('.material-symbols-outlined');
+                            const icon = button.querySelector('.icon-slot');
 
                             try {
                                 await navigator.clipboard.writeText(content);
 
                                 if (icon) {
-                                    const originalIcon = icon.textContent;
-                                    icon.textContent = 'check';
+                                    const originalIcon = (icon as HTMLElement).dataset.iconName || 'content_copy';
+                                    setIconSlot(icon, 'check');
 
                                     setTimeout(() => {
-                                        icon.textContent = originalIcon;
+                                        setIconSlot(icon, originalIcon);
                                     }, 1500);
                                 }
                             } catch (err) {
@@ -732,7 +734,7 @@ export const CurrentTextPanel: React.FC<{ content: string; state: AgenticState }
                         }}
                         title="Copy current text"
                     >
-                        <span className="material-symbols-outlined">content_copy</span>
+                        <Icon name="content_copy" />
                     </button>
                 </div>
             </div>

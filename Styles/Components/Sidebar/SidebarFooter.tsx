@@ -1,6 +1,7 @@
 import React from 'react';
 import { ApplicationMode } from '../../../Core/Types';
 import { App } from '../../../Core/App';
+import { Icon } from '../../../UI/Icons';
 
 interface SidebarFooterProps {
     currentMode: ApplicationMode;
@@ -34,20 +35,20 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ currentMode }) => 
                     <span className="api-call-label">API Calls</span>
                 </div>
                 <span
-                    className="api-call-warning material-symbols-outlined"
+                    className="api-call-warning"
                     id="api-call-warning"
                     style={{ display: 'none' }}
                     title="Red Team enabled - may reduce calls"
                 >
-                    info
+                    <Icon name="info" />
                 </span>
                 <span
-                    className="api-call-warning material-symbols-outlined"
+                    className="api-call-warning"
                     id="api-call-pqf-warning"
                     style={{ display: 'none', marginLeft: '4px' }}
                     title="PQF Enabled - avg run to worst case"
                 >
-                    info
+                    <Icon name="info" />
                 </span>
             </div>
             <button

@@ -25,7 +25,7 @@
     box-shadow: 0 4px 12px rgba(var(--accent-purple-rgb), 0.25);
 }
 
-.view-evolution-header-button .material-symbols-outlined {
+.view-evolution-header-button .icon-slot {
     font-size: 1.1rem;
     color: var(--accent-purple);
 }
@@ -155,7 +155,7 @@
     transform: translateY(0);
 }
 
-.evolution-close-button .material-symbols-outlined {
+.evolution-close-button .icon-slot {
     font-size: 1.4rem;
     position: relative;
     z-index: 1;
@@ -776,7 +776,7 @@
     transform: translateY(-1px);
 }
 
-.hide-diff-button .material-symbols-outlined {
+.hide-diff-button .icon-slot {
     font-size: 1.35rem;
     position: relative;
     z-index: 1;
@@ -834,7 +834,7 @@
     transform: translateY(-1px);
 }
 
-.sequential-view-button .material-symbols-outlined {
+.sequential-view-button .icon-slot {
     font-size: 1.35rem;
     position: relative;
     z-index: 1;

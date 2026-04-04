@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { globalState } from '../../../Core/State';
 import { EvolutionMode, ApplicationMode } from '../../../Core/Types';
 import { EVOLUTION_OPTIONS, getEvolutionModeDescriptionText, handleEvolutionModeSelection } from './ModelParametersLogic';
+import { Icon } from '../../../UI/Icons';
 
 export const ModelParameters: React.FC = () => {
     const [currentMode, setCurrentMode] = useState<ApplicationMode>(globalState.currentMode as ApplicationMode);
@@ -71,7 +72,7 @@ export const ModelParameters: React.FC = () => {
 
                     <div className="evolution-convergence-container" style={{ display: currentMode === 'website' ? '' : 'none' }}>
                         <div className="evolution-convergence-header">
-                            <span className="material-symbols-outlined evolution-convergence-icon">manage_search</span>
+                            <Icon name="manage_search" className="evolution-convergence-icon" />
                             <span className="evolution-convergence-title">Iterative Evolutions Convergence</span>
                         </div>
                         <EvolutionModeSelector />
@@ -99,7 +100,7 @@ export const ModelParameters: React.FC = () => {
                     <div id="contextual-mode-controls" style={{ display: currentMode === 'contextual' ? '' : 'none' }}>
                         <div className="code-execution-container">
                             <div className="code-execution-header">
-                                <span className="material-symbols-outlined">code</span>
+                                <Icon name="code" />
                                 <span className="code-execution-title">Gemini Code Execution</span>
                             </div>
                             <div className="code-execution-toggle-row">

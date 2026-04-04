@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { ActionButtonGroup } from '../ActionButton';
+import RenderMathMarkdown from '../RenderMathMarkdown';
+import { Icon } from '../../../UI/Icons';
 import {
     DiffViewMode,
     DiffContentType,
@@ -11,8 +13,6 @@ import {
     generateUnifiedDiffHTML,
     generateSplitDiffHTML,
     applyDiffTheme,
-    renderMathIntoElement,
-    highlightCodeBlocks,
     extractIterationContent,
     resolveModalTitle,
     buildDiffTargetTree,
@@ -43,7 +43,7 @@ const DiffStats: React.FC<DiffStatsProps> = ({ added, removed, total }) => (
             <span>{removed} lines</span>
         </div>
         <div className="diff-stat-item diff-stat-total">
-            <span className="material-symbols-outlined">difference</span>
+            <Icon name="difference" />
             <span>{total} changes</span>
         </div>
     </div>
@@ -83,33 +83,31 @@ interface RenderedContentPanelProps {
 }
 
 const RenderedContentPanel: React.FC<RenderedContentPanelProps> = ({ id, content, className }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
+    const [shouldRender, setShouldRender] = useState(false);
 
     useEffect(() => {
-        const el = containerRef.current;
-        if (!el) return;
+        setShouldRender(false);
 
-        const idleCb = typeof requestIdleCallback !== 'undefined'
+        const schedule = typeof requestIdleCallback !== 'undefined'
             ? requestIdleCallback
-            : (fn: () => void) => setTimeout(fn, 16);
+            : (callback: IdleRequestCallback) => window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 } as IdleDeadline), 16);
 
-        // Defer ALL heavy work (markdown+math pipeline + Shiki) to idle time
-        // so the modal opens instantly without blocking the render thread.
-        const handle = idleCb(() => {
-            if (!el.isConnected) return;
-            renderMathIntoElement(el, content);
-            const codeBlocks = el.querySelectorAll('pre code');
-            if (codeBlocks.length > 0) highlightCodeBlocks(el);
-        });
+        const cancel = typeof cancelIdleCallback !== 'undefined'
+            ? cancelIdleCallback
+            : (handle: number) => window.clearTimeout(handle);
+
+        const handle = schedule(() => setShouldRender(true));
 
         return () => {
-            if (typeof cancelIdleCallback !== 'undefined' && typeof handle === 'number') {
-                cancelIdleCallback(handle);
-            }
+            cancel(handle as number);
         };
     }, [content]);
 
-    return <div id={id} ref={containerRef} className={`comparison-content custom-scrollbar ${className ?? ''}`} />;
+    return (
+        <div id={id} className={`comparison-content custom-scrollbar ${className ?? ''}`}>
+            {shouldRender && <RenderMathMarkdown content={content} />}
+        </div>
+    );
 };
 
 // ─── Instant Fixes Panel ──────────────────────────────────────────────────────
@@ -158,7 +156,7 @@ const InstantFixesPanel: React.FC<InstantFixesPanelProps> = ({
                     <div className="comparison-side">
                         <div className="preview-header">
                             <h4 className="comparison-title">
-                                <span className="material-symbols-outlined">psychology</span>
+                                <Icon name="psychology" />
                                 <span>{sourceTitle}</span>
                             </h4>
                             <ActionButtonGroup
@@ -172,7 +170,7 @@ const InstantFixesPanel: React.FC<InstantFixesPanelProps> = ({
                     <div className="comparison-side">
                         <div className="preview-header">
                             <h4 className="comparison-title">
-                                <span className="material-symbols-outlined">auto_fix_high</span>
+                                <Icon name="auto_fix_high" />
                                 <span>{targetTitle}</span>
                             </h4>
                             <ActionButtonGroup
@@ -208,7 +206,7 @@ const InstantFixesPanel: React.FC<InstantFixesPanelProps> = ({
                         <div className="preview-side">
                             <div className="preview-header">
                                 <h4 className="comparison-title">
-                                    <span className="material-symbols-outlined">psychology</span>
+                                    <Icon name="psychology" />
                                     <span>{sourceTitle}</span>
                                 </h4>
                                 <div className="preview-controls">
@@ -225,7 +223,7 @@ const InstantFixesPanel: React.FC<InstantFixesPanelProps> = ({
                         <div className="preview-side">
                             <div className="preview-header">
                                 <h4 className="comparison-title">
-                                    <span className="material-symbols-outlined">auto_fix_high</span>
+                                    <Icon name="auto_fix_high" />
                                     <span>{targetTitle}</span>
                                 </h4>
                                 <ActionButtonGroup type="target" view="preview" contentSource={() => targetContent} />
@@ -429,7 +427,7 @@ const DiffModal: React.FC<DiffModalProps> = ({
                                 className={`button diff-mode-button${diffMode === 'instant-fixes' ? ' active' : ''}`}
                                 onClick={() => handleDiffModeChange('instant-fixes')}
                             >
-                                <span className="material-symbols-outlined">auto_fix_high</span>
+                                <Icon name="auto_fix_high" />
                                 <span className="button-text">Instant Fixes</span>
                             </button>
                             <button
@@ -438,7 +436,7 @@ const DiffModal: React.FC<DiffModalProps> = ({
                                 style={{ display: diffMode === 'instant-fixes' ? 'flex' : 'none' }}
                                 onClick={() => handleInstantViewChange('diff-analysis')}
                             >
-                                <span className="material-symbols-outlined">difference</span>
+                                <Icon name="difference" />
                                 <span className="button-text">Diff Analysis</span>
                             </button>
                             <button
@@ -447,7 +445,7 @@ const DiffModal: React.FC<DiffModalProps> = ({
                                 style={{ display: diffMode === 'instant-fixes' ? 'flex' : 'none' }}
                                 onClick={() => handleInstantViewChange('preview')}
                             >
-                                <span className="material-symbols-outlined">preview</span>
+                                <Icon name="preview" />
                                 <span className="button-text">Preview</span>
                             </button>
                             <button
@@ -455,7 +453,7 @@ const DiffModal: React.FC<DiffModalProps> = ({
                                 className={`button diff-mode-button${diffMode === 'global-compare' ? ' active' : ''}`}
                                 onClick={() => handleDiffModeChange('global-compare')}
                             >
-                                <span className="material-symbols-outlined">compare</span>
+                                <Icon name="compare" />
                                 <span className="button-text">Global Compare</span>
                             </button>
                             <div
@@ -464,7 +462,7 @@ const DiffModal: React.FC<DiffModalProps> = ({
                                 style={{ display: diffMode === 'global-compare' || instantView === 'diff-analysis' ? 'flex' : 'none' }}
                             >
                                 <label htmlFor="diff-view-selector" className="diff-view-label">
-                                    <span className="material-symbols-outlined">view_column</span>
+                                    <Icon name="view_column" />
                                 </label>
                                 <select
                                     id="diff-view-selector"
@@ -478,7 +476,7 @@ const DiffModal: React.FC<DiffModalProps> = ({
                             </div>
                         </div>
                         <button className="modal-close-button" onClick={onClose}>
-                            <span className="material-symbols-outlined">close</span>
+                            <Icon name="close" />
                         </button>
                     </div>
                 </header>
@@ -497,7 +495,7 @@ const DiffModal: React.FC<DiffModalProps> = ({
                                 if (idx > 0) setCurrentIterationNumber(allIterNums[idx - 1]);
                             }}
                         >
-                            <span className="material-symbols-outlined">arrow_back</span>
+                            <Icon name="arrow_back" />
                         </button>
                         <button
                             id="next-iteration-button"
@@ -509,7 +507,7 @@ const DiffModal: React.FC<DiffModalProps> = ({
                                 if (idx < allIterNums.length - 1) setCurrentIterationNumber(allIterNums[idx + 1]);
                             }}
                         >
-                            <span className="material-symbols-outlined">arrow_forward</span>
+                            <Icon name="arrow_forward" />
                         </button>
                     </div>
                 </div>
@@ -595,7 +593,7 @@ const PromptDiffModal: React.FC<PromptDiffModalProps> = ({ originalPrompt, curre
                     </div>
                     <div className="modal-header-right">
                         <button className="modal-close-button" onClick={onClose}>
-                            <span className="material-symbols-outlined">close</span>
+                            <Icon name="close" />
                         </button>
                     </div>
                 </header>
