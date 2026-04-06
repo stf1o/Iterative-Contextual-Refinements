@@ -6,6 +6,24 @@
     gap: var(--gap-xs);
     /* 8px */
     align-items: center;
+    width: 100%;
+    min-width: 0;
+}
+
+.provider-buttons-container>* {
+    min-width: 0;
+}
+
+#provider-buttons-mount-point,
+.api-key-status-container {
+    display: flex;
+    min-width: 0;
+}
+
+.add-providers-button span,
+.prompts-button span {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Add Providers Button */
@@ -35,6 +53,7 @@
     width: auto;
     flex: 1;
     /* Match sidebar flexibility */
+    min-width: 0;
 }
 
 .add-providers-button:hover {
@@ -87,6 +106,7 @@
     text-decoration: none;
     letter-spacing: var(--letter-spacing-wide);
     width: auto;
+    min-width: 0;
 }
 
 .prompts-button:hover {

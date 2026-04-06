@@ -56,9 +56,80 @@ export function getCollapseButton(): HTMLElement | null {
     return document.getElementById('sidebar-collapse-button');
 }
 
+export function getMainHeaderContent(): HTMLElement | null {
+    return document.querySelector('.main-header-content');
+}
+
+export function resetSidebarCollapseButtonState(): void {
+    const collapseButton = getCollapseButton() as HTMLButtonElement | null;
+    if (!collapseButton) return;
+
+    collapseButton.disabled = false;
+    collapseButton.style.opacity = '';
+    collapseButton.style.cursor = '';
+    collapseButton.title = 'Collapse Sidebar';
+    collapseButton.setAttribute('aria-label', 'Collapse Sidebar');
+}
+
+export function disableSidebarCollapseButton(reason = 'Sidebar collapse disabled in this view'): void {
+    const collapseButton = getCollapseButton() as HTMLButtonElement | null;
+    if (!collapseButton) return;
+
+    collapseButton.disabled = true;
+    collapseButton.style.opacity = '0.35';
+    collapseButton.style.cursor = 'not-allowed';
+    collapseButton.title = reason;
+    collapseButton.setAttribute('aria-label', reason);
+}
+
 export function isSidebarCollapsed(): boolean {
     const sidebar = getSidebarElement();
     return sidebar?.classList.contains('collapsed') || false;
+}
+
+function isElementVisible(element: HTMLElement | null): boolean {
+    if (!element) return false;
+
+    const style = window.getComputedStyle(element);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+function hasInContentSidebarRestoreControl(): boolean {
+    switch (globalState.currentMode) {
+        case 'agentic':
+            return !!document.querySelector('.agentic-text-panel');
+        case 'contextual':
+            return !!document.querySelector('.contextual-text-panel');
+        case 'adaptive-deepthink':
+            return !!document.querySelector('.adaptive-deepthink-embedded-panel');
+        default:
+            return false;
+    }
+}
+
+export function getSidebarCollapseDisabledReason(): string | null {
+    if (isElementVisible(getMainHeaderContent())) {
+        return null;
+    }
+
+    if (hasInContentSidebarRestoreControl()) {
+        return null;
+    }
+
+    switch (globalState.currentMode) {
+        case 'deepthink':
+            return 'Sidebar collapse disabled in config view';
+        case 'agentic':
+            return 'Sidebar collapse disabled until an Agentic run is visible';
+        case 'contextual':
+            return 'Sidebar collapse disabled until a Contextual run is visible';
+        case 'adaptive-deepthink':
+            return 'Sidebar collapse disabled until an Adaptive Deepthink run is visible';
+        case 'website':
+            return 'Sidebar collapse disabled until the results header is visible';
+        default:
+            return 'Sidebar collapse is disabled in this view';
+    }
 }
 
 export function getTabsContainer(): HTMLElement | null {
@@ -103,7 +174,28 @@ export function ensureExpandButtonVisibility(): void {
     }
 }
 
+export function syncSidebarCollapseAvailability(): void {
+    const reason = getSidebarCollapseDisabledReason();
+
+    if (!reason) {
+        resetSidebarCollapseButtonState();
+        ensureExpandButtonVisibility();
+        return;
+    }
+
+    if (isSidebarCollapsed()) {
+        expandSidebar();
+    }
+
+    disableSidebarCollapseButton(reason);
+    ensureExpandButtonVisibility();
+}
+
 export function collapseSidebar(): void {
+    if (getSidebarCollapseDisabledReason()) {
+        return;
+    }
+
     const sidebar = getSidebarElement();
     if (sidebar) {
         sidebar.style.transition = 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
@@ -220,10 +312,26 @@ export function initializeTabsObserver(): void {
     const tabsContainer = getTabsContainer();
     if (tabsContainer) {
         const observer = new MutationObserver(() => {
-            ensureExpandButtonVisibility();
+            syncSidebarCollapseAvailability();
         });
         observer.observe(tabsContainer, { childList: true, subtree: true });
     }
+}
+
+export function initializeSidebarAvailabilityObserver(): void {
+    const mainContent = getMainContentElement();
+    if (!mainContent) return;
+
+    const observer = new MutationObserver(() => {
+        syncSidebarCollapseAvailability();
+    });
+
+    observer.observe(mainContent, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'class']
+    });
 }
 
 export function initializeLayoutController(): void {
@@ -232,10 +340,12 @@ export function initializeLayoutController(): void {
     initializeFullscreenEventListeners();
     initializeThemeFromStorage();
     initializeTabsObserver();
+    initializeSidebarAvailabilityObserver();
 
-    if (isSidebarCollapsed()) {
-        ensureExpandButtonVisibility();
-    }
+    (window as any).reinitializeSidebarControls = syncSidebarCollapseAvailability;
+    window.addEventListener('appModeChanged', syncSidebarCollapseAvailability);
+
+    syncSidebarCollapseAvailability();
 
     (window as any).pipelinesState = globalState.pipelinesState;
 }

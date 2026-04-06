@@ -16,6 +16,12 @@ export function setApiKeyManager(manager: ApiKeyManager) {
 export interface StructuredMessage {
     role: 'system' | 'assistant' | 'user';
     content: string;
+    /** Optional: raw Gemini Parts for model turns from code execution.
+     *  When set, AIProvider passes these directly to the API as the model history
+     *  instead of stringifying content — preserving inlineData images, executableCode,
+     *  codeExecutionResult, and thought_signature fields. Required by Gemini docs
+     *  for correct multi-turn code execution context. */
+    rawParts?: any[];
 }
 
 export async function callAI(

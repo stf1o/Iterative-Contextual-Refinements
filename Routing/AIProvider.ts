@@ -9,7 +9,11 @@ import Anthropic from "@anthropic-ai/sdk";
 
 export interface StructuredMessage {
     role: 'system' | 'assistant' | 'user';
-    content: string;  // Plain text only (thought signatures disabled for Gemini)
+    content: string;
+    /** Optional: raw Gemini Parts for model turns from code execution.
+     *  Passed directly to the API to preserve inlineData images, executableCode,
+     *  codeExecutionResult, and thought_signature for correct multi-turn context. */
+    rawParts?: any[];
 }
 
 export interface ThinkingConfig {
@@ -20,11 +24,20 @@ export interface ThinkingConfig {
 }
 
 // Models that require mandatory high thinking level
-const GEMINI_3_MODELS = [
+const THINKING_MODELS = [
+    // Gemini 3 family
     'gemini-3.1-pro-preview',
     'gemini-3-flash-preview',
     'gemini-3.1-flash-lite-preview',
+    // Gemma 4 family (all variants support thinking via API)
+    'gemma-4',
 ];
+
+// Helper to check if a model requires thinking level config
+function isThinkingModel(modelId: string): boolean {
+    return THINKING_MODELS.some(m => modelId.includes(m));
+}
+
 
 export interface AIProvider {
     initialize(apiKey: string): boolean;
@@ -57,6 +70,33 @@ function hasInlineData(part: any): part is { inlineData: { mimeType: string; dat
 // Helper to check if a Part contains text
 function hasText(part: any): part is { text: string } {
     return part && typeof part.text === 'string';
+}
+
+/**
+ * Sanitize Gemini contents array right before the API call.
+ * Walks every content entry and strips embedded base64 image data from text Parts.
+ * This is the single chokepoint that prevents token overflow from code execution
+ * images, regardless of which mode (Deepthink, Contextual, etc.) produced the text.
+ */
+function sanitizeContentsForApi(contents: any[]): any[] {
+    if (!Array.isArray(contents)) return contents;
+    return contents.map((entry: any) => {
+        if (!entry?.parts || !Array.isArray(entry.parts)) return entry;
+        const sanitizedParts = entry.parts.map((part: any) => {
+            // Only sanitize text parts; leave inlineData, executableCode, etc. untouched
+            if (part && typeof part.text === 'string' && part.text.includes('<!-- EXECUTION_IMAGE_START -->')) {
+                return {
+                    ...part,
+                    text: part.text.replace(
+                        /\n?<!-- EXECUTION_IMAGE_START -->\s*(?:<!-- MIME_TYPE:\s*\S+\s*-->\s*)?[\s\S]*?<!-- EXECUTION_IMAGE_END -->\n?/g,
+                        '\n[Code-generated image omitted from prompt]\n'
+                    )
+                };
+            }
+            return part;
+        });
+        return { ...entry, parts: sanitizedParts };
+    });
 }
 
 export class GoogleAIProvider implements AIProvider {
@@ -100,10 +140,20 @@ export class GoogleAIProvider implements AIProvider {
                     });
                 } else if (msg.role === 'assistant') {
                     // Assistant messages go to model role
-                    geminiContents.push({
-                        role: 'model',
-                        parts: [{ text: String(msg.content) }]
-                    });
+                    // If rawParts are present (code execution turn), pass them directly
+                    // This preserves inlineData images, executableCode, codeExecutionResult,
+                    // and thought_signature — required for correct multi-turn code execution.
+                    if (msg.rawParts && msg.rawParts.length > 0) {
+                        geminiContents.push({
+                            role: 'model',
+                            parts: msg.rawParts
+                        });
+                    } else {
+                        geminiContents.push({
+                            role: 'model',
+                            parts: [{ text: String(msg.content) }]
+                        });
+                    }
                 } else if (msg.role === 'user') {
                     geminiContents.push({
                         role: 'user',
@@ -144,19 +194,18 @@ export class GoogleAIProvider implements AIProvider {
         if (systemInstruction) config.systemInstruction = systemInstruction;
         if (isJsonOutput) config.responseMimeType = "application/json";
 
-        // Check if this is a Gemini 3 model that requires high thinking level
-        const isGemini3Model = GEMINI_3_MODELS.some(m => modelToUse.includes(m));
+        // Check if this is a model that supports/requires thinking level config
+        const requiresThinking = isThinkingModel(modelToUse);
 
         // Add thinking configuration
-        if (isGemini3Model) {
-            // Gemini 3 models: Use thinkingLevel (mandatory high) instead of thinkingBudget
-            // Per Gemini 3 API docs: thinking_level is required instead of thinking_budget
+        if (requiresThinking) {
+            // Gemini 3 and Gemma 4 models: Use thinkingLevel instead of thinkingBudget
             config.thinkingConfig = {
-                thinkingLevel: 'high'  // Mandatory high thinking for Gemini 3 models
+                thinkingLevel: thinkingConfig?.thinkingLevel || 'high'
             };
-            console.log('🧠 Gemini 3 Model Detected: Enforcing thinkingLevel=high');
+            console.log(`🧠 Thinking Model Detected (${modelToUse}): Enforcing thinkingLevel=${config.thinkingConfig.thinkingLevel}`);
         } else if (thinkingConfig?.thinkingLevel) {
-            // Gemini 3 with explicit thinkingLevel (though we enforce high for Gemini 3)
+            // Explicit thinkingLevel override for any model
             config.thinkingConfig = {
                 thinkingLevel: thinkingConfig.thinkingLevel
             };
@@ -183,7 +232,7 @@ export class GoogleAIProvider implements AIProvider {
 
         const requestOptions: any = {
             model: modelToUse,
-            contents: contents,
+            contents: sanitizeContentsForApi(contents),
             config: config
         };
 

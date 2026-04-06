@@ -6,9 +6,6 @@ import { createDefaultCustomPromptsAdaptiveDeepthink } from '../AdaptiveDeepthin
 import { createDefaultCustomPromptsContextual } from '../Contextual/ContextualPrompts';
 import { AGENTIC_SYSTEM_PROMPT } from '../Agentic/AgenticModePrompt';
 
-export const NUM_INITIAL_STRATEGIES_DEEPTHINK = 3;
-export const NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK = 3;
-
 class GlobalStateManager {
     currentMode: ApplicationMode = 'deepthink';
     currentEvolutionMode: 'off' | 'novelty' | 'quality' = 'novelty';
@@ -28,10 +25,11 @@ class GlobalStateManager {
     geminiCodeExecutionEnabled: boolean = false;
 
     customPromptsWebsiteState = defaultCustomPromptsWebsite;
-    customPromptsDeepthinkState = createDefaultCustomPromptsDeepthink(NUM_INITIAL_STRATEGIES_DEEPTHINK, NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK);
+    customPromptsDeepthinkState = createDefaultCustomPromptsDeepthink();
     customPromptsAgenticState = { systemPrompt: AGENTIC_SYSTEM_PROMPT };
     customPromptsAdaptiveDeepthinkState = createDefaultCustomPromptsAdaptiveDeepthink();
     customPromptsContextualState = createDefaultCustomPromptsContextual();
 }
 
 export const globalState = new GlobalStateManager();
+

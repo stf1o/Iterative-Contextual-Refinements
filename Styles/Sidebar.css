@@ -1,4 +1,6 @@
 .sidebar-header {
+    flex-shrink: 0;
+    min-width: 0;
     padding-bottom: var(--space-5);
     /* 20px */
     border-bottom: 1px solid var(--sub-panel-border-color);
@@ -11,6 +13,20 @@
     justify-content: space-between;
     align-items: center;
     gap: var(--gap-md);
+    width: 100%;
+    min-width: 0;
+}
+
+.sidebar-provider-actions {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.sidebar-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 /* Shared Sidebar Button Styles */
@@ -38,6 +54,15 @@ body.light-mode .sidebar-collapse-button:hover {
 body.light-mode .sidebar-collapse-button:hover {
     background: rgba(0, 0, 0, 0.05);
     border-color: rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-collapse-button:disabled,
+.sidebar-collapse-button:disabled:hover,
+.sidebar-collapse-button:disabled:focus-visible {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    transform: none !important;
 }
 
 .theme-toggle-button {
@@ -107,18 +132,23 @@ body.light-mode .sidebar-expand-button .icon-slot {
 }
 
 .sidebar-content {
-    flex-grow: 1;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-section-sm);
+    min-width: 0;
+    min-height: 0;
     /* 24px */
     overflow-y: auto;
-    padding-right: var(--space-3);
-    /* 12px */
-    /* for scrollbar */
+    overflow-x: hidden;
+    padding-right: var(--space-2);
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
 }
 
 .sidebar-footer {
+    flex-shrink: 0;
+    min-width: 0;
     padding-top: var(--space-5);
     /* 20px */
     margin-top: var(--space-2);
@@ -142,6 +172,17 @@ body.light-mode .sidebar-expand-button .icon-slot {
     gap: var(--gap-md);
 }
 
+.sidebar-content>*,
+.sidebar-section,
+details.sidebar-section,
+.sidebar-section-content,
+.input-group,
+.input-group-tight,
+.radio-group-modern,
+.radio-group-full-width-row {
+    min-width: 0;
+}
+
 /* API Call Indicator - Compact Design */
 .api-call-indicator {
     display: flex;
@@ -157,6 +198,8 @@ body.light-mode .sidebar-expand-button .icon-slot {
     transition: all 0.3s ease;
     cursor: default;
     user-select: none;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .api-call-indicator:hover {
@@ -344,6 +387,7 @@ details[open]>summary.sidebar-section-header {
     font-weight: 500;
     color: var(--text-secondary-color);
     overflow: hidden;
+    min-width: 0;
 }
 
 .radio-label-modern input[type="radio"] {
@@ -356,6 +400,8 @@ details[open]>summary.sidebar-section-header {
 .radio-label-modern span {
     position: relative;
     z-index: 2;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 /* Hover State */
@@ -458,6 +504,8 @@ body.light-mode .radio-label-modern:hover {
     align-items: center;
     gap: var(--space-3);
     margin-bottom: var(--space-2);
+    min-width: 0;
+    flex-wrap: wrap;
 }
 
 .toggle-label {

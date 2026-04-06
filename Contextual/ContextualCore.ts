@@ -21,7 +21,11 @@ export interface ContentHistoryEntry {
  */
 export interface HistoryMessage {
     role: 'system' | 'assistant' | 'user';
-    content: string;  // Plain text only (thought signatures disabled for Gemini)
+    content: string;  // Plain text (for non-code-execution turns or display)
+    /** Optional: raw Gemini response parts for code execution model turns.
+     *  When present, passed directly to AIProvider as rawParts so images/code output
+     *  travel as native inlineData Parts, not base64 text tokens. */
+    rawParts?: any[];
 }
 
 export interface ContextualState {
@@ -122,11 +126,11 @@ export class MainGeneratorHistoryManager {
      * @param generation - Text content of the generation
      * @param iterationNumber - Current iteration number
      */
-    async addGeneration(generation: string, iterationNumber: number): Promise<void> {
-        // Store as plain text (thought signatures disabled for Gemini)
+    async addGeneration(generation: string, iterationNumber: number, rawParts?: any[]): Promise<void> {
         this.conversationHistory.push({
             role: 'assistant',
-            content: generation
+            content: generation,
+            rawParts  // Carries raw Gemini Parts when code execution was used
         });
         this.turnsSinceLastCondense++;
 
@@ -299,10 +303,11 @@ export class IterativeAgentHistoryManager {
      * @param generation - Text content of the generation
      * @param iterationNumber - Current iteration number
      */
-    async addFixedGeneration(generation: string, iterationNumber: number): Promise<void> {
+    async addFixedGeneration(generation: string, iterationNumber: number, rawParts?: any[]): Promise<void> {
         this.conversationHistory.push({
             role: 'user',
-            content: generation
+            content: generation,
+            rawParts  // Carries raw Gemini Parts when code execution was used
         });
 
         // Update the generation for the last iteration
@@ -567,10 +572,11 @@ export class StrategicPoolAgentHistoryManager {
      * Adds strategic pool to history as plain text (thought signatures disabled)
      * @param strategicPool - Text content of the strategic pool
      */
-    async addStrategicPool(strategicPool: string): Promise<void> {
+    async addStrategicPool(strategicPool: string, rawParts?: any[]): Promise<void> {
         this.conversationHistory.push({
             role: 'assistant',
-            content: strategicPool
+            content: strategicPool,
+            rawParts  // Carries raw Gemini Parts from code execution for multi-turn context
         });
         this.allStrategicPools.push(strategicPool);
     }
@@ -782,7 +788,9 @@ async function runContextualLoop() {
             };
             activeContextualState.messages.push(mainMsg);
 
-            await mainGeneratorManager.addGeneration(mainGeneration, activeContextualState.iterationCount);
+            // Pass raw Gemini Parts so images from code execution travel as vision inputs in history
+            const mainRawParts = mainGenerationResult.geminiContent?.parts;
+            await mainGeneratorManager.addGeneration(mainGeneration, activeContextualState.iterationCount, mainRawParts);
 
             if (onContentUpdated) {
                 try { onContentUpdated(mainGeneration); } catch { }
@@ -872,11 +880,14 @@ async function runContextualLoop() {
                 strategicPool
             ].join('\n');
 
+            // Pass raw Gemini Parts for iterativeAgent fixed generation
+            const stratRawParts = strategicPoolResult.geminiContent?.parts;
             await mainGeneratorManager.addIterativeResponse(combinedCritique, activeContextualState.iterationCount);
             await mainGeneratorManager.addIterativeSuggestion(combinedCritique);
-            await iterativeAgentManager.addFixedGeneration(mainGeneration, activeContextualState.iterationCount);
+            await iterativeAgentManager.addFixedGeneration(mainGeneration, activeContextualState.iterationCount, mainRawParts);
             await iterativeAgentManager.addSuggestion(suggestions, activeContextualState.iterationCount);
             await iterativeAgentManager.addIterativeSuggestion(suggestions);
+            await strategicPoolAgentManager.addStrategicPool(strategicPool, stratRawParts);
 
             activeContextualState.isProcessing = false;
             if (onStateUpdated) onStateUpdated({ ...activeContextualState });

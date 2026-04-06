@@ -168,15 +168,7 @@ export const RED_TEAM_AGGRESSIVENESS_LEVELS = {
 };
 
 // Function to create default Deepthink prompts (generalized version of Math mode)
-export function createDefaultCustomPromptsDeepthink(
-  _NUM_INITIAL_STRATEGIES_DEEPTHINK: number = 3,
-  _NUM_SUB_STRATEGIES_PER_MAIN_DEEPTHINK: number = 3,
-  _NUM_HYPOTHESES: number = 4,
-  _RED_TEAM_AGGRESSIVENESS: string = "balanced"
-): CustomizablePromptsDeepthink {
-  // Note: These parameters are no longer used in templates.
-  // Counts and aggressiveness are now injected at runtime via {{PLACEHOLDER}} substitution
-  // in DeepthinkCore.ts, using the user's current slider/toggle values.
+export function createDefaultCustomPromptsDeepthink(): CustomizablePromptsDeepthink {
 
   return {
     // ==================================================================================

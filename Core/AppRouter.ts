@@ -6,6 +6,7 @@
 import { globalState } from './State';
 import { routingManager } from '../Routing';
 import { updateEvolutionModeDescription } from '../UI/CommonUI';
+import { resetSidebarCollapseButtonState } from '../UI/LayoutController';
 import {
     ensureAdaptiveDeepthinkInitialized,
     ensureAgenticInitialized,

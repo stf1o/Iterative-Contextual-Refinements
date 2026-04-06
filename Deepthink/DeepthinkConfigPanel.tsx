@@ -11,6 +11,7 @@ import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { getDeepthinkConfigController } from '../Routing';
 import { Icon } from '../UI/Icons';
+import { disableSidebarCollapseButton } from '../UI/LayoutController';
 
 export interface DeepthinkConfigPanelProps {
     strategiesCount: number;
@@ -551,14 +552,7 @@ export function renderDeepthinkConfigPanelInContainer(pipelinesContentContainer:
     const mainHeaderContent = document.querySelector('.main-header-content') as HTMLElement;
     if (mainHeaderContent) mainHeaderContent.style.display = 'none';
 
-    // Disable sidebar collapse button
-    const sidebarCollapseButton = document.getElementById('sidebar-collapse-button') as HTMLButtonElement;
-    if (sidebarCollapseButton) {
-        sidebarCollapseButton.disabled = true;
-        sidebarCollapseButton.style.opacity = '0.3';
-        sidebarCollapseButton.style.cursor = 'not-allowed';
-        sidebarCollapseButton.title = 'Sidebar collapse disabled in config view';
-    }
+    disableSidebarCollapseButton('Sidebar collapse disabled in config view');
 
     // Unmount explicitly if the DOM node was wiped by the AppRouter
     if (configPanelRoot && configPanelContainerNode && !document.contains(configPanelContainerNode)) {

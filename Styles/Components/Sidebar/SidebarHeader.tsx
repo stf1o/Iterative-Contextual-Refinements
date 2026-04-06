@@ -22,11 +22,11 @@ export const SidebarHeader: React.FC = () => {
             <div className="sidebar-header-content">
                 <div
                     id="provider-buttons-mount-point"
-                    className="api-key-status-container"
+                    className="api-key-status-container sidebar-provider-actions"
                     ref={buttonsContainerRef}
                 >
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <div className="sidebar-header-actions">
                     <button
                         id="theme-toggle-button"
                         className="theme-toggle-button"
