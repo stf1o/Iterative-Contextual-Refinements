@@ -210,7 +210,7 @@
     display: flex;
     align-items: center;
     gap: 1.5rem;
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif !important;
+    font-family: var(--font-family) !important;
     font-size: 0.85rem;
     font-weight: 500;
     opacity: 0;
@@ -312,7 +312,7 @@
     border-radius: 18px;
     font-weight: 500;
     font-size: 0.85rem;
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-family: var(--font-family);
     cursor: pointer;
     gap: 0.4rem;
     transition: all 0.2s ease;
@@ -484,7 +484,7 @@
     padding: 0.2rem 0.25rem 0 0;
     overflow-y: auto;
     overflow-x: hidden;
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-family: var(--font-family);
     font-size: 1rem;
     line-height: 1.7;
     color: var(--text-color);
@@ -652,7 +652,7 @@
 .diff-viewer-container {
     flex: 1;
     overflow-y: auto;
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-family: var(--font-family);
     font-size: 1.1rem;
     line-height: 2.2;
     background-color: rgba(var(--bg-color-rgb), 0.7);
@@ -759,7 +759,7 @@
 #diff-viewer-panel {
     flex-grow: 1;
     overflow: auto;
-    font-family: 'SF Pro Display', var(--font-family);
+    font-family: var(--font-family);
     font-size: 0.9rem;
     background-color: var(--card-bg-color);
     border: 1px solid var(--border-color);
@@ -771,7 +771,7 @@
 #instant-fixes-diff-viewer {
     flex-grow: 1;
     overflow: auto;
-    font-family: 'SF Pro Display', var(--font-family);
+    font-family: var(--font-family);
     font-size: 0.9rem;
     background-color: var(--card-bg-color);
     border: 1px solid var(--border-color);
@@ -900,7 +900,7 @@
 .diff-view-unified .diff-pane {
     flex: 1;
     overflow: auto;
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-family: var(--font-family);
     font-size: 1.1rem;
     line-height: 2.2;
     background-color: var(--bg-color);
@@ -935,7 +935,7 @@
 /* diff2html Custom Theme Overrides - Maximum Specificity */
 #diff-viewer-panel .d2h-wrapper,
 #instant-fixes-diff-viewer .d2h-wrapper {
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif !important;
+    font-family: var(--font-family) !important;
 }
 
 /* Override diff2html file wrapper */
@@ -948,7 +948,7 @@
 /* Table styling */
 #diff-viewer-panel .d2h-diff-table,
 #instant-fixes-diff-viewer .d2h-diff-table {
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif !important;
+    font-family: var(--font-family) !important;
     font-size: 0.95rem !important;
     line-height: 1.7 !important;
 }
@@ -1148,7 +1148,7 @@
     background: transparent;
     border: none;
     color: var(--text-primary-color);
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-family: var(--font-family);
     font-size: 0.85rem;
     font-weight: 500;
     cursor: pointer;

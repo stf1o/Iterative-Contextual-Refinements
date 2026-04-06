@@ -6,6 +6,8 @@
     --font-size-xl: 24px;
     --font-size-2xl: 30px;
     --font-size-lg: 20px;
+    --render-math-code-block-font-size: 17px;
+    --render-math-code-block-line-height: 1.7;
     --line-height-loose: 1.6;
     --line-height-heading: 1.4;
 
@@ -362,7 +364,7 @@
     background: linear-gradient(135deg, rgba(255, 128, 128, 0.1), rgba(255, 128, 128, 0.05));
     border: 1px solid rgba(255, 128, 128, 0.2);
     border-radius: 16px;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: var(--font-family-mono);
     font-size: 0.9em;
     color: #ff8080;
     position: relative;
@@ -497,9 +499,9 @@
 }
 
 .code-block-content :where(pre, code, .shiki) {
-    font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace !important;
-    font-size: 13.5px !important;
-    line-height: 1.65 !important;
+    font-family: var(--font-family-mono) !important;
+    font-size: var(--render-math-code-block-font-size) !important;
+    line-height: var(--render-math-code-block-line-height) !important;
 }
 
 .render-math-markdown .code-block-container .code-block-content > pre > code,
@@ -778,9 +780,9 @@ body.light-mode .latex-content-wrapper a::after {
     background: transparent !important;
     border: none !important;
     border-radius: 0 !important;
-    font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace !important;
-    font-size: 13.5px !important;
-    line-height: 1.65 !important;
+    font-family: var(--font-family-mono) !important;
+    font-size: var(--render-math-code-block-font-size) !important;
+    line-height: var(--render-math-code-block-line-height) !important;
     color: #cbd5e1 !important;
     white-space: pre !important;
     overflow-x: auto !important;
@@ -861,7 +863,7 @@ body.light-mode .latex-content-wrapper a::after {
     text-align: center;
     color: #f87171;
     background: rgba(239, 68, 68, 0.05);
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-family-mono);
     font-size: 12px;
     border: 1px dashed rgba(239, 68, 68, 0.3);
     border-radius: 10px;
@@ -933,7 +935,7 @@ body.light-mode .exec-image-error {
     border: 1px dashed rgba(239, 68, 68, 0.3);
     border-radius: 4px;
     color: #f87171;
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-family-mono);
     font-size: 12px;
 }
 
@@ -943,7 +945,7 @@ body.light-mode .exec-image-error {
     border: 1px dashed rgba(239, 68, 68, 0.3);
     border-radius: 4px;
     color: #f87171;
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-family-mono);
     font-size: 12px;
     display: inline-block;
 }

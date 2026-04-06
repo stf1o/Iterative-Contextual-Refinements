@@ -380,7 +380,7 @@
 
 /* Diff view styles */
 .diff-view {
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+    font-family: var(--font-family-mono);
     font-size: 0.9rem;
     line-height: 1.6;
     overflow-x: auto;

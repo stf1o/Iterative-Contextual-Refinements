@@ -31,7 +31,7 @@ body.light-mode .shiki span {
     border-radius: 8px;
     overflow-x: auto;
     margin: 0;
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', 'Droid Sans Mono', 'Source Code Pro', monospace;
+    font-family: var(--font-family-mono);
     font-size: 0.875rem;
     line-height: 1.45;
     /* Reduced from 1.6 for tighter lines */

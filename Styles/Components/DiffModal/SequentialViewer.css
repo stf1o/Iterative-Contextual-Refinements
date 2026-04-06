@@ -271,7 +271,7 @@
     flex: 1;
     overflow-y: auto;
     padding: 1.5rem;
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-family: var(--font-family);
     font-size: 0.95rem;
     line-height: 1.6;
 }
@@ -288,7 +288,7 @@
 /* Content Styling */
 .sequential-content-display pre,
 .sequential-content-display code {
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-family: var(--font-family);
     margin: 0;
     white-space: pre-wrap;
     word-break: break-word;

@@ -80,7 +80,7 @@
     background: rgba(18, 18, 18, 0.8);
     padding: 1rem;
     border-radius: var(--border-radius-sm);
-    font-family: monospace;
+    font-family: var(--font-family-mono);
     font-size: 0.9rem;
     color: #e0e0e0;
     overflow-x: auto;
@@ -581,7 +581,7 @@
     border: 1px solid var(--border-color);
     border-radius: 16px;
     padding: 16px;
-    font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+    font-family: var(--font-family-mono);
     font-size: 13px;
     line-height: 1.4;
     color: var(--text-secondary);

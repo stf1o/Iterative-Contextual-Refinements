@@ -18,6 +18,18 @@ const EXECUTION_SEGMENT_PATTERN = /<!-- CODE_EXECUTION_START -->[\s\S]*?<!-- COD
 const CODE_EXECUTION_PATTERN = /^<!-- CODE_EXECUTION_START -->\s*\n?<!-- LANGUAGE: ([^\n]+?) -->\s*\n?```[^\n]*\n([\s\S]*?)\n```\s*\n?<!-- CODE_EXECUTION_END -->$/;
 const EXECUTION_OUTPUT_PATTERN = /^<!-- EXECUTION_OUTPUT_START -->\s*\n?```\n?([\s\S]*?)\n?```\s*\n?<!-- EXECUTION_OUTPUT_END -->$/;
 const EXECUTION_IMAGE_PATTERN = /^<!-- EXECUTION_IMAGE_START -->\s*\n?<!-- MIME_TYPE: ([^\s]+) -->\s*\n?([\s\S]*?)\n?<!-- EXECUTION_IMAGE_END -->$/;
+const EXECUTION_COMMENT_MARKERS = new Set([
+    'CODE_EXECUTION_START',
+    'CODE_EXECUTION_END',
+    'EXECUTION_OUTPUT_START',
+    'EXECUTION_OUTPUT_END',
+    'EXECUTION_IMAGE_START',
+    'EXECUTION_IMAGE_END',
+]);
+const EXECUTION_COMMENT_PREFIXES = [
+    'LANGUAGE:',
+    'MIME_TYPE:',
+];
 
 type ExecutionImageItem =
     | {
@@ -208,15 +220,59 @@ function parseExecutionSegment(match: string): RenderSegment | null {
 }
 
 function pushMarkdownSegment(segments: RenderSegment[], content: string) {
-    if (!content) return;
+    const cleanedContent = stripExecutionMarkerComments(content);
+    if (!cleanedContent) return;
 
     const previousSegment = segments[segments.length - 1];
     if (previousSegment?.kind === 'markdown') {
-        previousSegment.content += content;
+        previousSegment.content += cleanedContent;
         return;
     }
 
-    segments.push({ kind: 'markdown', content });
+    segments.push({ kind: 'markdown', content: cleanedContent });
+}
+
+function isExecutionMarkerComment(commentBody: string): boolean {
+    const trimmedComment = commentBody.trim();
+    if (EXECUTION_COMMENT_MARKERS.has(trimmedComment)) {
+        return true;
+    }
+
+    return EXECUTION_COMMENT_PREFIXES.some((prefix) => trimmedComment.startsWith(prefix));
+}
+
+function stripExecutionMarkerComments(content: string): string {
+    if (!content.includes('<!--')) {
+        return content;
+    }
+
+    let cleanedContent = '';
+    let currentIndex = 0;
+
+    while (currentIndex < content.length) {
+        const commentStart = content.indexOf('<!--', currentIndex);
+        if (commentStart === -1) {
+            cleanedContent += content.slice(currentIndex);
+            break;
+        }
+
+        const commentEnd = content.indexOf('-->', commentStart + 4);
+        if (commentEnd === -1) {
+            cleanedContent += content.slice(currentIndex);
+            break;
+        }
+
+        cleanedContent += content.slice(currentIndex, commentStart);
+
+        const commentBody = content.slice(commentStart + 4, commentEnd);
+        if (!isExecutionMarkerComment(commentBody)) {
+            cleanedContent += content.slice(commentStart, commentEnd + 3);
+        }
+
+        currentIndex = commentEnd + 3;
+    }
+
+    return cleanedContent;
 }
 
 function isStandaloneHtmlDocument(content: string): boolean {

@@ -86,10 +86,11 @@ export function applyCustomThemeToD2H(container: HTMLElement) {
 export function addDarkThemeStyles(htmlContent: string): string {
     const darkThemeCSS = `
         <style>
+            @import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
             body {
                 background-color: #1a1a1a !important;
                 color: #e0e0e0 !important;
-                font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif !important;
+                font-family: 'Google Sans', 'Google Sans Flex', sans-serif !important;
             }
             * {
                 color: #e0e0e0 !important;
