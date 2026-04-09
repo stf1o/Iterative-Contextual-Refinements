@@ -6,6 +6,12 @@
 import { GoogleGenAI, GenerateContentResponse, Part } from "@google/genai";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import { 
+    estimateMessagesTokens, 
+    getModelTokenLimit, 
+    compressIterations,
+    TokenLimitExceededError 
+} from './TokenManager';
 
 export interface StructuredMessage {
     role: 'system' | 'assistant' | 'user';
@@ -235,6 +241,31 @@ export class GoogleAIProvider implements AIProvider {
             contents: sanitizeContentsForApi(contents),
             config: config
         };
+
+        // Token limit validation and compression
+        const tokenLimit = getModelTokenLimit(modelToUse);
+        const estimatedTokens = estimateMessagesTokens(
+            contents.flatMap((c: any) => 
+                c.parts?.map((p: any) => ({ role: c.role, content: p.text || '' })) || []
+            ).filter((m: any) => m.content)
+        );
+        
+        console.log(`📊 Token Estimation: ${estimatedTokens} / ${tokenLimit} (${((estimatedTokens/tokenLimit)*100).toFixed(1)}%)`);
+        
+        // If approaching limit (>85%), log warning
+        if (estimatedTokens > tokenLimit * 0.85) {
+            console.warn(`⚠️ WARNING: Approaching token limit (${((estimatedTokens/tokenLimit)*100).toFixed(1)}% used). Consider reducing context.`);
+        }
+        
+        // If exceeding limit, throw error with helpful message
+        if (estimatedTokens > tokenLimit) {
+            throw new TokenLimitExceededError(
+                estimatedTokens,
+                tokenLimit,
+                modelToUse,
+                `Context size (${estimatedTokens} tokens) exceeds model limit (${tokenLimit} tokens). Please reduce the conversation history or use compression strategies.`
+            );
+        }
 
         // DEBUG: Log the full request to verify code execution is included
         console.group('🚀 GEMINI API REQUEST DEBUG');

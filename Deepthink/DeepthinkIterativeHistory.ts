@@ -8,6 +8,7 @@
 
 import { ChatMessageHistory } from "@langchain/community/stores/message/in_memory";
 import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
+import { compressIterations, buildReducedContext } from '../Routing/TokenManager';
 
 // ========== SHARED HELPERS ==========
 
