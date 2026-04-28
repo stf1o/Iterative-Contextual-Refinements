@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { mountProviderButtons, createPollingInterval } from './SidebarHeaderLogic';
 import { Icon } from '../../../UI/Icons';
 
-export const SidebarHeader: React.FC = () => {
+export const SidebarHeader: React.FC<{ onToggleConsoleLog?: () => void }> = ({ onToggleConsoleLog }) => {
     const buttonsContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -27,6 +27,15 @@ export const SidebarHeader: React.FC = () => {
                 >
                 </div>
                 <div className="sidebar-header-actions">
+                    <button
+                        id="console-log-toggle-button"
+                        className="console-log-toggle-button"
+                        aria-label="Toggle Console Log"
+                        title="Show/Hide Live Console Log"
+                        onClick={onToggleConsoleLog}
+                    >
+                        <Icon name="terminal" />
+                    </button>
                     <button
                         id="theme-toggle-button"
                         className="theme-toggle-button"
