@@ -7,7 +7,7 @@ import { FileUpload } from './FileUpload';
 import { AppMode, getShowFileUploadForMode, createModeChangeHandler, attachModeChangeListener } from './SidebarLogic';
 import { Icon } from '../../../UI/Icons';
 
-export const Sidebar: React.FC = () => {
+export const Sidebar: React.FC<{ onToggleConsoleLog?: () => void }> = ({ onToggleConsoleLog }) => {
     const [currentMode, setCurrentMode] = useState<AppMode>('deepthink');
 
     useEffect(() => {
@@ -41,7 +41,7 @@ export const Sidebar: React.FC = () => {
 
     return (
         <aside id="controls-sidebar" className="inspector-panel custom-scrollbar" aria-labelledby="controls-sidebar-heading">
-            <SidebarHeader />
+            <SidebarHeader onToggleConsoleLog={onToggleConsoleLog} />
 
             <div className="sidebar-content">
                 <div className="input-group">
