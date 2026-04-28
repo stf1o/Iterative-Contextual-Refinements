@@ -29,6 +29,41 @@
     flex-shrink: 0;
 }
 
+/* Console Log Toggle Button */
+.console-log-toggle-button {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--border-radius-md);
+    padding: var(--space-2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-speed-fast) ease;
+    flex-shrink: 0;
+    width: var(--button-height-md);
+    height: var(--button-height-md);
+}
+
+.console-log-toggle-button:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.light-mode .console-log-toggle-button:hover {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+.console-log-toggle-button .icon-slot {
+    font-size: 1.125rem;
+    color: var(--text-color);
+}
+
+body.light-mode .console-log-toggle-button .icon-slot {
+    color: #666666;
+}
+
 /* Shared Sidebar Button Styles */
 .sidebar-collapse-button,
 .sidebar-expand-button,

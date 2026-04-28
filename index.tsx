@@ -3,12 +3,56 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Sidebar from './Styles/Components/Sidebar/Sidebar';
 import MainContent from './Styles/Components/MainContent';
 import PromptsModalManager from './Routing/PromptsModal/PromptsModalManager';
 import { AppInitializer } from './Styles/Components/AppInitializer';
+import { LiveConsoleLog, LogEntry } from './UI/LiveConsoleLog';
+import { logger } from './Core/Logger';
+
+const AppWrapper: React.FC = () => {
+    const [isConsoleLogOpen, setIsConsoleLogOpen] = useState(false);
+    const [logs, setLogs] = useState<LogEntry[]>([]);
+
+    React.useEffect(() => {
+        // Subscribe to logger updates
+        const unsubscribe = logger.subscribe(() => {
+            setLogs(logger.getLogs());
+        });
+
+        // Initial load
+        setLogs(logger.getLogs());
+
+        return unsubscribe;
+    }, []);
+
+    const handleToggleConsoleLog = () => {
+        setIsConsoleLogOpen(!isConsoleLogOpen);
+    };
+
+    const handleCloseConsoleLog = () => {
+        setIsConsoleLogOpen(false);
+    };
+
+    const handleClearLogs = () => {
+        logger.clearLogs();
+    };
+
+    return (
+        <>
+            <Sidebar onToggleConsoleLog={handleToggleConsoleLog} />
+            <MainContent />
+            <LiveConsoleLog 
+                isOpen={isConsoleLogOpen}
+                onClose={handleCloseConsoleLog}
+                logs={logs}
+                onClear={handleClearLogs}
+            />
+        </>
+    );
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     // First, render React components to populate the DOM
@@ -18,8 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         root.render(
             <React.StrictMode>
                 <AppInitializer />
-                <Sidebar />
-                <MainContent />
+                <AppWrapper />
             </React.StrictMode>
         );
     }
